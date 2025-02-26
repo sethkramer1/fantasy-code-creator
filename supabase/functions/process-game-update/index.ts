@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
 
@@ -17,13 +18,17 @@ async function getCodeChanges(currentCode: string, message: string) {
     },
     body: JSON.stringify({
       model: "claude-3-7-sonnet-20250219",
-      max_tokens: 1000,
+      max_tokens: 5000,
       messages: [
         {
           role: "user",
           content: `Analyze this HTML game code and this modification request: "${message}"
 
-First, identify which part of the code needs to be modified to implement this change.
+First, carefully think about:
+1. Which part of the code needs to be modified
+2. What dependencies or variables need to be considered
+3. How to ensure the changes maintain game functionality
+
 Then, provide ONLY:
 1. A brief description of what needs to be changed
 2. The start string that uniquely identifies where the change begins - this MUST be a complete line of code or HTML element opening tag
@@ -96,7 +101,7 @@ ${currentCode}`
     },
     body: JSON.stringify({
       model: "claude-3-7-sonnet-20250219",
-      max_tokens: 2000,
+      max_tokens: 5000,
       messages: [
         {
           role: "user",
@@ -104,7 +109,12 @@ ${currentCode}`
 
 ${currentCode.substring(startIndex, endIndex)}
 
-Modify it according to this request: ${message}
+Carefully think about:
+1. How to implement the requested changes while maintaining game functionality
+2. What variables or functions need to be added or modified
+3. How the changes will affect game performance and user experience
+
+Then modify it according to this request: ${message}
 
 Important:
 - Return ONLY the complete new code that should replace this section
@@ -143,7 +153,6 @@ serve(async (req) => {
   }
 
   try {
-    // Initialize Supabase client with admin privileges
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -176,7 +185,7 @@ serve(async (req) => {
     // Get optimized code changes
     const { description, newCode } = await getCodeChanges(currentCode, message);
 
-    // Get new instructions
+    // Get new instructions with thinking step
     const instructionsResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -186,11 +195,18 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: "claude-3-7-sonnet-20250219",
-        max_tokens: 500,
+        max_tokens: 5000,
         messages: [
           {
             role: "user",
-            content: `Given this game code, explain ONLY the controls and how to play the game in a clear, concise way:\n\n${newCode}`,
+            content: `Carefully analyze this game code and think about:
+1. What are the key controls and mechanics?
+2. What is the main objective?
+3. What information does the player need to know?
+
+Then, explain ONLY the controls and how to play the game in a clear, concise way:
+
+${newCode}`,
           },
         ],
       }),
