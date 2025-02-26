@@ -34,12 +34,8 @@ serve(async (req) => {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-3-7-sonnet-20250219",
-        max_tokens: 1024,
-        thinking: {
-          type: "enabled",
-          budget_tokens: 10000,
-        },
+        model: "claude-3-sonnet-20240229",
+        max_tokens: 15000,
         messages: [
           {
             role: "user",
