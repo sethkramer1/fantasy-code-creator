@@ -4,6 +4,12 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface GameResponse {
   gameCode: string;
@@ -22,6 +28,8 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
+  const [generatedCode, setGeneratedCode] = useState("");
+  const [showModal, setShowModal] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -59,41 +67,75 @@ const Index = () => {
     }
 
     setLoading(true);
+    setShowModal(true);
+    setGeneratedCode("");
+
     try {
-      const { data, error } = await supabase.functions.invoke<GameResponse>("generate-game", {
-        body: { prompt },
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-game`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt }),
+        }
+      );
 
-      if (error) throw error;
-      if (!data) throw new Error("No data received");
-      
-      const { data: gameData, error: insertError } = await supabase
-        .from('games')
-        .insert([
-          { 
-            prompt: prompt, 
-            code: data.gameCode,
-            instructions: data.instructions 
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error('No reader available');
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = new TextDecoder().decode(value);
+        const lines = chunk.split('\n').filter(line => line.trim());
+
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            const data = JSON.parse(line.slice(5));
+            
+            if (data.type === 'code') {
+              setGeneratedCode(prev => prev + data.content);
+            } else if (data.type === 'complete') {
+              // Save the game to the database
+              const { data: gameData, error: insertError } = await supabase
+                .from('games')
+                .insert([
+                  { 
+                    prompt: prompt, 
+                    code: data.gameCode,
+                    instructions: data.instructions 
+                  }
+                ])
+                .select()
+                .single();
+
+              if (insertError) throw insertError;
+              if (!gameData) throw new Error("Failed to save game");
+              
+              toast({
+                title: "Game generated successfully!",
+                description: "Redirecting to play the game...",
+              });
+
+              setShowModal(false);
+              navigate(`/play/${gameData.id}`);
+            } else if (data.type === 'error') {
+              throw new Error(data.message);
+            }
           }
-        ])
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-      if (!gameData) throw new Error("Failed to save game");
-      
-      toast({
-        title: "Game generated successfully!",
-        description: "Redirecting to play the game...",
-      });
-
-      navigate(`/play/${gameData.id}`);
+        }
+      }
     } catch (error) {
       toast({
         title: "Error generating game",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
+      setShowModal(false);
     } finally {
       setLoading(false);
     }
@@ -131,6 +173,17 @@ const Index = () => {
             )}
           </button>
         </div>
+
+        <Dialog open={showModal} onOpenChange={setShowModal}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Generating Game...</DialogTitle>
+            </DialogHeader>
+            <div className="font-mono text-sm bg-black text-green-400 p-4 rounded-lg overflow-x-auto whitespace-pre">
+              {generatedCode || 'Initializing...'}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <div className="glass-panel rounded-xl p-6">
           <h2 className="text-2xl font-semibold mb-6">Available Games</h2>
