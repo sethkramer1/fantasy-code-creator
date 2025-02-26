@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -72,8 +71,13 @@ const Index = () => {
     setGeneratedCode("");
 
     try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      if (!supabaseUrl) {
+        throw new Error('Supabase URL is not configured');
+      }
+
       const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-game`,
+        `${supabaseUrl}/functions/v1/generate-game`,
         {
           method: 'POST',
           headers: {
@@ -85,6 +89,10 @@ const Index = () => {
       );
 
       if (!response.ok) {
+        console.error('Response status:', response.status);
+        console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+        const errorText = await response.text();
+        console.error('Response body:', errorText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
@@ -103,7 +111,7 @@ const Index = () => {
             try {
               const data = JSON.parse(line.slice(5));
               console.log('Received data:', data); // Debug log
-              
+
               if (data.type === 'code') {
                 setGeneratedCode(prev => prev + data.content);
               } else if (data.type === 'complete') {
