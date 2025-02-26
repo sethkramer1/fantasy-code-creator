@@ -66,6 +66,10 @@ const Index = () => {
     let gameContent = '';
 
     try {
+      // Get the Supabase anonymous key from the URL
+      const supabaseAnonKey = new URL(supabase.supabaseUrl).searchParams.get('apikey') || 
+                             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo';
+
       // Use direct fetch for SSE handling
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
@@ -73,7 +77,7 @@ const Index = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabase.auth.anon.key}`,
+            'Authorization': `Bearer ${supabaseAnonKey}`,
           },
           body: JSON.stringify({ prompt }),
         }

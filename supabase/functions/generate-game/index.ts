@@ -21,9 +21,9 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, stream } = await req.json()
+    const { prompt } = await req.json()
     
-    console.log('Generating game with prompt:', prompt, 'stream:', stream)
+    console.log('Generating game with prompt:', prompt)
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -33,8 +33,12 @@ serve(async (req) => {
         'content-type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'claude-3-sonnet-20240229',
+        model: 'claude-3-7-sonnet-20250219',
         max_tokens: 20000,
+        thinking: {
+          type: "enabled",
+          budget_tokens: 16000
+        },
         messages: [
           {
             role: 'user',
@@ -43,7 +47,7 @@ serve(async (req) => {
                      The game should work standalone without any external dependencies.`,
           },
         ],
-        stream: true, // Always stream for better UX
+        stream: true,
       }),
     })
 
