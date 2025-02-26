@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -72,13 +71,14 @@ const Index = () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
-      const response = await fetch("https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "Authorization": `Bearer ${session?.access_token}`,
-        },
-        body: JSON.stringify({ prompt, stream: true }),
+      if (!session) {
+        throw new Error("You must be logged in to generate games");
+      }
+
+      setTerminalOutput(prev => [...prev, "> Authenticated successfully"]);
+      
+      const response = await supabase.functions.invoke('generate-game', {
+        body: { prompt, stream: true }
       });
 
       if (!response.ok) {
@@ -117,7 +117,6 @@ const Index = () => {
         }
       }
 
-      // Only proceed once we have the complete game content
       if (!gameContent) {
         throw new Error("No game content received");
       }
@@ -139,7 +138,6 @@ const Index = () => {
       
       setTerminalOutput(prev => [...prev, "> Game saved successfully! Redirecting..."]);
       
-      // Add a small delay before redirecting to ensure the user sees the success message
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       toast({
