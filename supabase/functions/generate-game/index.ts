@@ -44,8 +44,14 @@ serve(async (req) => {
           {
             role: 'user',
             content: `Create a simple HTML5 game based on this description: ${prompt}. 
-                     Return ONLY the complete HTML code that can be embedded in an iframe.
-                     The game should work standalone without any external dependencies.`,
+                     Return ONLY the raw HTML that will be directly embedded in an iframe.
+                     Do NOT wrap the code in \`\`\`html or any other markdown tags.
+                     The game should:
+                     - Work standalone without any external dependencies
+                     - Include all necessary CSS and JavaScript inline
+                     - Be properly formatted with DOCTYPE and meta tags
+                     - Have all code enclosed within the HTML file itself
+                     - Be ready to run immediately when loaded in an iframe`,
           },
         ]
       }),
