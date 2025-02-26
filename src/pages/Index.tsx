@@ -1,5 +1,4 @@
-
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +23,7 @@ const Index = () => {
   const [gamesLoading, setGamesLoading] = useState(true);
   const [showTerminal, setShowTerminal] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
+  const terminalRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -50,6 +50,12 @@ const Index = () => {
 
     fetchGames();
   }, [toast]);
+
+  useEffect(() => {
+    if (terminalRef.current) {
+      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    }
+  }, [terminalOutput]);
 
   const generateGame = async () => {
     if (!prompt.trim()) {
@@ -270,7 +276,10 @@ const Index = () => {
           <DialogDescription className="text-green-400/70">
             Watching the AI create your game in real-time...
           </DialogDescription>
-          <div className="mt-4 space-y-1 h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-green-500 scrollbar-track-black">
+          <div 
+            ref={terminalRef}
+            className="mt-4 space-y-1 h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-green-500 scrollbar-track-black scroll-smooth"
+          >
             {terminalOutput.map((line, index) => (
               <div key={index} className="whitespace-pre-wrap py-1">
                 {line}
