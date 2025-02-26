@@ -4,6 +4,10 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import {
+  Dialog,
+  DialogContent,
+} from "@/components/ui/dialog";
 
 interface GameResponse {
   gameCode: string;
@@ -22,6 +26,8 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
+  const [showTerminal, setShowTerminal] = useState(false);
+  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -59,41 +65,75 @@ const Index = () => {
     }
 
     setLoading(true);
+    setShowTerminal(true);
+    setTerminalOutput([`> Generating game based on prompt: "${prompt}"`]);
+
     try {
-      const { data, error } = await supabase.functions.invoke<GameResponse>("generate-game", {
-        body: { prompt },
+      const response = await fetch("https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${supabase.auth.session()?.access_token}`,
+        },
+        body: JSON.stringify({ prompt, stream: true }),
       });
 
-      if (error) throw error;
-      if (!data) throw new Error("No data received");
-      
-      const { data: gameData, error: insertError } = await supabase
-        .from('games')
-        .insert([
-          { 
-            prompt: prompt, 
-            code: data.gameCode,
-            instructions: data.instructions 
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader available");
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = new TextDecoder().decode(value);
+        const lines = text.split('\n').filter(Boolean);
+
+        for (const line of lines) {
+          try {
+            if (!line.startsWith('data: ')) continue;
+            const data = JSON.parse(line.slice(5));
+
+            if (data.type === 'content_block_delta' && data.delta.thinking) {
+              setTerminalOutput(prev => [...prev, `> ${data.delta.thinking}`]);
+            } else if (data.type === 'message_delta' && data.delta.content) {
+              setTerminalOutput(prev => [...prev, `> Generated content: ${data.delta.content.length} characters`]);
+            }
+          } catch (e) {
+            console.error('Error parsing SSE line:', e);
           }
-        ])
+        }
+      }
+
+      const { data, error } = await supabase
+        .from('games')
+        .insert([{ 
+          prompt: prompt,
+          code: response.ok ? await response.text() : "",
+          instructions: "Game generated successfully" 
+        }])
         .select()
         .single();
 
-      if (insertError) throw insertError;
-      if (!gameData) throw new Error("Failed to save game");
+      if (error) throw error;
+      if (!data) throw new Error("Failed to save game");
       
       toast({
         title: "Game generated successfully!",
         description: "Redirecting to play the game...",
       });
 
-      navigate(`/play/${gameData.id}`);
+      setTimeout(() => {
+        setShowTerminal(false);
+        navigate(`/play/${data.id}`);
+      }, 1000);
+
     } catch (error) {
       toast({
         title: "Error generating game",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
+      setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : "Generation failed"}`]);
     } finally {
       setLoading(false);
     }
@@ -162,6 +202,21 @@ const Index = () => {
           )}
         </div>
       </div>
+
+      <Dialog open={showTerminal} onOpenChange={setShowTerminal}>
+        <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl max-h-[80vh] overflow-y-auto">
+          <div className="space-y-2">
+            {terminalOutput.map((line, index) => (
+              <div key={index} className="whitespace-pre-wrap">
+                {line}
+              </div>
+            ))}
+            {loading && (
+              <div className="animate-pulse">_</div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
