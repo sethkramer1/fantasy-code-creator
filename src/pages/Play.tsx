@@ -12,7 +12,7 @@ const Play = () => {
   const [gameCode, setGameCode] = useState<string | null>(null);
   const [instructions, setInstructions] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showChat, setShowChat] = useState(false);
+  const [showChat, setShowChat] = useState(true); // Changed to true for default showing
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 

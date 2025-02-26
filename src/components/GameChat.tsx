@@ -150,6 +150,7 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
+            onKeyDown={(e) => e.stopPropagation()} // Add this to prevent space key event propagation
             placeholder="Ask me to modify the game..."
             className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
             disabled={loading}
