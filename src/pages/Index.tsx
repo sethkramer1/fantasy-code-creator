@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,11 +11,43 @@ interface GameResponse {
   error?: string;
 }
 
+interface Game {
+  id: string;
+  prompt: string;
+  created_at: string;
+}
+
 const Index = () => {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
+  const [games, setGames] = useState<Game[]>([]);
+  const [gamesLoading, setGamesLoading] = useState(true);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchGames = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('games')
+          .select('id, prompt, created_at')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+        setGames(data || []);
+      } catch (error) {
+        toast({
+          title: "Error loading games",
+          description: error instanceof Error ? error.message : "Please try again",
+          variant: "destructive",
+        });
+      } finally {
+        setGamesLoading(false);
+      }
+    };
+
+    fetchGames();
+  }, [toast]);
 
   const generateGame = async () => {
     if (!prompt.trim()) {
@@ -35,7 +67,6 @@ const Index = () => {
       if (error) throw error;
       if (!data) throw new Error("No data received");
       
-      // Save the game to the database
       const { data: gameData, error: insertError } = await supabase
         .from('games')
         .insert([
@@ -56,7 +87,6 @@ const Index = () => {
         description: "Redirecting to play the game...",
       });
 
-      // Navigate to the play page
       navigate(`/play/${gameData.id}`);
     } catch (error) {
       toast({
@@ -100,6 +130,36 @@ const Index = () => {
               <span>Generate Game</span>
             )}
           </button>
+        </div>
+
+        <div className="glass-panel rounded-xl p-6">
+          <h2 className="text-2xl font-semibold mb-6">Available Games</h2>
+          {gamesLoading ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="animate-spin" size={32} />
+            </div>
+          ) : games.length > 0 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              {games.map((game) => (
+                <button
+                  key={game.id}
+                  onClick={() => navigate(`/play/${game.id}`)}
+                  className="p-4 rounded-lg bg-white bg-opacity-50 backdrop-blur-sm border border-gray-200 hover:border-gray-300 transition-all text-left group"
+                >
+                  <p className="font-medium group-hover:text-gray-900 transition-colors line-clamp-2">
+                    {game.prompt}
+                  </p>
+                  <p className="text-sm text-gray-500 mt-2">
+                    {new Date(game.created_at).toLocaleDateString()}
+                  </p>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-gray-500 py-8">
+              No games have been created yet. Be the first to create one!
+            </p>
+          )}
         </div>
       </div>
     </div>
