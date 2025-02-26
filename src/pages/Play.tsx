@@ -47,8 +47,8 @@ const Play = () => {
   }
 
   return (
-    <div className="min-h-screen p-8 bg-gradient-to-b from-gray-50 to-gray-100">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-b from-gray-50 to-gray-100">
+      <div className="max-w-[1200px] mx-auto space-y-4 md:space-y-8">
         <div className="flex items-center space-x-4">
           <Link
             to="/"
@@ -60,11 +60,11 @@ const Play = () => {
         </div>
 
         {gameCode && (
-          <div className="glass-panel rounded-xl p-6">
-            <div className="w-full aspect-video rounded-lg overflow-hidden border border-gray-200">
+          <div className="glass-panel rounded-xl p-4 md:p-6">
+            <div className="relative w-full" style={{ paddingTop: '75%' }}>
               <iframe
                 srcDoc={gameCode}
-                className="w-full h-full"
+                className="absolute top-0 left-0 w-full h-full rounded-lg border border-gray-200"
                 sandbox="allow-scripts"
                 title="Generated Game"
               />
