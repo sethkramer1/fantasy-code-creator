@@ -69,23 +69,13 @@ const Index = () => {
     setTerminalOutput([`> Generating game based on prompt: "${prompt}"`]);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        throw new Error("You must be logged in to generate games");
-      }
-
-      setTerminalOutput(prev => [...prev, "> Authenticated successfully"]);
-      
-      const response = await supabase.functions.invoke('generate-game', {
+      const { data, error } = await supabase.functions.invoke('generate-game', {
         body: { prompt, stream: true }
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (error) throw error;
 
-      const reader = response.body?.getReader();
+      const reader = data.getReader();
       if (!reader) throw new Error("No reader available");
 
       let gameContent = '';
@@ -123,7 +113,7 @@ const Index = () => {
 
       setTerminalOutput(prev => [...prev, "> Saving game to database..."]);
 
-      const { data, error } = await supabase
+      const { data: gameData, error: insertError } = await supabase
         .from('games')
         .insert([{ 
           prompt: prompt,
@@ -133,8 +123,8 @@ const Index = () => {
         .select()
         .single();
 
-      if (error) throw error;
-      if (!data) throw new Error("Failed to save game");
+      if (insertError) throw insertError;
+      if (!gameData) throw new Error("Failed to save game");
       
       setTerminalOutput(prev => [...prev, "> Game saved successfully! Redirecting..."]);
       
@@ -146,7 +136,7 @@ const Index = () => {
       });
 
       setShowTerminal(false);
-      navigate(`/play/${data.id}`);
+      navigate(`/play/${gameData.id}`);
 
     } catch (error) {
       toast({
