@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Terminal, MessageSquare, Search, Lightbulb, Code } from "lucide-react";
+import { Loader2, Terminal, MessageSquare, Search, Lightbulb, Code, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import {
@@ -24,6 +24,8 @@ const Index = () => {
   const [gamesLoading, setGamesLoading] = useState(true);
   const [showTerminal, setShowTerminal] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
+  const [thinkingTime, setThinkingTime] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout>();
   const terminalRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -57,6 +59,26 @@ const Index = () => {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
   }, [terminalOutput]);
+
+  // Timer effect
+  useEffect(() => {
+    if (loading) {
+      setThinkingTime(0);
+      timerRef.current = setInterval(() => {
+        setThinkingTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    }
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [loading]);
 
   const generateGame = async () => {
     if (!prompt.trim()) {
@@ -323,8 +345,12 @@ const Index = () => {
       <Dialog open={showTerminal} onOpenChange={setShowTerminal}>
         <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden border border-green-500/20">
           <DialogTitle className="text-green-400 mb-4">Game Generation Progress</DialogTitle>
-          <DialogDescription className="text-green-400/70">
-            Watching the AI create your game in real-time...
+          <DialogDescription className="text-green-400/70 space-y-2">
+            <div className="flex items-center gap-2">
+              <Timer size={16} />
+              <span>Thinking for {thinkingTime} seconds...</span>
+            </div>
+            <p>Watching the AI create your game in real-time...</p>
           </DialogDescription>
           <div 
             ref={terminalRef}
