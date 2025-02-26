@@ -255,9 +255,9 @@ const Index = () => {
       </div>
 
       <Dialog open={showTerminal} onOpenChange={setShowTerminal}>
-        <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl max-h-[80vh] overflow-y-auto">
-          <DialogTitle className="text-green-400">Game Generation Progress</DialogTitle>
-          <div className="space-y-2">
+        <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full">
+          <DialogTitle className="text-green-400 mb-4">Game Generation Progress</DialogTitle>
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
             {terminalOutput.map((line, index) => (
               <div key={index} className="whitespace-pre-wrap">
                 {line}
