@@ -168,20 +168,32 @@ const Index = () => {
 
       setTerminalOutput(prev => [...prev, "> Saving game to database..."]);
 
-      const { data: gameData, error: insertError } = await supabase
+      const { data: gameData, error: gameError } = await supabase
         .from('games')
         .insert([{ 
           prompt: prompt,
           code: gameContent,
-          instructions: "Game generated successfully" 
+          instructions: "Game generated successfully",
+          current_version: 1
         }])
         .select()
         .single();
 
-      if (insertError) throw insertError;
+      if (gameError) throw gameError;
       if (!gameData) throw new Error("Failed to save game");
+
+      const { error: versionError } = await supabase
+        .from('game_versions')
+        .insert([{
+          game_id: gameData.id,
+          code: gameContent,
+          instructions: "Game generated successfully",
+          version_number: 1
+        }]);
+
+      if (versionError) throw versionError;
       
-      setTerminalOutput(prev => [...prev, "> Game saved successfully! Redirecting..."]);
+      setTerminalOutput(prev => [...prev, "> Game and initial version saved successfully! Redirecting..."]);
       
       await new Promise(resolve => setTimeout(resolve, 2000));
       
