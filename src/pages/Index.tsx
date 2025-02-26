@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -86,6 +87,7 @@ const Index = () => {
       const reader = functionData.body?.getReader();
       if (!reader) throw new Error('No reader available');
 
+      let accumulatedCode = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -97,10 +99,11 @@ const Index = () => {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(5));
-              console.log('Received data:', data);
+              console.log('Received chunk:', data);
 
-              if (data.type === 'code') {
-                setGeneratedCode(prev => prev + data.content);
+              if (data.type === 'code' && data.content) {
+                accumulatedCode += data.content;
+                setGeneratedCode(accumulatedCode);
               } else if (data.type === 'complete') {
                 // Save the game to the database
                 const { data: gameData, error: insertError } = await supabase
@@ -108,7 +111,7 @@ const Index = () => {
                   .insert([
                     { 
                       prompt: prompt, 
-                      code: data.gameCode,
+                      code: data.gameCode || accumulatedCode,
                       instructions: data.instructions 
                     }
                   ])
@@ -131,7 +134,7 @@ const Index = () => {
                 throw new Error(data.message);
               }
             } catch (parseError) {
-              console.error('Error parsing stream data:', parseError);
+              console.error('Error parsing chunk:', parseError, 'Raw chunk:', line);
             }
           }
         }
