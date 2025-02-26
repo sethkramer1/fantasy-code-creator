@@ -4,13 +4,6 @@ import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogClose,
-} from "@/components/ui/dialog";
 
 interface GameResponse {
   gameCode: string;
@@ -29,8 +22,6 @@ const Index = () => {
   const [loading, setLoading] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
-  const [generatedCode, setGeneratedCode] = useState("");
-  const [showModal, setShowModal] = useState(false);
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -68,100 +59,41 @@ const Index = () => {
     }
 
     setLoading(true);
-    setShowModal(true);
-    setGeneratedCode("Initializing...");
-
     try {
-      console.log('Making request to Edge Function...');
-      const { data: functionData, error: functionError } = await supabase.functions.invoke('generate-game', {
+      const { data, error } = await supabase.functions.invoke<GameResponse>("generate-game", {
         body: { prompt },
       });
 
-      if (functionError) {
-        console.error('Function error:', functionError);
-        throw functionError;
-      }
-
-      const reader = functionData.body?.getReader();
-      if (!reader) throw new Error('No reader available');
-
-      let accumulatedCode = '';
+      if (error) throw error;
+      if (!data) throw new Error("No data received");
       
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        // Convert the Uint8Array to text
-        const chunk = new TextDecoder().decode(value);
-        console.log('Received chunk:', chunk);
-
-        // Split the chunk into individual SSE messages
-        const messages = chunk.split('\n\n').filter(Boolean);
-
-        for (const message of messages) {
-          if (message.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(message.slice(6));
-              console.log('Parsed event:', data);
-
-              switch (data.type) {
-                case 'start':
-                  setGeneratedCode('Starting game generation...\n');
-                  break;
-
-                case 'code':
-                  accumulatedCode += data.content;
-                  setGeneratedCode(prev => {
-                    const newContent = accumulatedCode;
-                    console.log('Updating code display:', newContent.length, 'characters');
-                    return newContent;
-                  });
-                  break;
-
-                case 'complete':
-                  console.log('Generation complete, saving game...');
-                  const { data: gameData, error: insertError } = await supabase
-                    .from('games')
-                    .insert([
-                      { 
-                        prompt: prompt, 
-                        code: data.gameCode || accumulatedCode,
-                        instructions: data.instructions 
-                      }
-                    ])
-                    .select()
-                    .single();
-
-                  if (insertError) throw insertError;
-                  if (!gameData) throw new Error("Failed to save game");
-                  
-                  toast({
-                    title: "Game generated successfully!",
-                    description: "Redirecting to play the game...",
-                  });
-
-                  await new Promise(resolve => setTimeout(resolve, 1000));
-                  setShowModal(false);
-                  navigate(`/play/${gameData.id}`);
-                  break;
-
-                case 'error':
-                  throw new Error(data.message || 'Unknown error occurred');
-              }
-            } catch (parseError) {
-              console.error('Error parsing SSE message:', parseError, message);
-            }
+      const { data: gameData, error: insertError } = await supabase
+        .from('games')
+        .insert([
+          { 
+            prompt: prompt, 
+            code: data.gameCode,
+            instructions: data.instructions 
           }
-        }
-      }
+        ])
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+      if (!gameData) throw new Error("Failed to save game");
+      
+      toast({
+        title: "Game generated successfully!",
+        description: "Redirecting to play the game...",
+      });
+
+      navigate(`/play/${gameData.id}`);
     } catch (error) {
-      console.error('Generation error:', error);
       toast({
         title: "Error generating game",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
-      setShowModal(false);
     } finally {
       setLoading(false);
     }
@@ -199,32 +131,6 @@ const Index = () => {
             )}
           </button>
         </div>
-
-        <Dialog 
-          open={showModal} 
-          onOpenChange={(open) => {
-            // Only allow closing if not loading
-            if (!loading) {
-              setShowModal(open);
-            }
-          }}
-        >
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle className="flex items-center space-x-2">
-                <span>Generating Game</span>
-                {loading && <Loader2 className="animate-spin" size={16} />}
-              </DialogTitle>
-            </DialogHeader>
-            {/* Only show close button when not loading */}
-            {!loading && (
-              <DialogClose className="absolute right-4 top-4 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-accent data-[state=open]:text-muted-foreground" />
-            )}
-            <div className="font-mono text-sm bg-black text-green-400 p-4 rounded-lg overflow-x-auto whitespace-pre-wrap">
-              {generatedCode || 'Initializing...'}
-            </div>
-          </DialogContent>
-        </Dialog>
 
         <div className="glass-panel rounded-xl p-6">
           <h2 className="text-2xl font-semibold mb-6">Available Games</h2>
