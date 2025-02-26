@@ -14,18 +14,21 @@ export type Database = {
           code: string
           created_at: string
           id: string
+          instructions: string | null
           prompt: string
         }
         Insert: {
           code: string
           created_at?: string
           id?: string
+          instructions?: string | null
           prompt: string
         }
         Update: {
           code?: string
           created_at?: string
           id?: string
+          instructions?: string | null
           prompt?: string
         }
         Relationships: []
