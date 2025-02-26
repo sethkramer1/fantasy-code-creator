@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +11,7 @@ const Play = () => {
   const [gameCode, setGameCode] = useState<string | null>(null);
   const [instructions, setInstructions] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -68,6 +69,13 @@ const Play = () => {
     fetchGame();
   }, [id, toast]);
 
+  // Auto-focus the iframe when the game loads
+  useEffect(() => {
+    if (!loading && iframeRef.current) {
+      iframeRef.current.focus();
+    }
+  }, [loading]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -91,12 +99,18 @@ const Play = () => {
 
         {gameCode && (
           <div className="glass-panel rounded-xl p-4 md:p-6 space-y-6">
-            <div className="relative w-full" style={{ paddingTop: '75%' }}>
+            <div 
+              className="relative w-full" 
+              style={{ paddingTop: '75%' }}
+              onClick={() => iframeRef.current?.focus()}
+            >
               <iframe
+                ref={iframeRef}
                 srcDoc={gameCode}
                 className="absolute top-0 left-0 w-full h-full rounded-lg border border-gray-200"
                 sandbox="allow-scripts"
                 title="Generated Game"
+                tabIndex={0}
               />
             </div>
 
