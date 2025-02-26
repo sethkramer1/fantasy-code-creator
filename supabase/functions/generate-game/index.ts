@@ -35,6 +35,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: 'claude-3-7-sonnet-20250219',
         max_tokens: 20000,
+        stream: true,
         thinking: {
           type: "enabled",
           budget_tokens: 16000
@@ -46,8 +47,7 @@ serve(async (req) => {
                      Return ONLY the complete HTML code that can be embedded in an iframe.
                      The game should work standalone without any external dependencies.`,
           },
-        ],
-        stream: true,
+        ]
       }),
     })
 
@@ -57,7 +57,6 @@ serve(async (req) => {
       throw new Error(`Anthropic API error: ${error}`)
     }
 
-    // Return the stream directly to the client with SSE headers
     return new Response(response.body, {
       headers: {
         ...corsHeaders,

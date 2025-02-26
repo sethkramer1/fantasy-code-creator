@@ -66,10 +66,6 @@ const Index = () => {
     let gameContent = '';
 
     try {
-      // Get the Supabase anonymous key from the URL
-      const supabaseAnonKey = new URL(supabase.supabaseUrl).searchParams.get('apikey') || 
-                             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo';
-
       // Use direct fetch for SSE handling
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
@@ -77,7 +73,7 @@ const Index = () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${supabaseAnonKey}`,
+            'Authorization': `Bearer ${process.env.VITE_SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({ prompt }),
         }
@@ -103,20 +99,45 @@ const Index = () => {
             if (!line.startsWith('data: ')) continue;
             
             const data = JSON.parse(line.slice(5));
-            console.log('Received SSE data:', data); // Debug log
+            console.log('Received SSE data:', data);
 
-            if (data.type === 'error') {
-              throw new Error(data.error?.message || 'Unknown error in stream');
-            }
+            switch (data.type) {
+              case 'message_start':
+                setTerminalOutput(prev => [...prev, "> Starting game generation..."]);
+                break;
 
-            if (data.type === 'message_delta' && data.delta?.content?.[0]?.text) {
-              const content = data.delta.content[0].text;
-              gameContent += content;
-              setTerminalOutput(prev => [...prev, `> Received ${content.length} characters of game code`]);
-            } else if (data.type === 'content_block_delta' && data.delta?.thinking) {
-              setTerminalOutput(prev => [...prev, `> ${data.delta.thinking}`]);
-            } else if (data.type === 'message_stop') {
-              setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
+              case 'content_block_start':
+                if (data.content_block?.type === 'thinking') {
+                  setTerminalOutput(prev => [...prev, "> Thinking about the game design..."]);
+                }
+                break;
+
+              case 'content_block_delta':
+                if (data.delta?.type === 'thinking_delta') {
+                  setTerminalOutput(prev => [...prev, `> ${data.delta.thinking}`]);
+                } else if (data.delta?.type === 'text_delta') {
+                  const content = data.delta.text || '';
+                  gameContent += content;
+                  setTerminalOutput(prev => [...prev, `> Received ${content.length} characters of game code`]);
+                }
+                break;
+
+              case 'content_block_stop':
+                setTerminalOutput(prev => [...prev, "> Completed current content block"]);
+                break;
+
+              case 'message_delta':
+                if (data.delta?.stop_reason) {
+                  setTerminalOutput(prev => [...prev, `> Generation ${data.delta.stop_reason}`]);
+                }
+                break;
+
+              case 'message_stop':
+                setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
+                break;
+
+              case 'error':
+                throw new Error(data.error?.message || 'Unknown error in stream');
             }
           } catch (e) {
             console.error('Error parsing SSE line:', e);
