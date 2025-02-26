@@ -66,14 +66,14 @@ const Index = () => {
     let gameContent = '';
 
     try {
-      // Use direct fetch for SSE handling
+      // Use direct fetch for SSE handling with the correct anon key
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
           },
           body: JSON.stringify({ prompt }),
         }
