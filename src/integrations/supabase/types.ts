@@ -9,10 +9,88 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      game_messages: {
+        Row: {
+          created_at: string
+          game_id: string
+          id: string
+          message: string
+          response: string | null
+          version_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          id?: string
+          message: string
+          response?: string | null
+          version_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          id?: string
+          message?: string
+          response?: string | null
+          version_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_messages_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "game_messages_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "game_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      game_versions: {
+        Row: {
+          code: string
+          created_at: string
+          game_id: string
+          id: string
+          instructions: string | null
+          version_number: number
+        }
+        Insert: {
+          code: string
+          created_at?: string
+          game_id: string
+          id?: string
+          instructions?: string | null
+          version_number: number
+        }
+        Update: {
+          code?: string
+          created_at?: string
+          game_id?: string
+          id?: string
+          instructions?: string | null
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "game_versions_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       games: {
         Row: {
           code: string
           created_at: string
+          current_version: number | null
           id: string
           instructions: string | null
           prompt: string
@@ -20,6 +98,7 @@ export type Database = {
         Insert: {
           code: string
           created_at?: string
+          current_version?: number | null
           id?: string
           instructions?: string | null
           prompt: string
@@ -27,6 +106,7 @@ export type Database = {
         Update: {
           code?: string
           created_at?: string
+          current_version?: number | null
           id?: string
           instructions?: string | null
           prompt?: string
