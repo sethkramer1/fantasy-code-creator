@@ -69,13 +69,20 @@ const Index = () => {
     setTerminalOutput([`> Generating game based on prompt: "${prompt}"`]);
 
     try {
-      const { data, error } = await supabase.functions.invoke('generate-game', {
-        body: { prompt, stream: true }
+      const response = await fetch(`${supabase.functions.url}/generate-game`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY}`,
+        },
+        body: JSON.stringify({ prompt, stream: true }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-      const reader = data.getReader();
+      const reader = response.body?.getReader();
       if (!reader) throw new Error("No reader available");
 
       let gameContent = '';
@@ -139,6 +146,7 @@ const Index = () => {
       navigate(`/play/${gameData.id}`);
 
     } catch (error) {
+      console.error('Generation error:', error);
       toast({
         title: "Error generating game",
         description: error instanceof Error ? error.message : "Please try again",
