@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 import {
   Dialog,
   DialogContent,
+  DialogTitle,
 } from "@/components/ui/dialog";
 
 interface GameResponse {
@@ -80,8 +81,14 @@ const Index = () => {
         body: JSON.stringify({ prompt, stream: true }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No reader available");
+
+      let gameContent = '';
 
       while (true) {
         const { done, value } = await reader.read();
@@ -98,7 +105,11 @@ const Index = () => {
             if (data.type === 'content_block_delta' && data.delta.thinking) {
               setTerminalOutput(prev => [...prev, `> ${data.delta.thinking}`]);
             } else if (data.type === 'message_delta' && data.delta.content) {
-              setTerminalOutput(prev => [...prev, `> Generated content: ${data.delta.content.length} characters`]);
+              const content = data.delta.content[0]?.text || '';
+              gameContent += content;
+              setTerminalOutput(prev => [...prev, `> Received ${content.length} characters of game code`]);
+            } else if (data.type === 'message_stop') {
+              setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
             }
           } catch (e) {
             console.error('Error parsing SSE line:', e);
@@ -106,11 +117,18 @@ const Index = () => {
         }
       }
 
+      // Only proceed once we have the complete game content
+      if (!gameContent) {
+        throw new Error("No game content received");
+      }
+
+      setTerminalOutput(prev => [...prev, "> Saving game to database..."]);
+
       const { data, error } = await supabase
         .from('games')
         .insert([{ 
           prompt: prompt,
-          code: response.ok ? await response.text() : "",
+          code: gameContent,
           instructions: "Game generated successfully" 
         }])
         .select()
@@ -119,15 +137,18 @@ const Index = () => {
       if (error) throw error;
       if (!data) throw new Error("Failed to save game");
       
+      setTerminalOutput(prev => [...prev, "> Game saved successfully! Redirecting..."]);
+      
+      // Add a small delay before redirecting to ensure the user sees the success message
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
       toast({
         title: "Game generated successfully!",
         description: "Redirecting to play the game...",
       });
 
-      setTimeout(() => {
-        setShowTerminal(false);
-        navigate(`/play/${data.id}`);
-      }, 1000);
+      setShowTerminal(false);
+      navigate(`/play/${data.id}`);
 
     } catch (error) {
       toast({
@@ -207,6 +228,7 @@ const Index = () => {
 
       <Dialog open={showTerminal} onOpenChange={setShowTerminal}>
         <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogTitle className="text-green-400">Game Generation Progress</DialogTitle>
           <div className="space-y-2">
             {terminalOutput.map((line, index) => (
               <div key={index} className="whitespace-pre-wrap">
