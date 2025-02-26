@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -74,11 +73,9 @@ const Play = () => {
         if (error) throw error;
         if (!data) throw new Error("Game not found");
         
-        // Sort versions by number descending
         const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
         setGameVersions(sortedVersions);
         
-        // Set current version as selected
         const currentVersion = sortedVersions.find(v => v.version_number === data.current_version);
         if (currentVersion) {
           setSelectedVersion(currentVersion.id);
@@ -97,7 +94,6 @@ const Play = () => {
     fetchGame();
   }, [id, toast]);
 
-  // Auto-focus the iframe when the game loads
   useEffect(() => {
     if (!loading && iframeRef.current) {
       iframeRef.current.focus();
@@ -105,7 +101,6 @@ const Play = () => {
   }, [loading]);
 
   const handleGameUpdate = (newCode: string, newInstructions: string) => {
-    // Create new version object
     const newVersion: GameVersion = {
       id: crypto.randomUUID(),
       version_number: gameVersions[0].version_number + 1,
@@ -124,7 +119,6 @@ const Play = () => {
 
   const handleRevertToVersion = async (version: GameVersion) => {
     try {
-      // Create new version based on the selected version
       const newVersion: GameVersion = {
         id: crypto.randomUUID(),
         version_number: gameVersions[0].version_number + 1,
@@ -133,7 +127,6 @@ const Play = () => {
         created_at: new Date().toISOString(),
       };
 
-      // Save the new version to the database
       const { error } = await supabase
         .from('game_versions')
         .insert({
@@ -146,7 +139,6 @@ const Play = () => {
 
       if (error) throw error;
 
-      // Update local state
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
 
@@ -172,6 +164,8 @@ const Play = () => {
   }
 
   const currentVersion = gameVersions.find(v => v.id === selectedVersion);
+  const selectedVersionNumber = currentVersion?.version_number;
+  const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
 
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-b from-gray-50 to-gray-100">
@@ -186,6 +180,15 @@ const Play = () => {
           </Link>
           <div className="flex items-center space-x-4">
             <div className="flex items-center space-x-2">
+              {!isLatestVersion && currentVersion && (
+                <button
+                  onClick={() => handleRevertToVersion(currentVersion)}
+                  className="flex items-center space-x-1 px-2 py-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                >
+                  <RotateCcw size={16} />
+                  <span className="text-sm">Revert to this version</span>
+                </button>
+              )}
               <History size={20} className="text-gray-500" />
               <Select value={selectedVersion} onValueChange={handleVersionChange}>
                 <SelectTrigger className="w-[180px]">
@@ -196,22 +199,9 @@ const Play = () => {
                     <SelectItem 
                       key={version.id} 
                       value={version.id}
-                      className="flex items-center justify-between group"
+                      className="flex items-center justify-between"
                     >
                       <span>Version {version.version_number}</span>
-                      {version.id !== gameVersions[0].id && (
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
-                            handleRevertToVersion(version);
-                          }}
-                          className="opacity-0 group-hover:opacity-100 text-blue-500 hover:text-blue-700 flex items-center space-x-1"
-                        >
-                          <RotateCcw size={14} />
-                          <span className="text-xs">Revert</span>
-                        </button>
-                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
