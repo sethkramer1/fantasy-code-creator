@@ -62,12 +62,12 @@ const Index = () => {
 
     setLoading(true);
     setShowTerminal(true);
-    setTerminalOutput([`> Generating game based on prompt: "${prompt}"`]);
-
+    setTerminalOutput([`> Starting generation with prompt: "${prompt}"`]);
+    
     let gameContent = '';
+    let currentThinking = '';
 
     try {
-      // Use direct fetch for SSE handling with the correct anon key
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
         {
@@ -84,7 +84,6 @@ const Index = () => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      // Create an event source from the response
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No reader available");
 
@@ -104,27 +103,37 @@ const Index = () => {
 
             switch (data.type) {
               case 'message_start':
-                setTerminalOutput(prev => [...prev, "> Starting game generation..."]);
+                setTerminalOutput(prev => [...prev, "> AI is analyzing your request..."]);
                 break;
 
               case 'content_block_start':
                 if (data.content_block?.type === 'thinking') {
-                  setTerminalOutput(prev => [...prev, "> Thinking about the game design..."]);
+                  setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
+                  currentThinking = '';
                 }
                 break;
 
               case 'content_block_delta':
                 if (data.delta?.type === 'thinking_delta') {
-                  setTerminalOutput(prev => [...prev, `> ${data.delta.thinking}`]);
+                  const thinking = data.delta.thinking || '';
+                  if (thinking && thinking !== currentThinking) {
+                    currentThinking = thinking;
+                    setTerminalOutput(prev => [...prev, `> ${thinking}`]);
+                  }
                 } else if (data.delta?.type === 'text_delta') {
                   const content = data.delta.text || '';
-                  gameContent += content;
-                  setTerminalOutput(prev => [...prev, `> Received ${content.length} characters of game code`]);
+                  if (content) {
+                    gameContent += content;
+                    setTerminalOutput(prev => [...prev, `> Generated ${content.length} characters of game code`]);
+                  }
                 }
                 break;
 
               case 'content_block_stop':
-                setTerminalOutput(prev => [...prev, "> Completed current content block"]);
+                if (currentThinking) {
+                  setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
+                  currentThinking = '';
+                }
                 break;
 
               case 'message_delta':
@@ -142,7 +151,7 @@ const Index = () => {
             }
           } catch (e) {
             console.error('Error parsing SSE line:', e);
-            continue;
+            setTerminalOutput(prev => [...prev, `> Error: ${e instanceof Error ? e.message : 'Unknown error'}`]);
           }
         }
       }
