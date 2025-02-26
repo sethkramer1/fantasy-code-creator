@@ -3,6 +3,7 @@ import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from "react-router-dom";
 
 interface GameResponse {
   gameCode: string;
@@ -12,8 +13,8 @@ interface GameResponse {
 const Index = () => {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
-  const [gameCode, setGameCode] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const generateGame = async () => {
     if (!prompt.trim()) {
@@ -33,12 +34,25 @@ const Index = () => {
       if (error) throw error;
       if (!data) throw new Error("No data received");
       
-      setGameCode(data.gameCode);
+      // Save the game to the database
+      const { data: gameData, error: insertError } = await supabase
+        .from('games')
+        .insert([
+          { prompt: prompt, code: data.gameCode }
+        ])
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+      if (!gameData) throw new Error("Failed to save game");
       
       toast({
         title: "Game generated successfully!",
-        description: "You can now play your game below.",
+        description: "Redirecting to play the game...",
       });
+
+      // Navigate to the play page
+      navigate(`/play/${gameData.id}`);
     } catch (error) {
       toast({
         title: "Error generating game",
@@ -82,26 +96,6 @@ const Index = () => {
             )}
           </button>
         </div>
-
-        {gameCode && (
-          <div className="glass-panel rounded-xl p-6 space-y-4">
-            <h2 className="text-2xl font-light">Your Game</h2>
-            <div className="w-full aspect-video rounded-lg overflow-hidden border border-gray-200">
-              <iframe
-                srcDoc={gameCode}
-                className="w-full h-full"
-                sandbox="allow-scripts"
-                title="Generated Game"
-              />
-            </div>
-            <button
-              onClick={() => setGameCode(null)}
-              className="text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              Generate a new game
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
