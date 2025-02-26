@@ -2,9 +2,10 @@
 import { useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface GameResponse {
-  code: string;
+  gameCode: string;
   error?: string;
 }
 
@@ -12,7 +13,6 @@ const Index = () => {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [gameCode, setGameCode] = useState<string | null>(null);
-  const [apiKey, setApiKey] = useState("");
   const { toast } = useToast();
 
   const generateGame = async () => {
@@ -24,50 +24,16 @@ const Index = () => {
       return;
     }
 
-    if (!apiKey.trim()) {
-      toast({
-        title: "Please enter your Anthropic API key",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setLoading(true);
     try {
-      const response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-          "content-type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "claude-3-7-sonnet-20250219",
-          max_tokens: 1024,
-          thinking: {
-            type: "enabled",
-            budget_tokens: 10000,
-          },
-          messages: [
-            {
-              role: "user",
-              content: `Create a simple HTML5 game based on this description: ${prompt}. 
-                       Return ONLY the complete HTML code that can be embedded in an iframe.
-                       The game should work standalone without any external dependencies.`,
-            },
-          ],
-        }),
+      const { data, error } = await supabase.functions.invoke<GameResponse>("generate-game", {
+        body: { prompt },
       });
 
-      const data = await response.json();
+      if (error) throw error;
+      if (!data) throw new Error("No data received");
       
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      // Extract code from Claude's response
-      const gameCode = data.content[0].text;
-      setGameCode(gameCode);
+      setGameCode(data.gameCode);
       
       toast({
         title: "Game generated successfully!",
@@ -95,19 +61,6 @@ const Index = () => {
         </div>
 
         <div className="glass-panel rounded-xl p-6 space-y-4">
-          <div className="space-y-2">
-            <label htmlFor="apiKey" className="block text-sm text-gray-600">
-              Anthropic API Key
-            </label>
-            <input
-              id="apiKey"
-              type="password"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              placeholder="Enter your Anthropic API key..."
-              className="w-full p-3 rounded-lg bg-white bg-opacity-50 backdrop-blur-sm border border-gray-200 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all"
-            />
-          </div>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
