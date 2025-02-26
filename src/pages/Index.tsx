@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -70,23 +69,14 @@ const Index = () => {
     setTerminalOutput([`> Generating game based on prompt: "${prompt}"`]);
 
     try {
-      const response = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-        },
-        body: JSON.stringify({ prompt, stream: true }),
+      const { data, error } = await supabase.functions.invoke('generate-game', {
+        body: { prompt, stream: true }
       });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No reader available");
+      if (error) throw error;
 
       let gameContent = '';
+      const reader = data.getReader();
 
       while (true) {
         const { done, value } = await reader.read();
