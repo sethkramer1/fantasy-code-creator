@@ -69,11 +69,13 @@ const Index = () => {
     setTerminalOutput([`> Generating game based on prompt: "${prompt}"`]);
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
       const response = await fetch("https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${supabase.auth.session()?.access_token}`,
+          "Authorization": `Bearer ${session?.access_token}`,
         },
         body: JSON.stringify({ prompt, stream: true }),
       });

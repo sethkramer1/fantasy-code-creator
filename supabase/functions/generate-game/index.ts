@@ -10,7 +10,7 @@ const corsHeaders = {
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders })
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
@@ -19,15 +19,14 @@ serve(async (req) => {
       throw new Error('ANTHROPIC_API_KEY is not set')
     }
 
-    const { prompt } = await req.json()
+    const { prompt, stream } = await req.json()
     if (!prompt) {
       throw new Error('Prompt is required')
     }
 
     console.log('Generating game with prompt:', prompt)
 
-    // First API call to generate the game
-    const gameResponse = await fetch("https://api.anthropic.com/v1/messages", {
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": ANTHROPIC_API_KEY,
@@ -41,6 +40,7 @@ serve(async (req) => {
           type: "enabled",
           budget_tokens: 10000,
         },
+        stream: stream === true,
         messages: [
           {
             role: "user",
@@ -50,23 +50,36 @@ serve(async (req) => {
           },
         ],
       }),
-    })
+    });
 
-    const gameData = await gameResponse.json()
-    console.log('Received game response from Anthropic:', gameData)
-
-    if (gameData.error) {
-      throw new Error(gameData.error.message || 'Error from Anthropic API')
+    // If streaming is enabled, pipe the response directly
+    if (stream === true) {
+      return new Response(response.body, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
     }
 
-    const textContent = gameData.content?.find(item => item.type === 'text')
+    // If not streaming, wait for the full response
+    const data = await response.json();
+    console.log('Received game response from Anthropic:', data);
+
+    if (data.error) {
+      throw new Error(data.error.message || 'Error from Anthropic API');
+    }
+
+    const textContent = data.content?.find(item => item.type === 'text');
     if (!textContent || !textContent.text) {
-      throw new Error('No text content found in response')
+      throw new Error('No text content found in response');
     }
 
-    const gameCode = textContent.text.trim()
+    const gameCode = textContent.text.trim();
 
-    // Second API call to get instructions
+    // Get instructions for the game
     const instructionsResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -84,33 +97,36 @@ serve(async (req) => {
           },
         ],
       }),
-    })
+    });
 
-    const instructionsData = await instructionsResponse.json()
-    console.log('Received instructions response from Anthropic:', instructionsData)
+    const instructionsData = await instructionsResponse.json();
+    console.log('Received instructions response from Anthropic:', instructionsData);
 
     if (instructionsData.error) {
-      throw new Error(instructionsData.error.message || 'Error from Anthropic API')
+      throw new Error(instructionsData.error.message || 'Error from Anthropic API');
     }
 
-    const instructionsContent = instructionsData.content?.find(item => item.type === 'text')
+    const instructionsContent = instructionsData.content?.find(item => item.type === 'text');
     if (!instructionsContent || !instructionsContent.text) {
-      throw new Error('No instructions content found in response')
+      throw new Error('No instructions content found in response');
     }
 
-    const instructions = instructionsContent.text.trim()
+    return new Response(
+      JSON.stringify({ 
+        gameCode, 
+        instructions: instructionsContent.text.trim() 
+      }), 
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
 
-    return new Response(JSON.stringify({ gameCode, instructions }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-    })
   } catch (error) {
-    console.error('Error:', error.message)
+    console.error('Error:', error.message);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
         status: 400, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
-    )
+    );
   }
 })
