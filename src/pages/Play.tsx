@@ -15,18 +15,28 @@ const Play = () => {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Prevent default behavior for arrow keys
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key)) {
+      // Prevent default behavior for arrow keys and space
+      if ([
+        "ArrowUp",
+        "ArrowDown",
+        "ArrowLeft",
+        "ArrowRight",
+        " ", // Space
+        "PageUp",
+        "PageDown",
+        "Home",
+        "End",
+      ].includes(e.key)) {
         e.preventDefault();
       }
     };
 
-    // Add event listener
-    window.addEventListener("keydown", handleKeyDown);
+    // Add event listener with capture phase to ensure it runs before other handlers
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
 
     // Cleanup
     return () => {
-      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
     };
   }, []);
 
