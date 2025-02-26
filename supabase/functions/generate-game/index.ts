@@ -52,13 +52,22 @@ serve(async (req) => {
     })
 
     const data = await response.json()
-    console.log('Received response from Anthropic')
+    console.log('Received response from Anthropic:', data)
 
     if (data.error) {
       throw new Error(data.error.message || 'Error from Anthropic API')
     }
 
-    return new Response(JSON.stringify({ gameCode: data.content[0].text }), {
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      throw new Error('Invalid response format from Anthropic')
+    }
+
+    const gameCode = data.content[0].text.trim()
+    if (!gameCode) {
+      throw new Error('No game code generated')
+    }
+
+    return new Response(JSON.stringify({ gameCode }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {
