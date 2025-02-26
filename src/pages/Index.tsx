@@ -72,17 +72,23 @@ const Index = () => {
     setGeneratedCode("");
 
     try {
-      const { data, error } = await supabase.functions.invoke('generate-game', {
-        body: { prompt }
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-game`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt }),
+        }
+      );
 
-      if (error) throw error;
-
-      if (!data) {
-        throw new Error('No response from function');
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
-      const reader = data.body?.getReader();
+      const reader = response.body?.getReader();
       if (!reader) throw new Error('No reader available');
 
       while (true) {

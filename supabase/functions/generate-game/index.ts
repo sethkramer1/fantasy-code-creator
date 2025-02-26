@@ -34,7 +34,7 @@ serve(async (req) => {
     EdgeRuntime.waitUntil((async () => {
       try {
         // First API call to generate the game
-        const gameResponse = await fetch("https://api.anthropic.com/v1/messages", {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
             "x-api-key": ANTHROPIC_API_KEY,
@@ -44,6 +44,7 @@ serve(async (req) => {
           body: JSON.stringify({
             model: "claude-3-7-sonnet-20250219",
             max_tokens: 20000,
+            stream: true,
             thinking: {
               type: "enabled",
               budget_tokens: 10000,
@@ -56,11 +57,10 @@ serve(async (req) => {
                          The game should work standalone without any external dependencies.`,
               },
             ],
-            stream: true,
           }),
         })
 
-        const reader = gameResponse.body?.getReader()
+        const reader = response.body?.getReader()
         if (!reader) throw new Error('No reader available')
 
         let gameCode = ''
