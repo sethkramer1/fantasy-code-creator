@@ -1,24 +1,32 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/components/ui/toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, MessageSquare, X } from "lucide-react";
+import { Loader2, ArrowLeft, MessageSquare, X, History } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { GameChat } from "@/components/GameChat";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+interface GameVersion {
+  id: string;
+  version_number: number;
+  code: string;
+  instructions: string | null;
+  created_at: string;
+}
 
 const Play = () => {
   const { id } = useParams();
-  const [gameCode, setGameCode] = useState<string | null>(null);
-  const [instructions, setInstructions] = useState<string | null>(null);
+  const [gameVersions, setGameVersions] = useState<GameVersion[]>([]);
+  const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [showChat, setShowChat] = useState(true); // Changed to true for default showing
+  const [showChat, setShowChat] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore key events if the target is an input or textarea
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
         return;
       }
@@ -51,9 +59,13 @@ const Play = () => {
           .from('games')
           .select(`
             id,
+            current_version,
             game_versions (
+              id,
+              version_number,
               code,
-              instructions
+              instructions,
+              created_at
             )
           `)
           .eq('id', id)
@@ -62,10 +74,15 @@ const Play = () => {
         if (error) throw error;
         if (!data) throw new Error("Game not found");
         
-        // Get latest version
-        const latestVersion = data.game_versions[0];
-        setGameCode(latestVersion.code);
-        setInstructions(latestVersion.instructions);
+        // Sort versions by number descending
+        const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
+        setGameVersions(sortedVersions);
+        
+        // Set current version as selected
+        const currentVersion = sortedVersions.find(v => v.version_number === data.current_version);
+        if (currentVersion) {
+          setSelectedVersion(currentVersion.id);
+        }
       } catch (error) {
         toast({
           title: "Error loading game",
@@ -88,8 +105,21 @@ const Play = () => {
   }, [loading]);
 
   const handleGameUpdate = (newCode: string, newInstructions: string) => {
-    setGameCode(newCode);
-    setInstructions(newInstructions);
+    // Create new version object
+    const newVersion: GameVersion = {
+      id: crypto.randomUUID(),
+      version_number: gameVersions[0].version_number + 1,
+      code: newCode,
+      instructions: newInstructions,
+      created_at: new Date().toISOString(),
+    };
+
+    setGameVersions(prev => [newVersion, ...prev]);
+    setSelectedVersion(newVersion.id);
+  };
+
+  const handleVersionChange = (versionId: string) => {
+    setSelectedVersion(versionId);
   };
 
   if (loading) {
@@ -99,6 +129,8 @@ const Play = () => {
       </div>
     );
   }
+
+  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
 
   return (
     <div className="min-h-screen p-4 md:p-8 bg-gradient-to-b from-gray-50 to-gray-100">
@@ -111,18 +143,35 @@ const Play = () => {
             <ArrowLeft size={20} />
             <span>Back to Generator</span>
           </Link>
-          <button
-            onClick={() => setShowChat(!showChat)}
-            className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
-          >
-            <MessageSquare size={20} />
-            <span>{showChat ? 'Hide Chat' : 'Show Chat'}</span>
-          </button>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <History size={20} className="text-gray-500" />
+              <Select value={selectedVersion} onValueChange={handleVersionChange}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Select version" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gameVersions.map((version) => (
+                    <SelectItem key={version.id} value={version.id}>
+                      Version {version.version_number}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <button
+              onClick={() => setShowChat(!showChat)}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+            >
+              <MessageSquare size={20} />
+              <span>{showChat ? 'Hide Chat' : 'Show Chat'}</span>
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
-            {gameCode && (
+            {currentVersion && (
               <div className="glass-panel rounded-xl p-4 md:p-6 space-y-6">
                 <div 
                   className="relative w-full" 
@@ -131,7 +180,7 @@ const Play = () => {
                 >
                   <iframe
                     ref={iframeRef}
-                    srcDoc={gameCode}
+                    srcDoc={currentVersion.code}
                     className="absolute top-0 left-0 w-full h-full rounded-lg border border-gray-200"
                     sandbox="allow-scripts"
                     title="Generated Game"
@@ -139,11 +188,11 @@ const Play = () => {
                   />
                 </div>
 
-                {instructions && (
+                {currentVersion.instructions && (
                   <div className="bg-white bg-opacity-50 backdrop-blur-sm p-4 rounded-lg border border-gray-200">
                     <h2 className="text-xl font-semibold mb-2">How to Play</h2>
                     <div className="text-gray-700 prose prose-sm max-w-none">
-                      <ReactMarkdown>{instructions}</ReactMarkdown>
+                      <ReactMarkdown>{currentVersion.instructions}</ReactMarkdown>
                     </div>
                   </div>
                 )}
