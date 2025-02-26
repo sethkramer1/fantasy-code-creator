@@ -83,6 +83,10 @@ const Index = () => {
         }
       );
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const reader = response.body?.getReader();
       if (!reader) throw new Error('No reader available');
 
@@ -95,41 +99,49 @@ const Index = () => {
 
         for (const line of lines) {
           if (line.startsWith('data: ')) {
-            const data = JSON.parse(line.slice(5));
-            
-            if (data.type === 'code') {
-              setGeneratedCode(prev => prev + data.content);
-            } else if (data.type === 'complete') {
-              // Save the game to the database
-              const { data: gameData, error: insertError } = await supabase
-                .from('games')
-                .insert([
-                  { 
-                    prompt: prompt, 
-                    code: data.gameCode,
-                    instructions: data.instructions 
-                  }
-                ])
-                .select()
-                .single();
-
-              if (insertError) throw insertError;
-              if (!gameData) throw new Error("Failed to save game");
+            try {
+              const data = JSON.parse(line.slice(5));
+              console.log('Received data:', data); // Debug log
               
-              toast({
-                title: "Game generated successfully!",
-                description: "Redirecting to play the game...",
-              });
+              if (data.type === 'code') {
+                setGeneratedCode(prev => prev + data.content);
+              } else if (data.type === 'complete') {
+                // Save the game to the database
+                const { data: gameData, error: insertError } = await supabase
+                  .from('games')
+                  .insert([
+                    { 
+                      prompt: prompt, 
+                      code: data.gameCode,
+                      instructions: data.instructions 
+                    }
+                  ])
+                  .select()
+                  .single();
 
-              setShowModal(false);
-              navigate(`/play/${gameData.id}`);
-            } else if (data.type === 'error') {
-              throw new Error(data.message);
+                if (insertError) throw insertError;
+                if (!gameData) throw new Error("Failed to save game");
+                
+                toast({
+                  title: "Game generated successfully!",
+                  description: "Redirecting to play the game...",
+                });
+
+                // Small delay before redirecting to ensure the user sees the success message
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                setShowModal(false);
+                navigate(`/play/${gameData.id}`);
+              } else if (data.type === 'error') {
+                throw new Error(data.message);
+              }
+            } catch (parseError) {
+              console.error('Error parsing stream data:', parseError);
             }
           }
         }
       }
     } catch (error) {
+      console.error('Generation error:', error);
       toast({
         title: "Error generating game",
         description: error instanceof Error ? error.message : "Please try again",
@@ -174,12 +186,26 @@ const Index = () => {
           </button>
         </div>
 
-        <Dialog open={showModal} onOpenChange={setShowModal}>
-          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+        <Dialog 
+          open={showModal} 
+          onOpenChange={(open) => {
+            // Only allow closing if not loading
+            if (!loading) {
+              setShowModal(open);
+            }
+          }}
+        >
+          <DialogContent 
+            className="max-w-4xl max-h-[80vh] overflow-y-auto"
+            hideCloseButton={loading} // Hide the close button while loading
+          >
             <DialogHeader>
-              <DialogTitle>Generating Game...</DialogTitle>
+              <DialogTitle className="flex items-center space-x-2">
+                <span>Generating Game</span>
+                {loading && <Loader2 className="animate-spin" size={16} />}
+              </DialogTitle>
             </DialogHeader>
-            <div className="font-mono text-sm bg-black text-green-400 p-4 rounded-lg overflow-x-auto whitespace-pre">
+            <div className="font-mono text-sm bg-black text-green-400 p-4 rounded-lg overflow-x-auto whitespace-pre-wrap">
               {generatedCode || 'Initializing...'}
             </div>
           </DialogContent>
