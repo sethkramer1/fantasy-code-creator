@@ -44,14 +44,21 @@ serve(async (req) => {
           {
             role: 'user',
             content: `Create a simple HTML5 game based on this description: ${prompt}. 
+                     The game MUST:
+                     - Have a clear "Start" or "Play" button to begin the game
+                     - Include proper game controls that are explained to the player
+                     - Handle game over conditions and allow restarting
+                     - Include score tracking if applicable
+                     - Work completely standalone with no external dependencies
+                     - Have all code (HTML, CSS, JavaScript) in one file
+                     - Include proper error handling and state management
+                     - Be mobile-friendly with touch controls where applicable
+                     - Have clear visual feedback for player actions
+                     
                      Return ONLY the raw HTML that will be directly embedded in an iframe.
                      Do NOT wrap the code in \`\`\`html or any other markdown tags.
-                     The game should:
-                     - Work standalone without any external dependencies
-                     - Include all necessary CSS and JavaScript inline
-                     - Be properly formatted with DOCTYPE and meta tags
-                     - Have all code enclosed within the HTML file itself
-                     - Be ready to run immediately when loaded in an iframe`,
+                     Include DOCTYPE and meta tags.
+                     The game should work immediately when loaded in an iframe.`,
           },
         ]
       }),

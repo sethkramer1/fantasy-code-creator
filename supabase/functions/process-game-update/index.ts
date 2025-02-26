@@ -1,5 +1,5 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
 
 const corsHeaders = {
@@ -13,6 +13,11 @@ serve(async (req) => {
   }
 
   try {
+    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+    if (!ANTHROPIC_API_KEY) {
+      throw new Error('ANTHROPIC_API_KEY is not set')
+    }
+
     // Initialize Supabase client with admin privileges
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -35,20 +40,19 @@ serve(async (req) => {
         )
       `)
       .eq('id', gameId)
-      .single();
+      .single()
 
     if (gameError) throw gameError;
     if (!gameData) throw new Error('Game not found');
 
     const currentVersion = gameData.current_version;
     const currentCode = gameData.game_versions[0].code;
-    const currentInstructions = gameData.game_versions[0].instructions;
 
     // Ask Claude to modify the game
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": Deno.env.get('ANTHROPIC_API_KEY') ?? '',
+        "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
@@ -58,11 +62,20 @@ serve(async (req) => {
         messages: [
           {
             role: "user",
-            content: `Here is the current HTML game code:\n\n${currentCode}\n\nPlease modify the game according to this request: ${message}\n\nReturn ONLY the complete updated HTML code.`,
+            content: `Here is the current HTML game code:\n\n${currentCode}\n\nPlease modify the game according to this request: ${message}\n\n
+                     When modifying the game, ensure:
+                     - All existing functionality remains working (Start button, controls, game over handling, etc.)
+                     - The changes integrate smoothly with the current game mechanics
+                     - Any new features have proper user feedback and error handling
+                     - The game remains mobile-friendly
+                     - All code remains in one HTML file with no external dependencies
+                     - Changes are properly tested and don't break existing features
+                     
+                     Return ONLY the complete updated HTML code.`,
           },
         ],
       }),
-    });
+    })
 
     if (!response.ok) {
       throw new Error(`Anthropic API error: ${response.status}`);
@@ -75,7 +88,7 @@ serve(async (req) => {
     const instructionsResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": Deno.env.get('ANTHROPIC_API_KEY') ?? '',
+        "x-api-key": ANTHROPIC_API_KEY,
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
@@ -89,7 +102,7 @@ serve(async (req) => {
           },
         ],
       }),
-    });
+    })
 
     if (!instructionsResponse.ok) {
       throw new Error(`Instructions API error: ${instructionsResponse.status}`);
