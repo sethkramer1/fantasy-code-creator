@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 
 interface GameResponse {
   gameCode: string;
+  instructions: string;
   error?: string;
 }
 
@@ -38,7 +39,11 @@ const Index = () => {
       const { data: gameData, error: insertError } = await supabase
         .from('games')
         .insert([
-          { prompt: prompt, code: data.gameCode }
+          { 
+            prompt: prompt, 
+            code: data.gameCode,
+            instructions: data.instructions 
+          }
         ])
         .select()
         .single();

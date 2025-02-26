@@ -26,7 +26,8 @@ serve(async (req) => {
 
     console.log('Generating game with prompt:', prompt)
 
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    // First API call to generate the game
+    const gameResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": ANTHROPIC_API_KEY,
@@ -51,25 +52,55 @@ serve(async (req) => {
       }),
     })
 
-    const data = await response.json()
-    console.log('Received response from Anthropic:', data)
+    const gameData = await gameResponse.json()
+    console.log('Received game response from Anthropic:', gameData)
 
-    if (data.error) {
-      throw new Error(data.error.message || 'Error from Anthropic API')
+    if (gameData.error) {
+      throw new Error(gameData.error.message || 'Error from Anthropic API')
     }
 
-    // Find the text content (excluding thinking content)
-    const textContent = data.content?.find(item => item.type === 'text')
+    const textContent = gameData.content?.find(item => item.type === 'text')
     if (!textContent || !textContent.text) {
       throw new Error('No text content found in response')
     }
 
     const gameCode = textContent.text.trim()
-    if (!gameCode) {
-      throw new Error('No game code generated')
+
+    // Second API call to get instructions
+    const instructionsResponse = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-3-7-sonnet-20250219",
+        max_tokens: 500,
+        messages: [
+          {
+            role: "user",
+            content: `Given this game code, explain ONLY the controls and how to play the game in a clear, concise way. No other information needed:\n\n${gameCode}`,
+          },
+        ],
+      }),
+    })
+
+    const instructionsData = await instructionsResponse.json()
+    console.log('Received instructions response from Anthropic:', instructionsData)
+
+    if (instructionsData.error) {
+      throw new Error(instructionsData.error.message || 'Error from Anthropic API')
     }
 
-    return new Response(JSON.stringify({ gameCode }), {
+    const instructionsContent = instructionsData.content?.find(item => item.type === 'text')
+    if (!instructionsContent || !instructionsContent.text) {
+      throw new Error('No instructions content found in response')
+    }
+
+    const instructions = instructionsContent.text.trim()
+
+    return new Response(JSON.stringify({ gameCode, instructions }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (error) {

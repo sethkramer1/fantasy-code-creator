@@ -8,6 +8,7 @@ import { Loader2, ArrowLeft } from "lucide-react";
 const Play = () => {
   const { id } = useParams();
   const [gameCode, setGameCode] = useState<string | null>(null);
+  const [instructions, setInstructions] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
@@ -16,7 +17,7 @@ const Play = () => {
       try {
         const { data, error } = await supabase
           .from('games')
-          .select('code')
+          .select('code, instructions')
           .eq('id', id)
           .single();
 
@@ -24,6 +25,7 @@ const Play = () => {
         if (!data) throw new Error("Game not found");
 
         setGameCode(data.code);
+        setInstructions(data.instructions);
       } catch (error) {
         toast({
           title: "Error loading game",
@@ -60,7 +62,7 @@ const Play = () => {
         </div>
 
         {gameCode && (
-          <div className="glass-panel rounded-xl p-4 md:p-6">
+          <div className="glass-panel rounded-xl p-4 md:p-6 space-y-6">
             <div className="relative w-full" style={{ paddingTop: '75%' }}>
               <iframe
                 srcDoc={gameCode}
@@ -69,6 +71,15 @@ const Play = () => {
                 title="Generated Game"
               />
             </div>
+
+            {instructions && (
+              <div className="bg-white bg-opacity-50 backdrop-blur-sm p-4 rounded-lg border border-gray-200">
+                <h2 className="text-xl font-semibold mb-2">How to Play</h2>
+                <div className="text-gray-700 prose">
+                  {instructions}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
