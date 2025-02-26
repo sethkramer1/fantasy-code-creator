@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -71,32 +72,17 @@ const Index = () => {
     setGeneratedCode("");
 
     try {
-      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      if (!supabaseUrl) {
-        throw new Error('Supabase URL is not configured');
+      const { data, error } = await supabase.functions.invoke('generate-game', {
+        body: { prompt }
+      });
+
+      if (error) throw error;
+
+      if (!data) {
+        throw new Error('No response from function');
       }
 
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/generate-game`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ prompt }),
-        }
-      );
-
-      if (!response.ok) {
-        console.error('Response status:', response.status);
-        console.error('Response headers:', Object.fromEntries(response.headers.entries()));
-        const errorText = await response.text();
-        console.error('Response body:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const reader = response.body?.getReader();
+      const reader = data.body?.getReader();
       if (!reader) throw new Error('No reader available');
 
       while (true) {
@@ -110,7 +96,7 @@ const Index = () => {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(5));
-              console.log('Received data:', data); // Debug log
+              console.log('Received data:', data);
 
               if (data.type === 'code') {
                 setGeneratedCode(prev => prev + data.content);
