@@ -1,7 +1,6 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Terminal, MessageSquare, Search, Lightbulb, Code, Timer } from "lucide-react";
+import { Loader2, Terminal, MessageSquare, Search, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import {
@@ -60,7 +59,6 @@ const Index = () => {
     }
   }, [terminalOutput]);
 
-  // Timer effect
   useEffect(() => {
     if (loading) {
       setThinkingTime(0);
@@ -245,7 +243,6 @@ const Index = () => {
     <div className="min-h-screen bg-[#F5F5F5]">
       <div className="max-w-4xl mx-auto p-6 md:p-8">
         <div className="space-y-8">
-          {/* Header */}
           <div className="text-center space-y-3">
             <h1 className="text-3xl md:text-4xl font-light tracking-tight text-black">Game Creator</h1>
             <p className="text-base md:text-lg text-[#757575]">
@@ -253,14 +250,13 @@ const Index = () => {
             </p>
           </div>
 
-          {/* Input Section */}
           <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm space-y-4">
             <div className="relative">
               <textarea
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
                 placeholder="Describe the game you want to create..."
-                className="w-full h-32 p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all resize-none text-gray-800 placeholder:text-gray-400"
+                className="w-full h-32 p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all text-gray-800 placeholder:text-gray-400"
               />
               <div className="absolute right-3 top-3 flex gap-2">
                 <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
@@ -297,18 +293,8 @@ const Index = () => {
                 </button>
               )}
             </div>
-
-            <div className="flex items-center justify-center gap-6 pt-2">
-              <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors group">
-                <Lightbulb size={18} className="text-gray-400 group-hover:text-gray-600" />
-              </button>
-              <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors group">
-                <Code size={18} className="text-gray-400 group-hover:text-gray-600" />
-              </button>
-            </div>
           </div>
 
-          {/* Games Grid */}
           <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm">
             <h2 className="text-xl font-medium text-gray-900 mb-6">Available Games</h2>
             {gamesLoading ? (
@@ -341,7 +327,6 @@ const Index = () => {
         </div>
       </div>
 
-      {/* Terminal Dialog */}
       <Dialog open={showTerminal} onOpenChange={setShowTerminal}>
         <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden border border-green-500/20">
           <DialogTitle className="text-green-400 mb-4">Game Generation Progress</DialogTitle>
