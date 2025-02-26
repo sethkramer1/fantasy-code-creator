@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Terminal } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import {
@@ -223,20 +223,31 @@ const Index = () => {
             placeholder="Describe the game you want to create..."
             className="w-full h-32 p-4 rounded-lg bg-white bg-opacity-50 backdrop-blur-sm border border-gray-200 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all"
           />
-          <button
-            onClick={generateGame}
-            disabled={loading}
-            className="w-full py-3 px-6 rounded-lg bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-          >
-            {loading ? (
-              <>
-                <Loader2 className="animate-spin" size={20} />
-                <span>Generating your game...</span>
-              </>
-            ) : (
-              <span>Generate Game</span>
+          <div className="flex gap-2">
+            <button
+              onClick={generateGame}
+              disabled={loading}
+              className="flex-1 py-3 px-6 rounded-lg bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
+            >
+              {loading ? (
+                <>
+                  <Loader2 className="animate-spin" size={20} />
+                  <span>Generating your game...</span>
+                </>
+              ) : (
+                <span>Generate Game</span>
+              )}
+            </button>
+            {!showTerminal && terminalOutput.length > 0 && (
+              <button
+                onClick={() => setShowTerminal(true)}
+                className="px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-center"
+                title="Show generation progress"
+              >
+                <Terminal size={20} />
+              </button>
             )}
-          </button>
+          </div>
         </div>
 
         <div className="glass-panel rounded-xl p-6">
