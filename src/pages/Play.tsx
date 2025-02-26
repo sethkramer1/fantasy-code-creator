@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, MessageSquare, X, History } from "lucide-react";
+import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -122,6 +122,47 @@ const Play = () => {
     setSelectedVersion(versionId);
   };
 
+  const handleRevertToVersion = async (version: GameVersion) => {
+    try {
+      // Create new version based on the selected version
+      const newVersion: GameVersion = {
+        id: crypto.randomUUID(),
+        version_number: gameVersions[0].version_number + 1,
+        code: version.code,
+        instructions: version.instructions,
+        created_at: new Date().toISOString(),
+      };
+
+      // Save the new version to the database
+      const { error } = await supabase
+        .from('game_versions')
+        .insert({
+          id: newVersion.id,
+          game_id: id,
+          version_number: newVersion.version_number,
+          code: newVersion.code,
+          instructions: newVersion.instructions,
+        });
+
+      if (error) throw error;
+
+      // Update local state
+      setGameVersions(prev => [newVersion, ...prev]);
+      setSelectedVersion(newVersion.id);
+
+      toast({
+        title: "Version reverted",
+        description: `Created new version ${newVersion.version_number} based on version ${version.version_number}`,
+      });
+    } catch (error) {
+      toast({
+        title: "Error reverting version",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -152,8 +193,25 @@ const Play = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {gameVersions.map((version) => (
-                    <SelectItem key={version.id} value={version.id}>
-                      Version {version.version_number}
+                    <SelectItem 
+                      key={version.id} 
+                      value={version.id}
+                      className="flex items-center justify-between group"
+                    >
+                      <span>Version {version.version_number}</span>
+                      {version.id !== gameVersions[0].id && (
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleRevertToVersion(version);
+                          }}
+                          className="opacity-0 group-hover:opacity-100 text-blue-500 hover:text-blue-700 flex items-center space-x-1"
+                        >
+                          <RotateCcw size={14} />
+                          <span className="text-xs">Revert</span>
+                        </button>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
