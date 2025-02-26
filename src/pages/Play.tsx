@@ -4,6 +4,7 @@ import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ArrowLeft } from "lucide-react";
+import ReactMarkdown from 'react-markdown';
 
 const Play = () => {
   const { id } = useParams();
@@ -75,8 +76,8 @@ const Play = () => {
             {instructions && (
               <div className="bg-white bg-opacity-50 backdrop-blur-sm p-4 rounded-lg border border-gray-200">
                 <h2 className="text-xl font-semibold mb-2">How to Play</h2>
-                <div className="text-gray-700 prose">
-                  {instructions}
+                <div className="text-gray-700 prose prose-sm max-w-none">
+                  <ReactMarkdown>{instructions}</ReactMarkdown>
                 </div>
               </div>
             )}
