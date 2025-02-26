@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -72,23 +71,19 @@ const Index = () => {
     setGeneratedCode("");
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-game`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ prompt }),
-        }
-      );
+      console.log('Making request to Edge Function...');
+      const { data: functionData, error: functionError } = await supabase.functions.invoke('generate-game', {
+        body: { prompt },
+      });
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      if (functionError) {
+        console.error('Function error:', functionError);
+        throw functionError;
       }
 
-      const reader = response.body?.getReader();
+      console.log('Function response:', functionData);
+      
+      const reader = functionData.body?.getReader();
       if (!reader) throw new Error('No reader available');
 
       while (true) {

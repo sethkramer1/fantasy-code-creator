@@ -34,6 +34,7 @@ serve(async (req) => {
     EdgeRuntime.waitUntil((async () => {
       try {
         // First API call to generate the game
+        console.log('Making request to Anthropic API...')
         const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -60,6 +61,8 @@ serve(async (req) => {
           }),
         })
 
+        console.log('Anthropic API response status:', response.status)
+        
         const reader = response.body?.getReader()
         if (!reader) throw new Error('No reader available')
 
@@ -101,6 +104,8 @@ serve(async (req) => {
             ],
           }),
         })
+
+        console.log('Instructions API response status:', instructionsResponse.status)
 
         const instructionsData = await instructionsResponse.json()
         console.log('Received instructions response from Anthropic:', instructionsData)
