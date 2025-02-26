@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
@@ -24,8 +24,8 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const { toast } = useToast();
 
-  // Fetch chat history when component mounts
-  useState(() => {
+  // Changed from useState to useEffect for initialization
+  useEffect(() => {
     const fetchMessages = async () => {
       try {
         const { data, error } = await supabase
