@@ -58,11 +58,13 @@ serve(async (req) => {
       throw new Error(data.error.message || 'Error from Anthropic API')
     }
 
-    if (!data.content || !data.content[0] || !data.content[0].text) {
-      throw new Error('Invalid response format from Anthropic')
+    // Find the text content (excluding thinking content)
+    const textContent = data.content?.find(item => item.type === 'text')
+    if (!textContent || !textContent.text) {
+      throw new Error('No text content found in response')
     }
 
-    const gameCode = data.content[0].text.trim()
+    const gameCode = textContent.text.trim()
     if (!gameCode) {
       throw new Error('No game code generated')
     }
