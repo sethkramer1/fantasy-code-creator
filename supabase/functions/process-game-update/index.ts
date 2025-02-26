@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
 
@@ -27,8 +26,13 @@ async function getCodeChanges(currentCode: string, message: string) {
 First, identify which part of the code needs to be modified to implement this change.
 Then, provide ONLY:
 1. A brief description of what needs to be changed
-2. The start string that uniquely identifies where the change begins
-3. The end string that uniquely identifies where the change ends
+2. The start string that uniquely identifies where the change begins - this MUST be a complete line of code or HTML element opening tag
+3. The end string that uniquely identifies where the change ends - this MUST be a complete line of code or HTML element closing tag
+
+Make sure your markers:
+- Include complete logical blocks (full functions, complete HTML elements)
+- Include any necessary variable declarations or dependencies
+- Are unique strings that appear exactly once in the code
 
 Format your response like this:
 DESCRIPTION: <brief description>
@@ -58,6 +62,30 @@ ${currentCode}`
     throw new Error("Could not parse analysis response");
   }
 
+  // Validate markers
+  const startStr = startMatch[1];
+  const endStr = endMatch[1];
+  
+  // Check that markers appear exactly once
+  const startCount = (currentCode.match(new RegExp(startStr, 'g')) || []).length;
+  const endCount = (currentCode.match(new RegExp(endStr, 'g')) || []).length;
+  
+  if (startCount !== 1 || endCount !== 1) {
+    throw new Error("Code markers must appear exactly once in the code");
+  }
+
+  const startIndex = currentCode.indexOf(startStr);
+  const endIndex = currentCode.indexOf(endStr) + endStr.length;
+
+  // Validate section boundaries
+  if (startIndex === -1 || endIndex === -1) {
+    throw new Error("Could not find code section markers");
+  }
+  
+  if (startIndex >= endIndex) {
+    throw new Error("Invalid code section boundaries");
+  }
+
   // Now get the specific code changes for just that section
   const updateResponse = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -74,14 +102,15 @@ ${currentCode}`
           role: "user",
           content: `Given this HTML game code section that needs to be modified:
 
-${currentCode.substring(
-  currentCode.indexOf(startMatch[1]),
-  currentCode.indexOf(endMatch[1]) + endMatch[1].length
-)}
+${currentCode.substring(startIndex, endIndex)}
 
 Modify it according to this request: ${message}
 
-Return ONLY the new code that should replace this section.`
+Important:
+- Return ONLY the complete new code that should replace this section
+- Make sure to include any necessary variable declarations or dependencies
+- Ensure all brackets and tags are properly closed
+- The code must be syntactically valid and complete`
         },
       ],
     }),
@@ -94,14 +123,13 @@ Return ONLY the new code that should replace this section.`
   const updateData = await updateResponse.json();
   const newCodeSection = updateData.content[0].text;
 
+  // Validate that we got a response
+  if (!newCodeSection || newCodeSection.trim().length === 0) {
+    throw new Error("Generated code section is empty");
+  }
+
   // Replace the section in the full code
-  const newCode = currentCode.replace(
-    currentCode.substring(
-      currentCode.indexOf(startMatch[1]),
-      currentCode.indexOf(endMatch[1]) + endMatch[1].length
-    ),
-    newCodeSection
-  );
+  const newCode = currentCode.slice(0, startIndex) + newCodeSection + currentCode.slice(endIndex);
 
   return {
     description: descMatch[1],
@@ -126,7 +154,7 @@ serve(async (req) => {
       throw new Error('Game ID and message are required')
     }
 
-    // Get current game version
+    // Get current game version with version check
     const { data: gameData, error: gameError } = await supabaseAdmin
       .from('games')
       .select(`
@@ -175,8 +203,20 @@ serve(async (req) => {
     const instructionsData = await instructionsResponse.json();
     const newInstructions = instructionsData.content[0].text;
 
-    // Save new version
+    // Save new version with version check
     const newVersionNumber = currentVersion + 1;
+    
+    // Check if version changed while we were processing
+    const { data: versionCheck, error: versionCheckError } = await supabaseAdmin
+      .from('games')
+      .select('current_version')
+      .eq('id', gameId)
+      .single();
+
+    if (versionCheckError) throw versionCheckError;
+    if (versionCheck.current_version !== currentVersion) {
+      throw new Error('Game was modified by another user, please try again');
+    }
     
     const { data: versionData, error: versionError } = await supabaseAdmin
       .from('game_versions')
@@ -197,7 +237,8 @@ serve(async (req) => {
     const { error: updateError } = await supabaseAdmin
       .from('games')
       .update({ current_version: newVersionNumber })
-      .eq('id', gameId);
+      .eq('id', gameId)
+      .eq('current_version', currentVersion); // Add version check to update
 
     if (updateError) throw updateError;
 
