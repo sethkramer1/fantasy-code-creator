@@ -1,6 +1,7 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
-import { Loader2, Terminal } from "lucide-react";
+import { Loader2, Terminal, MessageSquare, Search, Lightbulb, Code } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import {
@@ -219,89 +220,115 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen p-8 bg-gradient-to-b from-gray-50 to-gray-100">
-      <div className="max-w-4xl mx-auto space-y-8 animate-fadeIn">
-        <div className="text-center space-y-4">
-          <h1 className="text-4xl font-light tracking-tight">Game Creator</h1>
-          <p className="text-lg text-gray-600">
-            Describe your game idea and watch it come to life
-          </p>
-        </div>
+    <div className="min-h-screen bg-[#F5F5F5]">
+      <div className="max-w-4xl mx-auto p-6 md:p-8">
+        <div className="space-y-8">
+          {/* Header */}
+          <div className="text-center space-y-3">
+            <h1 className="text-3xl md:text-4xl font-light tracking-tight text-black">Game Creator</h1>
+            <p className="text-base md:text-lg text-[#757575]">
+              Describe your game idea and watch it come to life
+            </p>
+          </div>
 
-        <div className="glass-panel rounded-xl p-6 space-y-4">
-          <textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            placeholder="Describe the game you want to create..."
-            className="w-full h-32 p-4 rounded-lg bg-white bg-opacity-50 backdrop-blur-sm border border-gray-200 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all"
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={generateGame}
-              disabled={loading}
-              className="flex-1 py-3 px-6 rounded-lg bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-            >
-              {loading ? (
-                <>
-                  <Loader2 className="animate-spin" size={20} />
-                  <span>Generating your game...</span>
-                </>
-              ) : (
-                <span>Generate Game</span>
-              )}
-            </button>
-            {!showTerminal && terminalOutput.length > 0 && (
+          {/* Input Section */}
+          <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm space-y-4">
+            <div className="relative">
+              <textarea
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Describe the game you want to create..."
+                className="w-full h-32 p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all resize-none text-gray-800 placeholder:text-gray-400"
+              />
+              <div className="absolute right-3 top-3 flex gap-2">
+                <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                  <MessageSquare size={18} className="text-gray-400" />
+                </button>
+                <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                  <Search size={18} className="text-gray-400" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-3">
               <button
-                onClick={() => setShowTerminal(true)}
-                className="px-4 py-3 rounded-lg bg-gray-100 hover:bg-gray-200 transition-colors flex items-center justify-center"
-                title="Show generation progress"
+                onClick={generateGame}
+                disabled={loading}
+                className="flex-1 py-3 px-6 rounded-lg bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
               >
-                <Terminal size={20} />
+                {loading ? (
+                  <>
+                    <Loader2 className="animate-spin" size={18} />
+                    <span>Generating your game...</span>
+                  </>
+                ) : (
+                  <span>Generate Game</span>
+                )}
               </button>
+              {!showTerminal && terminalOutput.length > 0 && (
+                <button
+                  onClick={() => setShowTerminal(true)}
+                  className="p-3 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+                  title="Show generation progress"
+                >
+                  <Terminal size={18} className="text-gray-600" />
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-center gap-6 pt-2">
+              <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors group">
+                <Lightbulb size={18} className="text-gray-400 group-hover:text-gray-600" />
+              </button>
+              <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors group">
+                <Code size={18} className="text-gray-400 group-hover:text-gray-600" />
+              </button>
+            </div>
+          </div>
+
+          {/* Games Grid */}
+          <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm">
+            <h2 className="text-xl font-medium text-gray-900 mb-6">Available Games</h2>
+            {gamesLoading ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="animate-spin text-gray-400" size={32} />
+              </div>
+            ) : games.length > 0 ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                {games.map((game) => (
+                  <button
+                    key={game.id}
+                    onClick={() => navigate(`/play/${game.id}`)}
+                    className="p-4 rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group"
+                  >
+                    <p className="font-medium text-gray-700 group-hover:text-black transition-colors line-clamp-2">
+                      {game.prompt}
+                    </p>
+                    <p className="text-sm text-gray-400 mt-2">
+                      {new Date(game.created_at).toLocaleDateString()}
+                    </p>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-center text-gray-500 py-8">
+                No games have been created yet. Be the first to create one!
+              </p>
             )}
           </div>
         </div>
-
-        <div className="glass-panel rounded-xl p-6">
-          <h2 className="text-2xl font-semibold mb-6">Available Games</h2>
-          {gamesLoading ? (
-            <div className="flex justify-center py-8">
-              <Loader2 className="animate-spin" size={32} />
-            </div>
-          ) : games.length > 0 ? (
-            <div className="grid gap-4 md:grid-cols-2">
-              {games.map((game) => (
-                <button
-                  key={game.id}
-                  onClick={() => navigate(`/play/${game.id}`)}
-                  className="p-4 rounded-lg bg-white bg-opacity-50 backdrop-blur-sm border border-gray-200 hover:border-gray-300 transition-all text-left group"
-                >
-                  <p className="font-medium group-hover:text-gray-900 transition-colors line-clamp-2">
-                    {game.prompt}
-                  </p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    {new Date(game.created_at).toLocaleDateString()}
-                  </p>
-                </button>
-              ))}
-            </div>
-          ) : (
-            <p className="text-center text-gray-500 py-8">
-              No games have been created yet. Be the first to create one!
-            </p>
-          )}
-        </div>
       </div>
 
+      {/* Terminal Dialog */}
       <Dialog open={showTerminal} onOpenChange={setShowTerminal}>
-        <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden">
+        <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden border border-green-500/20">
           <DialogTitle className="text-green-400 mb-4">Game Generation Progress</DialogTitle>
           <DialogDescription className="text-green-400/70">
             Watching the AI create your game in real-time...
           </DialogDescription>
           <div 
             ref={terminalRef}
-            className="mt-4 space-y-1 h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-green-500 scrollbar-track-black scroll-smooth"
+            className="mt-4 space-y-1 h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 scroll-smooth"
           >
             {terminalOutput.map((line, index) => (
               <div key={index} className="whitespace-pre-wrap py-1">

@@ -168,30 +168,30 @@ const Play = () => {
   const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
 
   return (
-    <div className="min-h-screen p-4 md:p-8 bg-gradient-to-b from-gray-50 to-gray-100">
-      <div className="max-w-[1200px] mx-auto space-y-4 md:space-y-8">
+    <div className="min-h-screen p-4 md:p-8 bg-[#F5F5F5]">
+      <div className="max-w-[1200px] mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <Link
             to="/"
-            className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
+            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
           >
-            <ArrowLeft size={20} />
-            <span>Back to Generator</span>
+            <ArrowLeft size={18} />
+            <span className="text-sm">Back to Generator</span>
           </Link>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
               {!isLatestVersion && currentVersion && (
                 <button
                   onClick={() => handleRevertToVersion(currentVersion)}
-                  className="flex items-center space-x-1 px-2 py-1 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                  className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
                 >
                   <RotateCcw size={16} />
-                  <span className="text-sm">Revert to this version</span>
+                  <span>Revert to this version</span>
                 </button>
               )}
-              <History size={20} className="text-gray-500" />
+              <History size={18} className="text-gray-500" />
               <Select value={selectedVersion} onValueChange={handleVersionChange}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px] bg-white border-gray-200">
                   <SelectValue placeholder="Select version" />
                 </SelectTrigger>
                 <SelectContent>
@@ -209,9 +209,9 @@ const Play = () => {
             </div>
             <button
               onClick={() => setShowChat(!showChat)}
-              className="flex items-center space-x-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
             >
-              <MessageSquare size={20} />
+              <MessageSquare size={18} />
               <span>{showChat ? 'Hide Chat' : 'Show Chat'}</span>
             </button>
           </div>
@@ -220,16 +220,16 @@ const Play = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           <div className="lg:col-span-2">
             {currentVersion && (
-              <div className="glass-panel rounded-xl p-4 md:p-6 space-y-6">
+              <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 space-y-6 shadow-sm">
                 <div 
-                  className="relative w-full" 
+                  className="relative w-full rounded-lg overflow-hidden bg-white"
                   style={{ paddingTop: '75%' }}
                   onClick={() => iframeRef.current?.focus()}
                 >
                   <iframe
                     ref={iframeRef}
                     srcDoc={currentVersion.code}
-                    className="absolute top-0 left-0 w-full h-full rounded-lg border border-gray-200"
+                    className="absolute top-0 left-0 w-full h-full border border-gray-100"
                     sandbox="allow-scripts"
                     title="Generated Game"
                     tabIndex={0}
@@ -237,9 +237,9 @@ const Play = () => {
                 </div>
 
                 {currentVersion.instructions && (
-                  <div className="bg-white bg-opacity-50 backdrop-blur-sm p-4 rounded-lg border border-gray-200">
-                    <h2 className="text-xl font-semibold mb-2">How to Play</h2>
-                    <div className="text-gray-700 prose prose-sm max-w-none">
+                  <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-lg border border-gray-100">
+                    <h2 className="text-lg font-medium text-gray-900 mb-2">How to Play</h2>
+                    <div className="prose prose-sm max-w-none text-gray-600">
                       <ReactMarkdown>{currentVersion.instructions}</ReactMarkdown>
                     </div>
                   </div>
@@ -249,14 +249,14 @@ const Play = () => {
           </div>
 
           {showChat && (
-            <div className="glass-panel rounded-xl p-4 h-[600px] flex flex-col">
+            <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 h-[600px] flex flex-col shadow-sm">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold">Game Chat</h2>
+                <h2 className="text-lg font-medium text-gray-900">Game Chat</h2>
                 <button
                   onClick={() => setShowChat(false)}
                   className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
                 >
-                  <X size={20} />
+                  <X size={18} className="text-gray-400" />
                 </button>
               </div>
               <GameChat gameId={id!} onGameUpdate={handleGameUpdate} />
