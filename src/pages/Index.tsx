@@ -82,8 +82,6 @@ const Index = () => {
         throw functionError;
       }
 
-      console.log('Function response:', functionData);
-      
       const reader = functionData.body?.getReader();
       if (!reader) throw new Error('No reader available');
 
@@ -99,42 +97,48 @@ const Index = () => {
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(5));
-              console.log('Received chunk:', data);
+              console.log('Received event:', data);
 
-              if (data.type === 'code' && data.content) {
-                accumulatedCode += data.content;
-                setGeneratedCode(accumulatedCode);
-              } else if (data.type === 'complete') {
-                // Save the game to the database
-                const { data: gameData, error: insertError } = await supabase
-                  .from('games')
-                  .insert([
-                    { 
-                      prompt: prompt, 
-                      code: data.gameCode || accumulatedCode,
-                      instructions: data.instructions 
-                    }
-                  ])
-                  .select()
-                  .single();
+              switch (data.type) {
+                case 'start':
+                  setGeneratedCode('Starting generation...\n');
+                  break;
+                case 'thinking':
+                  setGeneratedCode(prev => prev + data.content + '\n');
+                  break;
+                case 'code':
+                  accumulatedCode += data.content;
+                  setGeneratedCode(accumulatedCode);
+                  break;
+                case 'complete':
+                  // Save the game to the database
+                  const { data: gameData, error: insertError } = await supabase
+                    .from('games')
+                    .insert([
+                      { 
+                        prompt: prompt, 
+                        code: data.gameCode || accumulatedCode,
+                        instructions: data.instructions 
+                      }
+                    ])
+                    .select()
+                    .single();
 
-                if (insertError) throw insertError;
-                if (!gameData) throw new Error("Failed to save game");
-                
-                toast({
-                  title: "Game generated successfully!",
-                  description: "Redirecting to play the game...",
-                });
+                  if (insertError) throw insertError;
+                  if (!gameData) throw new Error("Failed to save game");
+                  
+                  toast({
+                    title: "Game generated successfully!",
+                    description: "Redirecting to play the game...",
+                  });
 
-                // Small delay before redirecting to ensure the user sees the success message
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                setShowModal(false);
-                navigate(`/play/${gameData.id}`);
-              } else if (data.type === 'error') {
-                throw new Error(data.message);
+                  await new Promise(resolve => setTimeout(resolve, 1000));
+                  setShowModal(false);
+                  navigate(`/play/${gameData.id}`);
+                  break;
               }
             } catch (parseError) {
-              console.error('Error parsing chunk:', parseError, 'Raw chunk:', line);
+              console.error('Error parsing event:', parseError, 'Raw line:', line);
             }
           }
         }
