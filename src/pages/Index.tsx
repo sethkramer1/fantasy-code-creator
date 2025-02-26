@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -8,12 +9,6 @@ import {
   DialogContent,
   DialogTitle,
 } from "@/components/ui/dialog";
-
-interface GameResponse {
-  gameCode: string;
-  instructions: string;
-  error?: string;
-}
 
 interface Game {
   id: string;
@@ -68,15 +63,29 @@ const Index = () => {
     setShowTerminal(true);
     setTerminalOutput([`> Generating game based on prompt: "${prompt}"`]);
 
+    let gameContent = '';
+
     try {
-      const { data, error } = await supabase.functions.invoke('generate-game', {
-        body: { prompt, stream: true }
-      });
+      // Use direct fetch for SSE handling
+      const response = await fetch(
+        'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabase.auth.anon.key}`,
+          },
+          body: JSON.stringify({ prompt }),
+        }
+      );
 
-      if (error) throw error;
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
 
-      let gameContent = '';
-      const reader = data.getReader();
+      // Create an event source from the response
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader available");
 
       while (true) {
         const { done, value } = await reader.read();
@@ -88,19 +97,26 @@ const Index = () => {
         for (const line of lines) {
           try {
             if (!line.startsWith('data: ')) continue;
+            
             const data = JSON.parse(line.slice(5));
+            console.log('Received SSE data:', data); // Debug log
 
-            if (data.type === 'content_block_delta' && data.delta.thinking) {
-              setTerminalOutput(prev => [...prev, `> ${data.delta.thinking}`]);
-            } else if (data.type === 'message_delta' && data.delta.content) {
-              const content = data.delta.content[0]?.text || '';
+            if (data.type === 'error') {
+              throw new Error(data.error?.message || 'Unknown error in stream');
+            }
+
+            if (data.type === 'message_delta' && data.delta?.content?.[0]?.text) {
+              const content = data.delta.content[0].text;
               gameContent += content;
               setTerminalOutput(prev => [...prev, `> Received ${content.length} characters of game code`]);
+            } else if (data.type === 'content_block_delta' && data.delta?.thinking) {
+              setTerminalOutput(prev => [...prev, `> ${data.delta.thinking}`]);
             } else if (data.type === 'message_stop') {
               setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
             }
           } catch (e) {
             console.error('Error parsing SSE line:', e);
+            continue;
           }
         }
       }
