@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2 } from "lucide-react";
@@ -69,7 +70,7 @@ const Index = () => {
     setTerminalOutput([`> Generating game based on prompt: "${prompt}"`]);
 
     try {
-      const response = await fetch(`${supabase.functions.url}/generate-game`, {
+      const response = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
