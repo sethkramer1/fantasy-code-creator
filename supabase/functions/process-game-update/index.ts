@@ -1,5 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -12,10 +13,11 @@ serve(async (req) => {
   }
 
   try {
-    const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
-    if (!ANTHROPIC_API_KEY) {
-      throw new Error('ANTHROPIC_API_KEY is not set')
-    }
+    // Initialize Supabase client with admin privileges
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+    )
 
     const { gameId, message } = await req.json()
     if (!gameId || !message) {
@@ -46,7 +48,7 @@ serve(async (req) => {
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
+        "x-api-key": Deno.env.get('ANTHROPIC_API_KEY') ?? '',
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
@@ -73,7 +75,7 @@ serve(async (req) => {
     const instructionsResponse = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
+        "x-api-key": Deno.env.get('ANTHROPIC_API_KEY') ?? '',
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
@@ -132,6 +134,7 @@ serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
+    console.error('Error in process-game-update function:', error);
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
