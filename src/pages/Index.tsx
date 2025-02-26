@@ -8,6 +8,7 @@ import {
   Dialog,
   DialogContent,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 
 interface Game {
@@ -255,16 +256,19 @@ const Index = () => {
       </div>
 
       <Dialog open={showTerminal} onOpenChange={setShowTerminal}>
-        <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full">
+        <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden">
           <DialogTitle className="text-green-400 mb-4">Game Generation Progress</DialogTitle>
-          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+          <DialogDescription className="text-green-400/70">
+            Watching the AI create your game in real-time...
+          </DialogDescription>
+          <div className="mt-4 space-y-1 h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-green-500 scrollbar-track-black">
             {terminalOutput.map((line, index) => (
-              <div key={index} className="whitespace-pre-wrap">
+              <div key={index} className="whitespace-pre-wrap py-1">
                 {line}
               </div>
             ))}
             {loading && (
-              <div className="animate-pulse">_</div>
+              <div className="animate-pulse mt-2">_</div>
             )}
           </div>
         </DialogContent>
