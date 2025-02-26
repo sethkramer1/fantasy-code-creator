@@ -12,6 +12,7 @@ const Index = () => {
   const [prompt, setPrompt] = useState("");
   const [loading, setLoading] = useState(false);
   const [gameCode, setGameCode] = useState<string | null>(null);
+  const [apiKey, setApiKey] = useState("");
   const { toast } = useToast();
 
   const generateGame = async () => {
@@ -23,12 +24,20 @@ const Index = () => {
       return;
     }
 
+    if (!apiKey.trim()) {
+      toast({
+        title: "Please enter your Anthropic API key",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
         headers: {
-          "x-api-key": "", // API key will be added later
+          "x-api-key": apiKey,
           "anthropic-version": "2023-06-01",
           "content-type": "application/json",
         },
@@ -86,6 +95,19 @@ const Index = () => {
         </div>
 
         <div className="glass-panel rounded-xl p-6 space-y-4">
+          <div className="space-y-2">
+            <label htmlFor="apiKey" className="block text-sm text-gray-600">
+              Anthropic API Key
+            </label>
+            <input
+              id="apiKey"
+              type="password"
+              value={apiKey}
+              onChange={(e) => setApiKey(e.target.value)}
+              placeholder="Enter your Anthropic API key..."
+              className="w-full p-3 rounded-lg bg-white bg-opacity-50 backdrop-blur-sm border border-gray-200 focus:ring-2 focus:ring-gray-200 focus:outline-none transition-all"
+            />
+          </div>
           <textarea
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
