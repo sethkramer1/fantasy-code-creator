@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
@@ -7,7 +8,6 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -23,17 +23,20 @@ serve(async (req) => {
       throw new Error('Prompt is required')
     }
 
-    console.log('Generating game with prompt:', prompt)
-
     // Create a TransformStream for streaming
     const stream = new TransformStream()
     const writer = stream.writable.getWriter()
 
+    // Send initial message to confirm connection
+    await writer.write(encoder.encode(`data: ${JSON.stringify({ type: 'start' })}\n\n`))
+
     // Start game generation in the background
     EdgeRuntime.waitUntil((async () => {
+      const encoder = new TextEncoder()
       try {
+        console.log('Making request to Anthropic API with prompt:', prompt)
+        
         // First API call to generate the game
-        console.log('Making request to Anthropic API...')
         const response = await fetch("https://api.anthropic.com/v1/messages", {
           method: "POST",
           headers: {
@@ -45,10 +48,6 @@ serve(async (req) => {
             model: "claude-3-7-sonnet-20250219",
             max_tokens: 20000,
             stream: true,
-            thinking: {
-              type: "enabled",
-              budget_tokens: 10000,
-            },
             messages: [
               {
                 role: "user",
@@ -59,6 +58,10 @@ serve(async (req) => {
             ],
           }),
         })
+
+        if (!response.ok) {
+          throw new Error(`Anthropic API error: ${response.status} ${response.statusText}`)
+        }
 
         console.log('Anthropic API response status:', response.status)
         
@@ -77,47 +80,14 @@ serve(async (req) => {
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(5))
-                console.log('Processing event:', data)
+                console.log('Received event from Anthropic:', data)
 
-                switch (data.type) {
-                  case 'message_start':
-                    await writer.write(`data: ${JSON.stringify({ type: 'start' })}\n\n`)
-                    break
-                  case 'content_block_delta':
-                    if (data.delta?.type === 'thinking_delta') {
-                      await writer.write(`data: ${JSON.stringify({ type: 'thinking', content: data.delta.thinking })}\n\n`)
-                    } else if (data.delta?.type === 'text_delta') {
-                      gameCode += data.delta.text
-                      await writer.write(`data: ${JSON.stringify({ type: 'code', content: data.delta.text })}\n\n`)
-                    }
-                    break
-                  case 'message_stop':
-                    // We've received all the content, now get instructions
-                    const instructionsResponse = await fetch("https://api.anthropic.com/v1/messages", {
-                      method: "POST",
-                      headers: {
-                        "x-api-key": ANTHROPIC_API_KEY,
-                        "anthropic-version": "2023-06-01",
-                        "content-type": "application/json",
-                      },
-                      body: JSON.stringify({
-                        model: "claude-3-7-sonnet-20250219",
-                        max_tokens: 500,
-                        messages: [
-                          {
-                            role: "user",
-                            content: `Given this game code, explain ONLY the controls and how to play the game in a clear, concise way. No other information needed:\n\n${gameCode}`,
-                          },
-                        ],
-                      }),
-                    })
-
-                    const instructionsData = await instructionsResponse.json()
-                    const instructionsContent = instructionsData.content?.find(item => item.type === 'text')
-                    const instructions = instructionsContent?.text?.trim() || ''
-                    
-                    await writer.write(`data: ${JSON.stringify({ type: 'complete', gameCode, instructions })}\n\n`)
-                    break
+                if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
+                  gameCode += data.delta.text
+                  await writer.write(encoder.encode(`data: ${JSON.stringify({ 
+                    type: 'code', 
+                    content: data.delta.text 
+                  })}\n\n`))
                 }
               } catch (parseError) {
                 console.error('Error parsing SSE data:', parseError, line)
@@ -125,9 +95,49 @@ serve(async (req) => {
             }
           }
         }
+
+        // Get instructions after game code is complete
+        const instructionsResponse = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "claude-3-7-sonnet-20250219",
+            max_tokens: 500,
+            messages: [
+              {
+                role: "user",
+                content: `Given this game code, explain ONLY the controls and how to play the game in a clear, concise way. No other information needed:\n\n${gameCode}`,
+              },
+            ],
+          }),
+        })
+
+        if (!instructionsResponse.ok) {
+          throw new Error(`Instructions API error: ${instructionsResponse.status}`)
+        }
+
+        const instructionsData = await instructionsResponse.json()
+        console.log('Instructions response:', instructionsData)
+
+        const instructionsContent = instructionsData.content?.find(item => item.type === 'text')
+        const instructions = instructionsContent?.text?.trim() || ''
+
+        // Send the final complete response
+        await writer.write(encoder.encode(`data: ${JSON.stringify({ 
+          type: 'complete', 
+          gameCode, 
+          instructions 
+        })}\n\n`))
       } catch (error) {
-        console.error('Error in generate game:', error)
-        await writer.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`)
+        console.error('Error generating game:', error)
+        await writer.write(encoder.encode(`data: ${JSON.stringify({ 
+          type: 'error', 
+          message: error.message 
+        })}\n\n`))
       } finally {
         await writer.close()
       }
@@ -142,11 +152,11 @@ serve(async (req) => {
       },
     })
   } catch (error) {
-    console.error('Error:', error.message)
+    console.error('Error:', error)
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
-        status: 400, 
+        status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     )

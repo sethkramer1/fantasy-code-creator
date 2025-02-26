@@ -69,7 +69,7 @@ const Index = () => {
 
     setLoading(true);
     setShowModal(true);
-    setGeneratedCode("");
+    setGeneratedCode("Initializing...");
 
     try {
       console.log('Making request to Edge Function...');
@@ -86,32 +86,40 @@ const Index = () => {
       if (!reader) throw new Error('No reader available');
 
       let accumulatedCode = '';
+      
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
+        // Convert the Uint8Array to text
         const chunk = new TextDecoder().decode(value);
-        const lines = chunk.split('\n').filter(line => line.trim());
+        console.log('Received chunk:', chunk);
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
+        // Split the chunk into individual SSE messages
+        const messages = chunk.split('\n\n').filter(Boolean);
+
+        for (const message of messages) {
+          if (message.startsWith('data: ')) {
             try {
-              const data = JSON.parse(line.slice(5));
-              console.log('Received event:', data);
+              const data = JSON.parse(message.slice(6));
+              console.log('Parsed event:', data);
 
               switch (data.type) {
                 case 'start':
-                  setGeneratedCode('Starting generation...\n');
+                  setGeneratedCode('Starting game generation...\n');
                   break;
-                case 'thinking':
-                  setGeneratedCode(prev => prev + data.content + '\n');
-                  break;
+
                 case 'code':
                   accumulatedCode += data.content;
-                  setGeneratedCode(accumulatedCode);
+                  setGeneratedCode(prev => {
+                    const newContent = accumulatedCode;
+                    console.log('Updating code display:', newContent.length, 'characters');
+                    return newContent;
+                  });
                   break;
+
                 case 'complete':
-                  // Save the game to the database
+                  console.log('Generation complete, saving game...');
                   const { data: gameData, error: insertError } = await supabase
                     .from('games')
                     .insert([
@@ -136,9 +144,12 @@ const Index = () => {
                   setShowModal(false);
                   navigate(`/play/${gameData.id}`);
                   break;
+
+                case 'error':
+                  throw new Error(data.message || 'Unknown error occurred');
               }
             } catch (parseError) {
-              console.error('Error parsing event:', parseError, 'Raw line:', line);
+              console.error('Error parsing SSE message:', parseError, message);
             }
           }
         }
