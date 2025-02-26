@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3"
@@ -18,13 +19,14 @@ serve(async (req) => {
       throw new Error('ANTHROPIC_API_KEY is not set')
     }
 
-    // Initialize Supabase client with admin privileges
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     )
 
     const { gameId, message } = await req.json()
+    console.log('Received request:', { gameId, message })
+    
     if (!gameId || !message) {
       throw new Error('Game ID and message are required')
     }
@@ -47,6 +49,8 @@ serve(async (req) => {
 
     const currentVersion = gameData.current_version;
     const currentCode = gameData.game_versions[0].code;
+
+    console.log('Current game version:', currentVersion)
 
     // Ask Claude to modify the game
     const response = await fetch("https://api.anthropic.com/v1/messages", {
@@ -83,6 +87,7 @@ serve(async (req) => {
 
     const anthropicData = await response.json();
     const newCode = anthropicData.content[0].text;
+    console.log('Generated new code length:', newCode.length)
 
     // Get new instructions
     const instructionsResponse = await fetch("https://api.anthropic.com/v1/messages", {
@@ -128,6 +133,7 @@ serve(async (req) => {
       .single();
 
     if (versionError) throw versionError;
+    console.log('Saved new version:', newVersionNumber)
 
     // Update current version in games table
     const { error: updateError } = await supabaseAdmin

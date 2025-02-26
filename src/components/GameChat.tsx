@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 
 interface Message {
   id: string;
@@ -24,7 +24,6 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const { toast } = useToast();
 
-  // Changed from useState to useEffect for initialization
   useEffect(() => {
     const fetchMessages = async () => {
       try {
@@ -75,14 +74,19 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
       setMessage("");
 
       // Call Edge Function to process the message
+      console.log('Calling process-game-update with:', { gameId, message: message.trim() });
       const { data: functionData, error: functionError } = await supabase.functions.invoke(
         'process-game-update',
         {
-          body: { gameId, message: message.trim() }
+          body: { 
+            gameId, 
+            message: message.trim() 
+          }
         }
       );
 
       if (functionError) throw functionError;
+      console.log('Received response from process-game-update:', functionData);
 
       if (functionData.code && functionData.instructions) {
         // Update the game in parent component
@@ -107,11 +111,24 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
         ));
       }
     } catch (error) {
+      console.error('Error in handleSubmit:', error);
       toast({
         title: "Error processing message",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
+      
+      // Clean up the message if there was an error
+      if (messages[messages.length - 1]?.response === undefined) {
+        const { error: deleteError } = await supabase
+          .from('game_messages')
+          .delete()
+          .eq('id', messages[messages.length - 1].id);
+          
+        if (!deleteError) {
+          setMessages(prev => prev.slice(0, -1));
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -150,7 +167,7 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
             type="text"
             value={message}
             onChange={(e) => setMessage(e.target.value)}
-            onKeyDown={(e) => e.stopPropagation()} // Add this to prevent space key event propagation
+            onKeyDown={(e) => e.stopPropagation()}
             placeholder="Ask me to modify the game..."
             className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
             disabled={loading}
