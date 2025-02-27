@@ -39,6 +39,8 @@ export function SnakeGame() {
     score: 0
   });
   const gameLoopRef = useRef<number | null>(null);
+  // Add a separate timer ref to track when the snake should move
+  const lastMoveTimeRef = useRef<number>(0);
 
   // Generate random food position
   const generateFood = useCallback((): Point => {
@@ -57,6 +59,7 @@ export function SnakeGame() {
       paused: false,
       score: 0
     });
+    lastMoveTimeRef.current = 0; // Reset the move timer
   }, [generateFood]);
 
   // Toggle pause state
@@ -197,8 +200,74 @@ export function SnakeGame() {
     }
   }, [gameState]);
 
-  // Game loop
+  // Move snake function separated from the game loop
+  const moveSnake = useCallback(() => {
+    setGameState(prevState => {
+      const newSnake = [...prevState.snake];
+      const head = { ...newSnake[0] };
+      
+      // Update head position based on direction
+      switch (prevState.direction) {
+        case 'UP':
+          head.y -= 1;
+          break;
+        case 'DOWN':
+          head.y += 1;
+          break;
+        case 'LEFT':
+          head.x -= 1;
+          break;
+        case 'RIGHT':
+          head.x += 1;
+          break;
+      }
+      
+      // Check for collisions with walls
+      if (
+        head.x < 0 || 
+        head.x >= GRID_SIZE || 
+        head.y < 0 || 
+        head.y >= GRID_SIZE
+      ) {
+        return { ...prevState, gameOver: true };
+      }
+      
+      // Check for collisions with self
+      for (let i = 0; i < newSnake.length; i++) {
+        if (head.x === newSnake[i].x && head.y === newSnake[i].y) {
+          return { ...prevState, gameOver: true };
+        }
+      }
+      
+      // Add new head
+      newSnake.unshift(head);
+      
+      let newFood = prevState.food;
+      let newScore = prevState.score;
+      
+      // Check if snake ate food
+      if (head.x === prevState.food.x && head.y === prevState.food.y) {
+        // Generate new food
+        newFood = generateFood();
+        // Increase score
+        newScore += 10;
+      } else {
+        // Remove tail if no food was eaten
+        newSnake.pop();
+      }
+      
+      return {
+        ...prevState,
+        snake: newSnake,
+        food: newFood,
+        score: newScore
+      };
+    });
+  }, [generateFood]);
+
+  // Improved game loop with better timing control
   useEffect(() => {
+    // Stop the game loop if the game is over or paused
     if (gameState.gameOver || gameState.paused) {
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
@@ -208,90 +277,38 @@ export function SnakeGame() {
       return;
     }
 
-    let lastTime = 0;
-    const gameLoop = (timestamp: number) => {
-      gameLoopRef.current = requestAnimationFrame(gameLoop);
-      
-      // Update game state at the specified game speed
-      if (timestamp - lastTime >= GAME_SPEED) {
-        lastTime = timestamp;
-        
-        // Move snake
-        setGameState(prevState => {
-          const newSnake = [...prevState.snake];
-          const head = { ...newSnake[0] };
-          
-          // Update head position based on direction
-          switch (prevState.direction) {
-            case 'UP':
-              head.y -= 1;
-              break;
-            case 'DOWN':
-              head.y += 1;
-              break;
-            case 'LEFT':
-              head.x -= 1;
-              break;
-            case 'RIGHT':
-              head.x += 1;
-              break;
-          }
-          
-          // Check for collisions with walls
-          if (
-            head.x < 0 || 
-            head.x >= GRID_SIZE || 
-            head.y < 0 || 
-            head.y >= GRID_SIZE
-          ) {
-            return { ...prevState, gameOver: true };
-          }
-          
-          // Check for collisions with self
-          for (let i = 0; i < newSnake.length; i++) {
-            if (head.x === newSnake[i].x && head.y === newSnake[i].y) {
-              return { ...prevState, gameOver: true };
-            }
-          }
-          
-          // Add new head
-          newSnake.unshift(head);
-          
-          let newFood = prevState.food;
-          let newScore = prevState.score;
-          
-          // Check if snake ate food
-          if (head.x === prevState.food.x && head.y === prevState.food.y) {
-            // Generate new food
-            newFood = generateFood();
-            // Increase score
-            newScore += 10;
-          } else {
-            // Remove tail if no food was eaten
-            newSnake.pop();
-          }
-          
-          return {
-            ...prevState,
-            snake: newSnake,
-            food: newFood,
-            score: newScore
-          };
-        });
+    // Reset the game loop if it's already running
+    if (gameLoopRef.current) {
+      cancelAnimationFrame(gameLoopRef.current);
+      gameLoopRef.current = null;
+    }
+    
+    // Start a new game loop
+    const runGameLoop = (timestamp: number) => {
+      // Only move snake after GAME_SPEED milliseconds have passed since last move
+      if (timestamp - lastMoveTimeRef.current >= GAME_SPEED) {
+        moveSnake();
+        lastMoveTimeRef.current = timestamp;
       }
       
       // Draw the game on each frame
       drawGame();
+      
+      // Continue the game loop
+      gameLoopRef.current = requestAnimationFrame(runGameLoop);
     };
     
-    gameLoopRef.current = requestAnimationFrame(gameLoop);
+    // Start the game loop
+    gameLoopRef.current = requestAnimationFrame(runGameLoop);
     
+    // Clean up function
     return () => {
       if (gameLoopRef.current) {
         cancelAnimationFrame(gameLoopRef.current);
+        gameLoopRef.current = null;
       }
     };
-  }, [gameState.gameOver, gameState.paused, drawGame, generateFood]);
+  }, [gameState.gameOver, gameState.paused, drawGame, moveSnake]);
 
   // Game controls for mobile/touch
   const handleControlClick = (direction: string) => {
