@@ -1,7 +1,8 @@
 
 import { Wand2 } from "lucide-react";
 import { contentTypes } from "@/types/game";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
+import { useToast } from "@/components/ui/use-toast";
 
 interface GamePromptInputProps {
   value: string;
@@ -11,6 +12,8 @@ interface GamePromptInputProps {
 
 export function GamePromptInput({ value, onChange, selectedType }: GamePromptInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const { toast } = useToast();
+  const [isEnhancing, setIsEnhancing] = useState(false);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -74,7 +77,12 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
   const handleEnhancePrompt = async () => {
     if (!value.trim()) return;
     
+    setIsEnhancing(true);
+    
     try {
+      // Log the request for debugging
+      console.log('Enhancing prompt:', { prompt: value, contentType: selectedType });
+      
       const response = await fetch('/functions/v1/enhance-prompt', {
         method: 'POST',
         headers: {
@@ -86,15 +94,36 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
         }),
       });
       
+      // Log the response for debugging
+      console.log('Enhance prompt response status:', response.status);
+      
       if (!response.ok) {
-        throw new Error('Failed to enhance prompt');
+        const errorText = await response.text();
+        console.error('Error response:', errorText);
+        throw new Error(`Failed to enhance prompt: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      onChange(data.enhancedPrompt);
+      console.log('Enhanced prompt:', data);
+      
+      if (data.enhancedPrompt) {
+        onChange(data.enhancedPrompt);
+        toast({
+          title: "Prompt enhanced",
+          description: "Your prompt has been improved with AI"
+        });
+      } else {
+        throw new Error('Invalid response from enhance prompt function');
+      }
     } catch (error) {
       console.error('Error enhancing prompt:', error);
-      // You might want to show a toast notification here
+      toast({
+        title: "Couldn't enhance prompt",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive"
+      });
+    } finally {
+      setIsEnhancing(false);
     }
   };
 
@@ -112,11 +141,12 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
         <div className="absolute right-3 top-3">
           <button 
             onClick={handleEnhancePrompt}
-            className="flex items-center gap-1.5 p-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+            disabled={isEnhancing}
+            className="flex items-center gap-1.5 p-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             title="Enhance your prompt with AI"
           >
-            <Wand2 size={16} />
-            <span className="text-sm">Enhance prompt</span>
+            <Wand2 size={16} className={isEnhancing ? "animate-spin" : ""} />
+            <span className="text-sm">{isEnhancing ? "Enhancing..." : "Enhance prompt"}</span>
           </button>
         </div>
       )}
