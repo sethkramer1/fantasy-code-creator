@@ -2,6 +2,7 @@
 import { Loader2, Terminal } from "lucide-react";
 import { GameTypeSelector } from "./GameTypeSelector";
 import { GamePromptInput } from "./GamePromptInput";
+import { ImageUpload } from "./ImageUpload";
 
 interface GenerationFormProps {
   gameType: string;
@@ -12,6 +13,9 @@ interface GenerationFormProps {
   loading: boolean;
   showTerminalOutput: () => void;
   hasTerminalOutput: boolean;
+  imageUrl?: string;
+  onImageUploaded: (url: string) => void;
+  onImageRemoved: () => void;
 }
 
 export function GenerationForm({
@@ -22,7 +26,10 @@ export function GenerationForm({
   onGenerate,
   loading,
   showTerminalOutput,
-  hasTerminalOutput
+  hasTerminalOutput,
+  imageUrl,
+  onImageUploaded,
+  onImageRemoved
 }: GenerationFormProps) {
   return (
     <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm space-y-4">
@@ -30,6 +37,10 @@ export function GenerationForm({
         <GameTypeSelector 
           selectedType={gameType}
           onSelect={setGameType}
+        />
+        <ImageUpload
+          onImageUploaded={onImageUploaded}
+          onImageRemoved={onImageRemoved}
         />
         <GamePromptInput 
           value={prompt}

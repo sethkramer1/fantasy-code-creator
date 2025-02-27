@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 const Index = () => {
   const [prompt, setPrompt] = useState("");
   const [gameType, setGameType] = useState<string>("");
+  const [imageUrl, setImageUrl] = useState<string>("");
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -46,8 +47,16 @@ const Index = () => {
     };
   }, [loading, timerRef]);
 
+  const handleImageUploaded = (url: string) => {
+    setImageUrl(url);
+  };
+
+  const handleImageRemoved = () => {
+    setImageUrl("");
+  };
+
   const handleGenerate = async () => {
-    const gameData = await generateGame(prompt, gameType);
+    const gameData = await generateGame(prompt, gameType, imageUrl);
     if (gameData) {
       toast({
         title: "Generated successfully!",
@@ -78,6 +87,9 @@ const Index = () => {
             loading={loading}
             showTerminalOutput={() => setShowTerminal(true)}
             hasTerminalOutput={!showTerminal && terminalOutput.length > 0}
+            imageUrl={imageUrl}
+            onImageUploaded={handleImageUploaded}
+            onImageRemoved={handleImageRemoved}
           />
 
           <GamesList
