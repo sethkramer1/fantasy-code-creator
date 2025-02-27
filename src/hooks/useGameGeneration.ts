@@ -43,6 +43,194 @@ export const useGameGeneration = () => {
 
       const enhancedPrompt = selectedType.promptPrefix + " " + prompt;
 
+      // Add content type specific system instructions
+      let systemInstructions = "";
+      switch (selectedType.id) {
+        case 'game':
+          systemInstructions = `
+GAME STRUCTURE REQUIREMENTS:
+1. Game Logic:
+- Use a proper Game class/object to encapsulate all game logic
+- Implement clear game states: loading, playing, paused, game over
+- All variables must be properly scoped (no globals)
+- Use requestAnimationFrame for the game loop
+- Include proper event cleanup on game over/restart
+
+2. Core Functionality:
+- Start button must initialize game state and assets properly
+- Event listeners must be added AND removed appropriately
+- Mobile touch events must have proper touch handling (min 44x44px touch areas)
+- Score/lives must persist correctly between game states
+- Pause functionality must properly freeze game state
+- Add console.logs for key game events (start, score changes, game over)
+
+3. Error Prevention:
+- Check for undefined game objects before use
+- Implement bounds checking for all game entities
+- Add frame rate management
+- Include checks for browser compatibility features
+- Add try-catch blocks around critical game functions
+
+4. User Experience:
+- Show clear loading states for assets
+- Display game instructions before starting
+- Provide visual feedback for ALL player actions
+- Show clear game over state with final score
+- Include restart functionality
+- Add hover/active states for interactive elements
+- Load sound effects only after user interaction
+- Ensure the game starts when the user presses start
+
+5. Mobile Support:
+- Implement responsive design that works on all screen sizes
+- Prevent touch events from interfering with page scroll when game is inactive
+- Position controls for comfortable thumb reach
+- Optimize performance for mobile devices
+- Handle device orientation changes gracefully
+
+6. Documentation:
+- Add clear comments for game initialization, update, and render functions
+- Use descriptive variable and function names
+- Document game states and transitions
+- Include performance considerations
+
+7. Sizing
+- Build a responsive canvas that fits within all iframes.`;
+          break;
+        case 'svg':
+          systemInstructions = `
+SVG REQUIREMENTS:
+1. Structure:
+- Use proper SVG namespace
+- Implement clean, semantic element structure
+- Optimize paths and shapes
+- Use appropriate viewBox dimensions
+- Include proper metadata
+
+2. Styling:
+- Use efficient CSS styling
+- Implement proper fill and stroke attributes
+- Use transforms where appropriate
+- Add animations if specified
+- Include responsive scaling
+
+3. Optimization:
+- Minimize path points
+- Remove unnecessary attributes
+- Use appropriate precision
+- Implement proper grouping
+- Clean and format code`;
+          break;
+        case 'webdesign':
+          systemInstructions = `
+WEB DESIGN REQUIREMENTS:
+1. Structure:
+- Use semantic HTML5 elements
+- Implement proper heading hierarchy
+- Include meta tags
+- Add responsive viewport settings
+- Use proper document structure
+
+2. Styling:
+- Implement mobile-first responsive design
+- Use modern CSS features
+- Include hover and focus states
+- Add smooth transitions
+- Support dark/light modes
+
+3. Components:
+- Create reusable components
+- Add proper spacing
+- Include loading states
+- Implement error states
+- Use consistent styling
+
+4. Accessibility:
+- Add ARIA labels
+- Use semantic HTML
+- Include keyboard navigation
+- Implement proper color contrast
+- Add focus indicators`;
+          break;
+        case 'dataviz':
+          systemInstructions = `
+DATA VISUALIZATION REQUIREMENTS:
+1. Structure:
+- Use appropriate chart type
+- Implement proper axes
+- Add clear labels
+- Include legends where needed
+- Use responsive sizing
+
+2. Interaction:
+- Add hover states
+- Include tooltips
+- Implement zooming if needed
+- Add click interactions
+- Support touch devices
+
+3. Accessibility:
+- Add ARIA labels
+- Include alt text
+- Support keyboard navigation
+- Use proper color contrast
+- Add screen reader support`;
+          break;
+        case 'diagram':
+          systemInstructions = `
+DIAGRAM REQUIREMENTS:
+1. Structure:
+- Use clear layout
+- Implement proper spacing
+- Add directional indicators
+- Include proper labels
+- Use consistent styling
+
+2. Components:
+- Create clear nodes
+- Add proper connections
+- Include labels
+- Use appropriate icons
+- Implement grouping
+
+3. Styling:
+- Use consistent colors
+- Add proper spacing
+- Include hover states
+- Implement highlights
+- Use appropriate fonts`;
+          break;
+        case 'infographic':
+          systemInstructions = `
+INFOGRAPHIC REQUIREMENTS:
+1. Structure:
+- Use clear sections
+- Implement proper flow
+- Add visual hierarchy
+- Include proper spacing
+- Use consistent layout
+
+2. Content:
+- Create clear headings
+- Add proper icons
+- Include data visualizations
+- Use appropriate typography
+- Implement consistent styling
+
+3. Accessibility:
+- Add alt text
+- Use proper contrast
+- Include screen reader support
+- Implement proper spacing
+- Use semantic structure`;
+          break;
+        default:
+          systemInstructions = "Create content based on the user's requirements with clean, maintainable code.";
+      }
+
+      // Combine the system instructions with the enhanced prompt
+      const finalPrompt = `${systemInstructions}\n\n${enhancedPrompt}`;
+
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
         {
@@ -51,7 +239,7 @@ export const useGameGeneration = () => {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
           },
-          body: JSON.stringify({ prompt: enhancedPrompt }),
+          body: JSON.stringify({ prompt: finalPrompt }),
         }
       );
 
