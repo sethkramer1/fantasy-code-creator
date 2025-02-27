@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw, Download } from "lucide-react";
+import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw, Download, FileText } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -198,6 +198,71 @@ const Play = () => {
     }
   };
 
+  const handleDownloadPDF = async () => {
+    if (!currentVersion) return;
+    
+    try {
+      const content = currentVersion.code;
+      const style = `
+        <style>
+          body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+          }
+          pre {
+            background: #f5f5f5;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+          }
+          code {
+            font-family: monospace;
+          }
+        </style>
+      `;
+      
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Version ${currentVersion.version_number}</title>
+          ${style}
+        </head>
+        <body>
+          <h1>Version ${currentVersion.version_number}</h1>
+          ${currentVersion.instructions ? `<div class="instructions"><h2>Instructions</h2>${currentVersion.instructions}</div>` : ''}
+          <h2>Code</h2>
+          <pre><code>${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+        </body>
+        </html>
+      `;
+
+      const blob = new Blob([htmlContent], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `version-${currentVersion.version_number}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "PDF version downloaded",
+        description: "Open the HTML file in your browser and use the print function to save as PDF.",
+      });
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: "There was an error downloading the PDF version. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
@@ -270,6 +335,15 @@ const Play = () => {
                 >
                   <Download size={16} />
                   Download Files
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={handleDownloadPDF}
+                >
+                  <FileText size={16} />
+                  Download PDF
                 </Button>
                 {!showChat && (
                   <button 
