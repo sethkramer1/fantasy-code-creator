@@ -102,7 +102,7 @@ You'll be given the HTML/CSS/JS code of a web application and a request to modif
       system: systemMessage,
       thinking: {
         type: "enabled",
-        budget_tokens": 7000
+        budget_tokens: 7000  // Fixed syntax error: removed erroneous quote
       }
     };
 
