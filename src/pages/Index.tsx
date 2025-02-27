@@ -86,7 +86,7 @@ const Index = () => {
       <div className="max-w-4xl mx-auto p-6 md:p-8">
         <div className="space-y-8">
           <Header 
-            title="Creative Generator"
+            title="What would you like to mock up?"
             description="Describe what you want to create and watch it come to life"
           />
 

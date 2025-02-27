@@ -27,7 +27,6 @@ export function GameTypeSelector({ selectedType, onSelect }: GameTypeSelectorPro
 
   return (
     <div>
-      <h2 className="text-lg font-medium text-gray-900 mb-3">Choose what you want to create</h2>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {contentTypes.map((type) => {
           const IconComponent = typeIcons[type.id as keyof typeof typeIcons];
