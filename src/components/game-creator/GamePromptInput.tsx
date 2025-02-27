@@ -1,9 +1,6 @@
 
-import { Wand2 } from "lucide-react";
 import { contentTypes } from "@/types/game";
-import { useRef, useEffect, useState } from "react";
-import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
+import { useRef, useEffect } from "react";
 
 interface GamePromptInputProps {
   value: string;
@@ -13,8 +10,6 @@ interface GamePromptInputProps {
 
 export function GamePromptInput({ value, onChange, selectedType }: GamePromptInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const { toast } = useToast();
-  const [isEnhancing, setIsEnhancing] = useState(false);
 
   // Auto-resize textarea
   useEffect(() => {
@@ -75,50 +70,6 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
     }
   };
 
-  const handleEnhancePrompt = async () => {
-    if (!value.trim()) return;
-    
-    setIsEnhancing(true);
-    
-    try {
-      // Log the request for debugging
-      console.log('Enhancing prompt:', { prompt: value, contentType: selectedType });
-      
-      const { data, error } = await supabase.functions.invoke('enhance-prompt', {
-        body: { 
-          prompt: value,
-          contentType: selectedType 
-        },
-      });
-      
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw new Error(`Failed to enhance prompt: ${error.message}`);
-      }
-      
-      console.log('Enhanced prompt response:', data);
-      
-      if (data?.enhancedPrompt) {
-        onChange(data.enhancedPrompt);
-        toast({
-          title: "Prompt enhanced",
-          description: "Your prompt has been improved with AI"
-        });
-      } else {
-        throw new Error('Invalid response from enhance prompt function');
-      }
-    } catch (error) {
-      console.error('Error enhancing prompt:', error);
-      toast({
-        title: "Couldn't enhance prompt",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive"
-      });
-    } finally {
-      setIsEnhancing(false);
-    }
-  };
-
   return (
     <div className="relative">
       <textarea
@@ -126,22 +77,9 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={getPlaceholder()}
-        className="w-full p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all text-gray-800 placeholder:text-gray-400 min-h-[48px] resize-none pr-20"
+        className="w-full p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all text-gray-800 placeholder:text-gray-400 min-h-[48px] resize-none"
         style={{ height: 'auto', overflow: 'hidden' }}
       />
-      {value.trim().length > 0 && (
-        <div className="absolute right-3 top-3">
-          <button 
-            onClick={handleEnhancePrompt}
-            disabled={isEnhancing}
-            className="flex items-center gap-1.5 p-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title="Enhance your prompt with AI"
-          >
-            <Wand2 size={16} className={isEnhancing ? "animate-spin" : ""} />
-            <span className="text-sm">{isEnhancing ? "Enhancing..." : "Enhance prompt"}</span>
-          </button>
-        </div>
-      )}
     </div>
   );
 }
