@@ -52,7 +52,7 @@ serve(async (req) => {
 
     console.log('Current game version:', currentVersion)
 
-    // Ask Claude to modify the game
+    // Stream the response from Claude
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -63,95 +63,111 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "claude-3-7-sonnet-20250219",
         max_tokens: 20000,
+        stream: true,
         messages: [
           {
             role: "user",
             content: `Here is the current HTML game code:\n\n${currentCode}\n\nPlease modify the game according to this request: ${message}\n\n
                      When modifying the game, ensure:
                      - All existing functionality remains working (Start button, controls, game over handling, etc.)
+                     - Game initializes and starts correctly when the user clicks play/start
                      - The changes integrate smoothly with the current game mechanics
                      - Any new features have proper user feedback and error handling
                      - The game remains mobile-friendly
                      - All code remains in one HTML file with no external dependencies
                      - Changes are properly tested and don't break existing features
                      
-                     Return ONLY the complete updated HTML code.`,
+                     Return ONLY the complete HTML code, nothing else.`,
           },
         ],
       }),
     })
 
-    if (!response.ok) {
-      throw new Error(`Anthropic API error: ${response.status}`);
-    }
+    // Create a new readable stream to forward Claude's response
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          const reader = response.body?.getReader();
+          if (!reader) throw new Error("No reader available");
 
-    const anthropicData = await response.json();
-    const newCode = anthropicData.content[0].text;
-    console.log('Generated new code length:', newCode.length)
+          let gameContent = '';
 
-    // Get new instructions
-    const instructionsResponse = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-3-7-sonnet-20250219",
-        max_tokens: 500,
-        messages: [
-          {
-            role: "user",
-            content: `Given this game code, explain ONLY the controls and how to play the game in a clear, concise way:\n\n${newCode}`,
-          },
-        ],
-      }),
-    })
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-    if (!instructionsResponse.ok) {
-      throw new Error(`Instructions API error: ${instructionsResponse.status}`);
-    }
+            const text = new TextDecoder().decode(value);
+            const lines = text.split('\n').filter(Boolean);
 
-    const instructionsData = await instructionsResponse.json();
-    const newInstructions = instructionsData.content[0].text;
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+              
+              try {
+                const data = JSON.parse(line.slice(5));
+                
+                if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
+                  const content = data.delta.text || '';
+                  if (content) {
+                    gameContent += content;
+                    controller.enqueue(line + '\n');
+                  }
+                } else {
+                  controller.enqueue(line + '\n');
+                }
+              } catch (e) {
+                console.error('Error parsing line:', e);
+                controller.error(e);
+                return;
+              }
+            }
+          }
 
-    // Save new version
-    const newVersionNumber = currentVersion + 1;
-    
-    const { data: versionData, error: versionError } = await supabaseAdmin
-      .from('game_versions')
-      .insert([
-        {
-          game_id: gameId,
-          code: newCode,
-          instructions: newInstructions,
-          version_number: newVersionNumber,
+          // Save the new version
+          if (gameContent) {
+            const newVersionNumber = currentVersion + 1;
+            
+            const { data: versionData, error: versionError } = await supabaseAdmin
+              .from('game_versions')
+              .insert([
+                {
+                  game_id: gameId,
+                  code: gameContent,
+                  instructions: "Game updated successfully",
+                  version_number: newVersionNumber,
+                }
+              ])
+              .select()
+              .single();
+
+            if (versionError) throw versionError;
+
+            // Update current version in games table
+            const { error: updateError } = await supabaseAdmin
+              .from('games')
+              .update({ current_version: newVersionNumber })
+              .eq('id', gameId);
+
+            if (updateError) throw updateError;
+
+            console.log('Saved and set new version:', newVersionNumber);
+          }
+
+          controller.close();
+        } catch (error) {
+          controller.error(error);
         }
-      ])
-      .select()
-      .single();
+      },
+    });
 
-    if (versionError) throw versionError;
-    console.log('Saved new version:', newVersionNumber)
+    return new Response(stream, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
 
-    // Update current version in games table
-    const { error: updateError } = await supabaseAdmin
-      .from('games')
-      .update({ current_version: newVersionNumber })
-      .eq('id', gameId);
-
-    if (updateError) throw updateError;
-
-    return new Response(
-      JSON.stringify({
-        code: newCode,
-        instructions: newInstructions,
-        versionId: versionData.id,
-        response: "I've updated the game based on your request. Try it out!"
-      }),
-      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-    )
   } catch (error) {
     console.error('Error in process-game-update function:', error);
     return new Response(
