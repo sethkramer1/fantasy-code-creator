@@ -1,7 +1,9 @@
 
-import { Timer } from "lucide-react";
-import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { useEffect, useRef } from "react";
+import React from "react";
+import { Button } from "../ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import { Loader2 } from "lucide-react";
+import { SnakeGame } from "./SnakeGame";
 
 interface GenerationTerminalProps {
   open: boolean;
@@ -11,52 +13,70 @@ interface GenerationTerminalProps {
   loading: boolean;
 }
 
-export function GenerationTerminal({ 
-  open, 
-  onOpenChange, 
-  output, 
-  thinkingTime, 
-  loading 
+export function GenerationTerminal({
+  open,
+  onOpenChange,
+  output,
+  thinkingTime,
+  loading,
 }: GenerationTerminalProps) {
-  const terminalRef = useRef<HTMLDivElement>(null);
-
-  // Auto-scroll to bottom whenever output changes
-  useEffect(() => {
-    if (terminalRef.current && open) {
-      // Use requestAnimationFrame to ensure DOM has updated before scrolling
-      requestAnimationFrame(() => {
-        if (terminalRef.current) {
-          terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-        }
-      });
+  
+  // Format thinking time nicely
+  const formatTime = (seconds: number) => {
+    if (seconds < 60) {
+      return `${seconds}s`;
     }
-  }, [output, open]);
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}m ${secs}s`;
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden border border-green-500/20">
-        <DialogTitle className="text-green-400 mb-4">Generation Progress</DialogTitle>
-        <DialogDescription className="text-green-400/70 space-y-2">
-          <div className="flex items-center gap-2">
-            <Timer size={16} />
-            <span>Thinking for {thinkingTime} seconds...</span>
+      <DialogContent className="max-w-6xl w-full sm:max-h-[80vh] max-h-[90vh] h-[90vh] p-0">
+        <DialogHeader className="px-6 pt-4 border-b pb-4">
+          <DialogTitle>
+            Generation {loading ? "in progress" : "complete"}
+            {loading && (
+              <span className="ml-4 text-sm font-normal text-gray-500">
+                Thinking for {formatTime(thinkingTime)}
+              </span>
+            )}
+          </DialogTitle>
+        </DialogHeader>
+        
+        <div className="flex flex-col md:flex-row h-full overflow-hidden">
+          {/* Terminal Output */}
+          <div className="flex-1 overflow-y-auto p-5 md:min-w-[500px]">
+            <div className="font-mono text-sm">
+              {output.map((line, i) => (
+                <div key={i} className="mb-1">
+                  {line === "" ? <br /> : line}
+                </div>
+              ))}
+              
+              {loading && (
+                <div className="animate-pulse flex items-center gap-2 text-gray-500 mt-2">
+                  <Loader2 className="animate-spin" size={16} />
+                  <span>Generating...</span>
+                </div>
+              )}
+            </div>
           </div>
-          <p>Watching the AI create your content in real-time...</p>
-        </DialogDescription>
-        <div 
-          ref={terminalRef}
-          className="mt-4 space-y-1 h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 scroll-smooth"
-        >
-          {output.map((line, index) => (
-            <div key={`line-${index}-${line.substring(0, 10)}`} className="whitespace-pre-wrap py-1 break-all">
-              {line}
-            </div>
-          ))}
-          {loading && (
-            <div className="animate-pulse mt-2">
-              <span className="text-green-500">_</span>
-            </div>
-          )}
+          
+          {/* Snake Game */}
+          <div className="flex-1 border-t md:border-t-0 md:border-l border-gray-200 p-5 overflow-y-auto flex justify-center items-start">
+            <SnakeGame />
+          </div>
+        </div>
+        
+        <div className="p-4 border-t border-gray-200 flex justify-end">
+          <Button
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+          >
+            {loading ? "Minimize" : "Close"}
+          </Button>
         </div>
       </DialogContent>
     </Dialog>
