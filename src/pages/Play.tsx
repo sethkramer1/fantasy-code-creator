@@ -248,7 +248,7 @@ const Play = () => {
 
                 {currentVersion.instructions && (
                   <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-lg border border-gray-100">
-                    <h2 className="text-lg font-medium text-gray-900 mb-2">Instructions</h2>
+                    <h2 className="text-lg font-medium text-gray-900 mb-2">Details</h2>
                     <div className="prose prose-sm max-w-none text-gray-600">
                       <ReactMarkdown>{currentVersion.instructions}</ReactMarkdown>
                     </div>

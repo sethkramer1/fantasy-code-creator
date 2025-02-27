@@ -29,13 +29,13 @@ export function GenerationTerminal({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden border border-green-500/20">
-        <DialogTitle className="text-green-400 mb-4">Game Generation Progress</DialogTitle>
+        <DialogTitle className="text-green-400 mb-4">Generation Progress</DialogTitle>
         <DialogDescription className="text-green-400/70 space-y-2">
           <div className="flex items-center gap-2">
             <Timer size={16} />
             <span>Thinking for {thinkingTime} seconds...</span>
           </div>
-          <p>Watching the AI create your game in real-time...</p>
+          <p>Watching the AI create your content in real-time...</p>
         </DialogDescription>
         <div 
           ref={terminalRef}
