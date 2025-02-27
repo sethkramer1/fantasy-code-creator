@@ -3,6 +3,7 @@ import { Wand2 } from "lucide-react";
 import { contentTypes } from "@/types/game";
 import { useRef, useEffect, useState } from "react";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface GamePromptInputProps {
   value: string;
@@ -83,30 +84,21 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
       // Log the request for debugging
       console.log('Enhancing prompt:', { prompt: value, contentType: selectedType });
       
-      const response = await fetch('/functions/v1/enhance-prompt', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
+      const { data, error } = await supabase.functions.invoke('enhance-prompt', {
+        body: { 
           prompt: value,
           contentType: selectedType 
-        }),
+        },
       });
       
-      // Log the response for debugging
-      console.log('Enhance prompt response status:', response.status);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response:', errorText);
-        throw new Error(`Failed to enhance prompt: ${response.status} ${response.statusText}`);
+      if (error) {
+        console.error('Supabase function error:', error);
+        throw new Error(`Failed to enhance prompt: ${error.message}`);
       }
       
-      const data = await response.json();
-      console.log('Enhanced prompt:', data);
+      console.log('Enhanced prompt response:', data);
       
-      if (data.enhancedPrompt) {
+      if (data?.enhancedPrompt) {
         onChange(data.enhancedPrompt);
         toast({
           title: "Prompt enhanced",
