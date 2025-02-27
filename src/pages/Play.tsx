@@ -8,6 +8,7 @@ import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import JSZip from 'jszip';
+import html2pdf from 'html2pdf.js';
 
 interface GameVersion {
   id: string;
@@ -199,70 +200,52 @@ const Play = () => {
   };
 
   const handleDownloadPDF = async () => {
-    if (!currentVersion) return;
+    if (!currentVersion || !iframeRef.current) return;
     
     try {
-      const style = `
-        <style>
-          body {
-            font-family: Arial, sans-serif;
-            line-height: 1.6;
-            padding: 20px;
-            max-width: 800px;
-            margin: 0 auto;
-          }
-          @media print {
-            body {
-              padding: 0;
-              margin: 0;
-            }
-          }
-        </style>
-      `;
+      const iframe = iframeRef.current;
+      const iframeDocument = iframe.contentDocument || iframe.contentWindow?.document;
       
-      const iframeContent = currentVersion.code;
+      if (!iframeDocument) {
+        throw new Error("Cannot access iframe content");
+      }
+
+      const content = iframeDocument.documentElement.cloneNode(true) as HTMLElement;
       
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Version ${currentVersion.version_number}</title>
-          ${style}
-        </head>
-        <body>
-          ${currentVersion.instructions ? `
-            <div class="instructions" style="margin-bottom: 20px;">
-              <h1 style="margin-bottom: 10px;">Version ${currentVersion.version_number}</h1>
-              <h2 style="margin-bottom: 10px;">Instructions</h2>
-              <div>${currentVersion.instructions}</div>
-            </div>
-            <hr style="margin: 20px 0;">
-          ` : ''}
-          <div class="preview">
-            ${iframeContent}
-          </div>
-        </body>
-        </html>
-      `;
+      const opt = {
+        margin: [0, 0, 0, 0],
+        filename: `version-${currentVersion.version_number}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+          scale: 2,
+          useCORS: true,
+          logging: false
+        },
+        jsPDF: { 
+          unit: 'mm', 
+          format: 'a4', 
+          orientation: 'portrait' 
+        }
+      };
 
-      const blob = new Blob([htmlContent], { type: 'text/html' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `version-${currentVersion.version_number}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      toast({
-        title: "PDF version downloaded",
-        description: "Open the HTML file in your browser and use the print function to save as PDF.",
+      const container = document.createElement('div');
+      container.innerHTML = content.outerHTML;
+      document.body.appendChild(container);
+      
+      html2pdf().set(opt).from(container).save().then(() => {
+        document.body.removeChild(container);
+        toast({
+          title: "PDF downloaded",
+          description: "The content has been downloaded as a PDF file.",
+        });
+      }).catch((error) => {
+        document.body.removeChild(container);
+        throw error;
       });
     } catch (error) {
       toast({
         title: "Download failed",
-        description: "There was an error downloading the PDF version. Please try again.",
+        description: "There was an error downloading the PDF. Please try again.",
         variant: "destructive"
       });
     }
