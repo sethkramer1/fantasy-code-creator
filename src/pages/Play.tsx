@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, History, RotateCcw, Download, Bug } from "lucide-react";
+import { Loader2, ArrowLeft, History, RotateCcw, Download } from "lucide-react";
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -24,15 +24,8 @@ const Play = () => {
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showCode, setShowCode] = useState(false);
-  const [consoleOutput, setConsoleOutput] = useState<string[]>([]);
-  const [showConsole, setShowConsole] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
-
-  // Get current version early to prevent TS errors
-  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
-  const selectedVersionNumber = currentVersion?.version_number;
-  const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -46,23 +39,6 @@ const Play = () => {
     window.addEventListener("keydown", handleKeyDown, { capture: true });
     return () => {
       window.removeEventListener("keydown", handleKeyDown, { capture: true });
-    };
-  }, []);
-
-  // Handle message events from the iframe for logging and debugging
-  useEffect(() => {
-    const handleMessage = (event: MessageEvent) => {
-      // Only accept messages from our iframe
-      if (iframeRef.current && event.source === iframeRef.current.contentWindow) {
-        if (event.data && event.data.type === 'console') {
-          setConsoleOutput(prev => [...prev, event.data.message]);
-        }
-      }
-    };
-
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
     };
   }, []);
 
@@ -105,105 +81,11 @@ const Play = () => {
     fetchGame();
   }, [id, toast]);
 
-  const prepareIframeContent = (code: string) => {
-    // Inject console capture script
-    const consoleScript = `
-      <script>
-        // Capture console methods
-        const originalConsole = {
-          log: console.log,
-          error: console.error,
-          warn: console.warn,
-          info: console.info
-        };
-        
-        // Override console methods to send to parent
-        console.log = function() {
-          originalConsole.log.apply(console, arguments);
-          const message = Array.from(arguments).map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-          ).join(' ');
-          window.parent.postMessage({ type: 'console', message: '[LOG] ' + message }, '*');
-        };
-        
-        console.error = function() {
-          originalConsole.error.apply(console, arguments);
-          const message = Array.from(arguments).map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-          ).join(' ');
-          window.parent.postMessage({ type: 'console', message: '[ERROR] ' + message }, '*');
-        };
-        
-        console.warn = function() {
-          originalConsole.warn.apply(console, arguments);
-          const message = Array.from(arguments).map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-          ).join(' ');
-          window.parent.postMessage({ type: 'console', message: '[WARN] ' + message }, '*');
-        };
-        
-        console.info = function() {
-          originalConsole.info.apply(console, arguments);
-          const message = Array.from(arguments).map(arg => 
-            typeof arg === 'object' ? JSON.stringify(arg) : String(arg)
-          ).join(' ');
-          window.parent.postMessage({ type: 'console', message: '[INFO] ' + message }, '*');
-        };
-        
-        // Capture and report errors
-        window.addEventListener('error', function(event) {
-          window.parent.postMessage({ 
-            type: 'console', 
-            message: '[ERROR] ' + event.message + ' at ' + event.filename + ':' + event.lineno
-          }, '*');
-        });
-
-        // Fix for common tab functionality issues: trigger a resize event when tabs are clicked
-        document.addEventListener('DOMContentLoaded', function() {
-          // Find all elements that look like tab triggers
-          const possibleTabs = document.querySelectorAll('button, .tab, [role="tab"], [data-tab]');
-          possibleTabs.forEach(tab => {
-            tab.addEventListener('click', function() {
-              console.log('Tab clicked, triggering resize event');
-              setTimeout(() => {
-                window.dispatchEvent(new Event('resize'));
-              }, 100);
-            });
-          });
-
-          console.log('Debug mode active: Tab content should work now');
-        });
-      </script>
-    `;
-
-    // Insert the console capture script at the beginning of the head
-    const headIndex = code.indexOf('<head>');
-    if (headIndex !== -1) {
-      return code.slice(0, headIndex + 6) + consoleScript + code.slice(headIndex + 6);
-    }
-    
-    // If no head tag, try to inject after the opening html tag
-    const htmlIndex = code.indexOf('<html');
-    if (htmlIndex !== -1) {
-      // Find where the opening html tag ends
-      const closingBracketIndex = code.indexOf('>', htmlIndex);
-      if (closingBracketIndex !== -1) {
-        return code.slice(0, closingBracketIndex + 1) + 
-               '<head>' + consoleScript + '</head>' + 
-               code.slice(closingBracketIndex + 1);
-      }
-    }
-    
-    // Fallback: add at the beginning of the code
-    return '<head>' + consoleScript + '</head>' + code;
-  };
-
   useEffect(() => {
     if (!loading && iframeRef.current) {
       iframeRef.current.focus();
-      setConsoleOutput([]); // Clear console output when switching versions
     }
-  }, [loading, selectedVersion]);
+  }, [loading]);
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
@@ -321,10 +203,6 @@ const Play = () => {
     });
   };
 
-  const handleClearConsole = () => {
-    setConsoleOutput([]);
-  };
-
   const handleDownload = async () => {
     if (!currentVersion) return;
     
@@ -384,11 +262,17 @@ const Play = () => {
     }
   };
 
+  // PDF download function is kept but button is removed
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
       </div>;
   }
+
+  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
+  const selectedVersionNumber = currentVersion?.version_number;
+  const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
 
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
@@ -433,15 +317,6 @@ const Play = () => {
             >
               <Download size={14} />
               Download
-            </Button>
-            <Button
-              variant={showConsole ? "default" : "outline"}
-              size="sm"
-              className="h-8 gap-1 text-sm"
-              onClick={() => setShowConsole(!showConsole)}
-            >
-              <Bug size={14} />
-              Console {consoleOutput.length > 0 && `(${consoleOutput.length})`}
             </Button>
           </div>
         </div>
@@ -493,67 +368,27 @@ const Play = () => {
                   </div>
                 </div>
 
-                <div className={`flex-1 bg-white rounded-lg overflow-hidden ${showConsole ? 'flex flex-col' : ''}`}>
+                <div className="flex-1 bg-white rounded-lg overflow-hidden">
                   {!showCode ? (
                     <div 
-                      className={`h-full relative ${showConsole ? 'flex-1' : ''}`}
+                      className="h-full relative"
                       onClick={() => iframeRef.current?.focus()}
                     >
                       <iframe
                         ref={iframeRef}
-                        srcDoc={currentVersion ? prepareIframeContent(currentVersion.code) : ""}
+                        srcDoc={currentVersion.code}
                         className="absolute inset-0 w-full h-full border border-gray-100"
-                        sandbox="allow-scripts allow-forms allow-popups"
+                        sandbox="allow-scripts"
                         title="Generated Content"
                         tabIndex={0}
                       />
                     </div>
                   ) : (
-                    <div className={`h-full relative ${showConsole ? 'flex-1' : ''}`}>
+                    <div className="h-full relative">
                       <div className="absolute inset-0 overflow-auto">
                         <pre className="p-4 bg-gray-50 rounded-lg h-full">
                           <code className="text-sm whitespace-pre-wrap break-words">{currentVersion.code}</code>
                         </pre>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {showConsole && (
-                    <div className="h-1/3 min-h-[200px] border-t border-gray-200 bg-gray-50 flex flex-col">
-                      <div className="px-2 py-1 border-b border-gray-200 bg-gray-100 flex justify-between items-center">
-                        <span className="text-xs font-medium text-gray-700">Console Output</span>
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
-                          className="h-6 text-xs"
-                          onClick={handleClearConsole}
-                        >
-                          Clear
-                        </Button>
-                      </div>
-                      <div className="flex-1 overflow-auto p-2">
-                        {consoleOutput.length > 0 ? (
-                          <pre className="text-xs font-mono">
-                            {consoleOutput.map((message, index) => (
-                              <div 
-                                key={index} 
-                                className={`py-0.5 ${
-                                  message.includes('[ERROR]') 
-                                    ? 'text-red-600' 
-                                    : message.includes('[WARN]') 
-                                      ? 'text-yellow-600' 
-                                      : 'text-gray-800'
-                                }`}
-                              >
-                                {message}
-                              </div>
-                            ))}
-                          </pre>
-                        ) : (
-                          <div className="h-full flex items-center justify-center text-gray-400 text-sm">
-                            No console output
-                          </div>
-                        )}
                       </div>
                     </div>
                   )}
