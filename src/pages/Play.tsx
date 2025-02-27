@@ -6,6 +6,7 @@ import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw } from "lucide
 import ReactMarkdown from 'react-markdown';
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 interface GameVersion {
   id: string;
   version_number: number;
@@ -13,6 +14,7 @@ interface GameVersion {
   instructions: string | null;
   created_at: string;
 }
+
 const Play = () => {
   const {
     id
@@ -25,6 +27,7 @@ const Play = () => {
   const {
     toast
   } = useToast();
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -43,6 +46,7 @@ const Play = () => {
       });
     };
   }, []);
+
   useEffect(() => {
     const fetchGame = async () => {
       try {
@@ -80,11 +84,13 @@ const Play = () => {
     };
     fetchGame();
   }, [id, toast]);
+
   useEffect(() => {
     if (!loading && iframeRef.current) {
       iframeRef.current.focus();
     }
   }, [loading]);
+
   const handleGameUpdate = (newCode: string, newInstructions: string) => {
     const newVersion: GameVersion = {
       id: crypto.randomUUID(),
@@ -96,9 +102,11 @@ const Play = () => {
     setGameVersions(prev => [newVersion, ...prev]);
     setSelectedVersion(newVersion.id);
   };
+
   const handleVersionChange = (versionId: string) => {
     setSelectedVersion(versionId);
   };
+
   const handleRevertToVersion = async (version: GameVersion) => {
     try {
       const newVersion: GameVersion = {
@@ -132,21 +140,30 @@ const Play = () => {
       });
     }
   };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
       </div>;
   }
+
   const currentVersion = gameVersions.find(v => v.id === selectedVersion);
   const selectedVersionNumber = currentVersion?.version_number;
   const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
-  return <div className="min-h-screen flex bg-[#F5F5F5]">
-      {/* Chat Sidebar */}
-      {showChat && <div className="w-[400px] h-screen flex flex-col bg-white border-r border-gray-200">
+
+  const iframePadding = currentVersion?.code?.includes('<svg') ? '0' : '75%';
+
+  return (
+    <div className="min-h-screen flex bg-[#F5F5F5]">
+      {showChat && (
+        <div className="w-[400px] h-screen flex flex-col bg-white border-r border-gray-200">
           <div className="p-4 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900">Request Changes</h2>
-              <button onClick={() => setShowChat(false)} className="p-1 hover:bg-gray-100 rounded-lg transition-colors">
+              <h2 className="text-lg font-medium text-gray-900">Modify Content</h2>
+              <button
+                onClick={() => setShowChat(false)}
+                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              >
                 <X size={18} className="text-gray-400" />
               </button>
             </div>
@@ -154,9 +171,9 @@ const Play = () => {
           <div className="flex-1">
             <GameChat gameId={id!} onGameUpdate={handleGameUpdate} />
           </div>
-        </div>}
+        </div>
+      )}
 
-      {/* Main Content */}
       <div className="flex-1 p-4 md:p-8">
         <div className="max-w-[1200px] mx-auto space-y-6">
           <div className="flex items-center justify-between">
@@ -190,23 +207,38 @@ const Play = () => {
           </div>
 
           <div className="space-y-6">
-            {currentVersion && <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 space-y-6 shadow-sm">
-                <div className="relative w-full rounded-lg overflow-hidden bg-white" style={{
-              paddingTop: '75%'
-            }} onClick={() => iframeRef.current?.focus()}>
-                  <iframe ref={iframeRef} srcDoc={currentVersion.code} className="absolute top-0 left-0 w-full h-full border border-gray-100" sandbox="allow-scripts" title="Generated Game" tabIndex={0} />
+            {currentVersion && (
+              <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 space-y-6 shadow-sm">
+                <div 
+                  className="relative w-full rounded-lg overflow-hidden bg-white"
+                  style={{ paddingTop: iframePadding }}
+                  onClick={() => iframeRef.current?.focus()}
+                >
+                  <iframe
+                    ref={iframeRef}
+                    srcDoc={currentVersion.code}
+                    className="absolute top-0 left-0 w-full h-full border border-gray-100"
+                    sandbox="allow-scripts"
+                    title="Generated Content"
+                    tabIndex={0}
+                  />
                 </div>
 
-                {currentVersion.instructions && <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-lg border border-gray-100">
-                    <h2 className="text-lg font-medium text-gray-900 mb-2">How to Play</h2>
+                {currentVersion.instructions && (
+                  <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-lg border border-gray-100">
+                    <h2 className="text-lg font-medium text-gray-900 mb-2">Instructions</h2>
                     <div className="prose prose-sm max-w-none text-gray-600">
                       <ReactMarkdown>{currentVersion.instructions}</ReactMarkdown>
                     </div>
-                  </div>}
-              </div>}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default Play;

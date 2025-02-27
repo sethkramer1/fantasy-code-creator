@@ -1,5 +1,5 @@
 
-import { gameTypes } from "@/types/game";
+import { contentTypes } from "@/types/game";
 
 interface GameTypeSelectorProps {
   selectedType: string;
@@ -9,9 +9,9 @@ interface GameTypeSelectorProps {
 export function GameTypeSelector({ selectedType, onSelect }: GameTypeSelectorProps) {
   return (
     <div>
-      <h2 className="text-lg font-medium text-gray-900 mb-3">Choose a game type for inspiration (optional)</h2>
+      <h2 className="text-lg font-medium text-gray-900 mb-3">Choose what you want to create</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {gameTypes.map((type) => (
+        {contentTypes.map((type) => (
           <button
             key={type.id}
             onClick={() => onSelect(type.id === selectedType ? "" : type.id)}

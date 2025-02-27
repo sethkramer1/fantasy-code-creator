@@ -3,13 +3,44 @@ export interface Game {
   id: string;
   prompt: string;
   created_at: string;
+  type?: string;
 }
 
-export const gameTypes = [
-  { id: 'puzzle', label: 'Puzzle Games (like Candy Crush)', example: 'matching puzzles, sliding puzzles, or block-clearing mechanics' },
-  { id: 'word', label: 'Word Games (like Wordle)', example: 'word guessing, crosswords, or letter arrangements' },
-  { id: 'arcade', label: 'Arcade Games (like Space Invaders)', example: 'fast-paced action, shooting, or obstacle avoidance' },
-  { id: 'card', label: 'Card Games (like Solitaire)', example: 'card matching, deck building, or traditional card games' },
-  { id: 'strategy', label: 'Strategy Games (like Tower Defense)', example: 'resource management, tower placement, or tactical decisions' },
-  { id: 'action', label: 'Action Games (like Super Mario)', example: 'platforming, running, jumping, or collecting items' }
+export const contentTypes = [
+  { 
+    id: 'game', 
+    label: 'Interactive Game', 
+    example: 'Create an interactive browser game with engaging gameplay mechanics',
+    promptPrefix: 'Create an interactive game with the following requirements:'
+  },
+  { 
+    id: 'svg', 
+    label: 'SVG Graphic', 
+    example: 'Create vector graphics, logos, or illustrations',
+    promptPrefix: 'Create an SVG graphic with the following requirements. Return ONLY the SVG code:'
+  },
+  { 
+    id: 'webdesign', 
+    label: 'Web Design Prototype', 
+    example: 'Create responsive webpage layouts and UI components',
+    promptPrefix: 'Create a web design prototype with the following requirements. Include responsive design:'
+  },
+  { 
+    id: 'dataviz', 
+    label: 'Data Visualization', 
+    example: 'Create charts, graphs, and interactive data visualizations',
+    promptPrefix: 'Create a data visualization with the following requirements. Use D3.js or Chart.js:'
+  },
+  { 
+    id: 'diagram', 
+    label: 'Diagram', 
+    example: 'Create flowcharts, sequence diagrams, or architecture diagrams',
+    promptPrefix: 'Create a diagram with the following requirements. Use SVG or HTML/CSS:'
+  },
+  { 
+    id: 'infographic', 
+    label: 'Infographic', 
+    example: 'Create visual representations of information and data',
+    promptPrefix: 'Create an infographic with the following requirements. Use HTML and CSS:'
+  }
 ] as const;

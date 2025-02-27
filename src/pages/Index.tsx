@@ -8,7 +8,7 @@ import { GameTypeSelector } from "@/components/game-creator/GameTypeSelector";
 import { GamePromptInput } from "@/components/game-creator/GamePromptInput";
 import { GamesList } from "@/components/game-creator/GamesList";
 import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal";
-import { Game, gameTypes } from "@/types/game";
+import { Game, contentTypes } from "@/types/game";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
@@ -69,7 +69,7 @@ const Index = () => {
   const generateGame = async () => {
     if (!prompt.trim()) {
       toast({
-        title: "Please enter a game description",
+        title: "Please enter a description",
         variant: "destructive",
       });
       return;
@@ -83,9 +83,9 @@ const Index = () => {
     let currentThinking = '';
 
     try {
-      const selectedType = gameTypes.find(type => type.id === gameType);
+      const selectedType = contentTypes.find(type => type.id === gameType);
       const enhancedPrompt = selectedType 
-        ? `Create a ${selectedType.label} with ${selectedType.example}. Specific requirements: ${prompt}`
+        ? `${selectedType.promptPrefix} ${prompt}`
         : prompt;
 
       const response = await fetch(
@@ -177,43 +177,61 @@ const Index = () => {
       }
 
       if (!gameContent) {
-        throw new Error("No game content received");
+        throw new Error("No content received");
       }
 
-      setTerminalOutput(prev => [...prev, "> Saving game to database..."]);
+      // For SVG content type, wrap the SVG in basic HTML if it's just raw SVG
+      if (selectedType?.id === 'svg' && !gameContent.includes('<!DOCTYPE html>')) {
+        gameContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    svg { max-width: 100%; max-height: 100vh; }
+  </style>
+</head>
+<body>
+  ${gameContent}
+</body>
+</html>`;
+      }
+
+      setTerminalOutput(prev => [...prev, "> Saving to database..."]);
 
       const { data: gameData, error: gameError } = await supabase
         .from('games')
         .insert([{ 
           prompt: prompt,
           code: gameContent,
-          instructions: "Game generated successfully",
-          current_version: 1
+          instructions: "Content generated successfully",
+          current_version: 1,
+          type: selectedType?.id || 'game'
         }])
         .select()
         .single();
 
       if (gameError) throw gameError;
-      if (!gameData) throw new Error("Failed to save game");
+      if (!gameData) throw new Error("Failed to save content");
 
       const { error: versionError } = await supabase
         .from('game_versions')
         .insert([{
           game_id: gameData.id,
           code: gameContent,
-          instructions: "Game generated successfully",
+          instructions: "Content generated successfully",
           version_number: 1
         }]);
 
       if (versionError) throw versionError;
       
-      setTerminalOutput(prev => [...prev, "> Game and initial version saved successfully! Redirecting..."]);
+      setTerminalOutput(prev => [...prev, "> Saved successfully! Redirecting..."]);
       
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       toast({
-        title: "Game generated successfully!",
-        description: "Redirecting to play the game...",
+        title: "Generated successfully!",
+        description: "Redirecting to view the content...",
       });
 
       setShowTerminal(false);
@@ -237,9 +255,9 @@ const Index = () => {
       <div className="max-w-4xl mx-auto p-6 md:p-8">
         <div className="space-y-8">
           <div className="text-center space-y-3">
-            <h1 className="text-3xl md:text-4xl font-light tracking-tight text-black">Game Creator</h1>
+            <h1 className="text-3xl md:text-4xl font-light tracking-tight text-black">Creative Generator</h1>
             <p className="text-base md:text-lg text-[#757575]">
-              Describe your game idea and watch it come to life
+              Describe what you want to create and watch it come to life
             </p>
           </div>
 
@@ -264,10 +282,10 @@ const Index = () => {
                 {loading ? (
                   <>
                     <Loader2 className="animate-spin" size={18} />
-                    <span>Generating your game...</span>
+                    <span>Generating...</span>
                   </>
                 ) : (
-                  <span>Generate Game</span>
+                  <span>Generate</span>
                 )}
               </button>
               {!showTerminal && terminalOutput.length > 0 && (
