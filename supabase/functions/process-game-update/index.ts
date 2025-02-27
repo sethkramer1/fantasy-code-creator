@@ -61,9 +61,10 @@ serve(async (req) => {
         "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "claude-3-7-sonnet-20250219",
+        model: "claude-3-sonnet-20240229",
         max_tokens: 20000,
-        stream: true,
+        temperature: 0,
+        system: "You are an AI that modifies HTML games based on user requests. You should respond ONLY with the complete HTML code for the game, nothing else. No explanations, no comments, just the game code.",
         messages: [
           {
             role: "user",
@@ -81,7 +82,7 @@ serve(async (req) => {
           },
         ],
       }),
-    })
+    });
 
     // Create a new readable stream to forward Claude's response
     const stream = new ReadableStream({
@@ -100,27 +101,36 @@ serve(async (req) => {
             const lines = text.split('\n').filter(Boolean);
 
             for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
+              console.log('Processing line:', line); // Debug log
+              
+              if (!line.startsWith('data: ')) {
+                controller.enqueue('data: {"type":"debug","message":"Skipping non-SSE line"}\n\n');
+                continue;
+              }
               
               try {
                 const data = JSON.parse(line.slice(5));
+                console.log('Parsed data:', data); // Debug log
                 
-                if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
-                  const content = data.delta.text || '';
+                if (data.type === 'message_start') {
+                  controller.enqueue('data: {"type":"content_block_start"}\n\n');
+                } else if (data.type === 'content_block') {
+                  const content = data.content[0]?.text || '';
                   if (content) {
                     gameContent += content;
-                    controller.enqueue(line + '\n');
+                    controller.enqueue(`data: {"type":"content_block_delta","delta":{"type":"text_delta","text":${JSON.stringify(content)}}}\n\n`);
                   }
-                } else {
-                  controller.enqueue(line + '\n');
+                } else if (data.type === 'message_stop') {
+                  controller.enqueue('data: {"type":"content_block_stop"}\n\n');
                 }
               } catch (e) {
-                console.error('Error parsing line:', e);
-                controller.error(e);
-                return;
+                console.error('Error processing line:', e);
+                controller.enqueue(`data: {"type":"error","message":"Error processing response: ${e.message}"}\n\n`);
               }
             }
           }
+
+          console.log('Final game content length:', gameContent.length); // Debug log
 
           // Save the new version
           if (gameContent) {
@@ -154,6 +164,7 @@ serve(async (req) => {
 
           controller.close();
         } catch (error) {
+          console.error('Stream error:', error);
           controller.error(error);
         }
       },
