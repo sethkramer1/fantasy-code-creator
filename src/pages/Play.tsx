@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw } from "lucide-react";
+import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw, Download } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import JSZip from 'jszip';
 
 interface GameVersion {
   id: string;
@@ -138,6 +139,65 @@ const Play = () => {
     });
   };
 
+  const handleDownload = async () => {
+    if (!currentVersion) return;
+    
+    try {
+      const zip = new JSZip();
+
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(currentVersion.code, 'text/html');
+      
+      const styles = Array.from(doc.getElementsByTagName('style')).map(style => style.textContent).join('\n');
+      if (styles) {
+        zip.file('styles.css', styles);
+        doc.querySelectorAll('style').forEach(style => style.remove());
+      }
+
+      const scripts = Array.from(doc.getElementsByTagName('script')).map(script => script.textContent).join('\n');
+      if (scripts) {
+        zip.file('script.js', scripts);
+        doc.querySelectorAll('script').forEach(script => script.remove());
+      }
+
+      if (styles) {
+        const linkTag = doc.createElement('link');
+        linkTag.rel = 'stylesheet';
+        linkTag.href = './styles.css';
+        doc.head.appendChild(linkTag);
+      }
+      
+      if (scripts) {
+        const scriptTag = doc.createElement('script');
+        scriptTag.src = './script.js';
+        doc.body.appendChild(scriptTag);
+      }
+
+      zip.file('index.html', doc.documentElement.outerHTML);
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `version-${currentVersion.version_number}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Files downloaded",
+        description: "The HTML, CSS, and JS files have been downloaded as a ZIP file.",
+      });
+    } catch (error) {
+      toast({
+        title: "Download failed",
+        description: "There was an error downloading the files. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
@@ -201,15 +261,26 @@ const Play = () => {
                   </SelectContent>
                 </Select>
               </div>
-              {!showChat && (
-                <button 
-                  onClick={() => setShowChat(true)} 
-                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-2"
+                  onClick={handleDownload}
                 >
-                  <MessageSquare size={18} />
-                  <span>Show Chat</span>
-                </button>
-              )}
+                  <Download size={16} />
+                  Download Files
+                </Button>
+                {!showChat && (
+                  <button 
+                    onClick={() => setShowChat(true)} 
+                    className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
+                  >
+                    <MessageSquare size={18} />
+                    <span>Show Chat</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
