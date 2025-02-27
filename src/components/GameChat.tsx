@@ -249,12 +249,27 @@ export const GameChat = ({
               const content = parsedData.delta.text || '';
               if (content) {
                 gameContent += content;
+                
+                // Display meaningful code snippets in the terminal
+                // Break the content into lines for better display
                 const contentLines = content.split('\n');
                 for (const contentLine of contentLines) {
                   if (contentLine.trim()) {
-                    setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                    // Add each non-empty line to the terminal output
+                    setTerminalOutput(prev => [...prev, `> ${contentLine.substring(0, 80)}${contentLine.length > 80 ? '...' : ''}`]);
                   }
                 }
+                
+                // If we've received a substantial amount of content, add a progress indicator
+                if (content.length > 100) {
+                  setTerminalOutput(prev => [...prev, `> Generated ${gameContent.length} characters so far...`]);
+                }
+              }
+            } else if (parsedData.type === 'thinking_delta') {
+              // Display thinking updates if they're in the stream
+              const thinking = parsedData.thinking || '';
+              if (thinking && thinking.trim()) {
+                setTerminalOutput(prev => [...prev, `> Thinking: ${thinking}`]);
               }
             }
           } catch (e) {
