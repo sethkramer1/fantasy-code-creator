@@ -222,7 +222,11 @@ const Play = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${!showCode ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}
+                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                        !showCode 
+                          ? 'bg-white text-black' 
+                          : 'text-white hover:bg-white/20'
+                      }`}
                       onClick={() => setShowCode(false)}
                     >
                       Preview
@@ -230,7 +234,11 @@ const Play = () => {
                     <Button
                       variant="ghost"
                       size="sm"
-                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${showCode ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}
+                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                        showCode 
+                          ? 'bg-white text-black' 
+                          : 'text-white hover:bg-white/20'
+                      }`}
                       onClick={() => setShowCode(true)}
                     >
                       Code
@@ -238,25 +246,27 @@ const Play = () => {
                   </div>
                 </div>
 
-                {!showCode ? (
-                  <div 
-                    className="relative w-full aspect-[4/3] bg-white rounded-lg overflow-hidden"
-                    onClick={() => iframeRef.current?.focus()}
-                  >
-                    <iframe
-                      ref={iframeRef}
-                      srcDoc={currentVersion.code}
-                      className="absolute inset-0 w-full h-full border border-gray-100"
-                      sandbox="allow-scripts"
-                      title="Generated Content"
-                      tabIndex={0}
-                    />
-                  </div>
-                ) : (
-                  <pre className="p-4 bg-gray-50 rounded-lg overflow-x-auto">
-                    <code className="text-sm">{currentVersion.code}</code>
-                  </pre>
-                )}
+                <div className="w-full bg-white rounded-lg overflow-hidden">
+                  {!showCode ? (
+                    <div 
+                      className="relative aspect-[4/3]"
+                      onClick={() => iframeRef.current?.focus()}
+                    >
+                      <iframe
+                        ref={iframeRef}
+                        srcDoc={currentVersion.code}
+                        className="absolute inset-0 w-full h-full border border-gray-100"
+                        sandbox="allow-scripts"
+                        title="Generated Content"
+                        tabIndex={0}
+                      />
+                    </div>
+                  ) : (
+                    <pre className="p-4 bg-gray-50 rounded-lg overflow-x-auto border border-gray-100">
+                      <code className="text-sm whitespace-pre-wrap">{currentVersion.code}</code>
+                    </pre>
+                  )}
+                </div>
 
                 {currentVersion.instructions && (
                   <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-lg border border-gray-100">
