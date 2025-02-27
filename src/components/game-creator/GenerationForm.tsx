@@ -38,10 +38,6 @@ export function GenerationForm({
           selectedType={gameType}
           onSelect={setGameType}
         />
-        <ImageUpload
-          onImageUploaded={onImageUploaded}
-          onImageRemoved={onImageRemoved}
-        />
         <GamePromptInput 
           value={prompt}
           onChange={setPrompt}
@@ -49,30 +45,38 @@ export function GenerationForm({
         />
       </div>
       
-      <div className="flex items-center gap-3">
-        <button
-          onClick={onGenerate}
-          disabled={loading}
-          className="flex-1 py-3 px-6 rounded-lg bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
-        >
-          {loading ? (
-            <>
-              <Loader2 className="animate-spin" size={18} />
-              <span>Generating...</span>
-            </>
-          ) : (
-            <span>Generate</span>
-          )}
-        </button>
-        {hasTerminalOutput && (
+      <div className="space-y-3">
+        <div className="flex items-center gap-3">
           <button
-            onClick={showTerminalOutput}
-            className="p-3 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
-            title="Show generation progress"
+            onClick={onGenerate}
+            disabled={loading}
+            className="flex-1 py-3 px-6 rounded-lg bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
           >
-            <Terminal size={18} className="text-gray-600" />
+            {loading ? (
+              <>
+                <Loader2 className="animate-spin" size={18} />
+                <span>Generating...</span>
+              </>
+            ) : (
+              <span>Generate</span>
+            )}
           </button>
-        )}
+          {hasTerminalOutput && (
+            <button
+              onClick={showTerminalOutput}
+              className="p-3 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+              title="Show generation progress"
+            >
+              <Terminal size={18} className="text-gray-600" />
+            </button>
+          )}
+        </div>
+        <div className="flex items-center justify-center">
+          <ImageUpload
+            onImageUploaded={onImageUploaded}
+            onImageRemoved={onImageRemoved}
+          />
+        </div>
       </div>
     </div>
   );

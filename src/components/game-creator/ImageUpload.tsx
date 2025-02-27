@@ -1,6 +1,6 @@
 
 import { useState } from 'react';
-import { ImagePlus, X, Loader2 } from 'lucide-react';
+import { Camera, X, Loader2 } from 'lucide-react';
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
 
@@ -54,33 +54,28 @@ export function ImageUpload({ onImageUploaded, onImageRemoved }: ImageUploadProp
   };
 
   return (
-    <div className="relative">
+    <div className="inline-flex items-center gap-2">
       {preview ? (
-        <div className="relative w-full aspect-video rounded-lg overflow-hidden border border-gray-200">
+        <div className="relative">
           <img 
             src={preview} 
             alt="Upload preview" 
-            className="w-full h-full object-cover"
+            className="h-6 w-6 object-cover rounded"
           />
           <button
             onClick={handleRemoveImage}
-            className="absolute top-2 right-2 p-1 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
+            className="absolute -top-1 -right-1 p-0.5 bg-black/50 rounded-full hover:bg-black/70 transition-colors"
           >
-            <X className="w-4 h-4 text-white" />
+            <X className="w-3 h-3 text-white" />
           </button>
         </div>
       ) : (
-        <label className="flex flex-col items-center justify-center w-full aspect-video rounded-lg border-2 border-dashed border-gray-300 hover:border-gray-400 transition-colors cursor-pointer bg-gray-50">
-          <div className="flex flex-col items-center justify-center pt-5 pb-6">
-            {uploading ? (
-              <Loader2 className="w-8 h-8 text-gray-500 animate-spin" />
-            ) : (
-              <>
-                <ImagePlus className="w-8 h-8 text-gray-500 mb-2" />
-                <p className="text-sm text-gray-500">Click to upload an image</p>
-              </>
-            )}
-          </div>
+        <label className="cursor-pointer">
+          {uploading ? (
+            <Loader2 className="w-5 h-5 text-gray-500 animate-spin" />
+          ) : (
+            <Camera className="w-5 h-5 text-gray-500 hover:text-gray-700 transition-colors" />
+          )}
           <input
             type="file"
             className="hidden"
