@@ -8,48 +8,44 @@ interface GamesListProps {
   onGameClick: (gameId: string) => void;
 }
 
-// Helper function to get a representative color for the game
+// Helper function to get a representative color for games without previews
 const getColorForCode = (code: string | undefined): string => {
   if (!code) return "bg-gray-100";
   
-  // Get dominant colors based on common patterns
-  if (code.includes('bg-blue') || code.includes('color: blue') || code.includes('#0000') || code.includes('rgb(0, 0, 2')) {
+  if (code.includes('bg-blue') || code.includes('color: blue') || code.includes('#0000')) {
     return "bg-blue-50 border-blue-200";
-  } else if (code.includes('bg-green') || code.includes('color: green') || code.includes('#00') || code.includes('rgb(0, 2')) {
+  } else if (code.includes('bg-green') || code.includes('color: green') || code.includes('#00')) {
     return "bg-green-50 border-green-200";
-  } else if (code.includes('bg-red') || code.includes('color: red') || code.includes('#f00') || code.includes('rgb(2')) {
+  } else if (code.includes('bg-red') || code.includes('color: red') || code.includes('#f00')) {
     return "bg-red-50 border-red-200";
-  } else if (code.includes('bg-purple') || code.includes('color: purple') || code.includes('#800080')) {
+  } else if (code.includes('bg-purple') || code.includes('color: purple')) {
     return "bg-purple-50 border-purple-200";
-  } else if (code.includes('bg-yellow') || code.includes('color: yellow') || code.includes('#ff0') || code.includes('rgb(255, 255, 0)')) {
+  } else if (code.includes('bg-yellow') || code.includes('color: yellow')) {
     return "bg-yellow-50 border-yellow-200";
   }
   
   return "bg-gray-50 border-gray-200";
 };
 
-// Extract a small snippet of meaningful HTML from the code
+// Get text preview for cases where preview generation fails
 const getCodeSnippet = (code: string | undefined): string => {
   if (!code) return "";
   
-  // Extract the body content or a div with class/id
   let bodyContent = code.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || "";
   if (!bodyContent) {
-    // Try to find a meaningful div or section
     bodyContent = code.match(/<div[^>]*class="[^"]*main[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1] || 
                  code.match(/<section[^>]*>([\s\S]*?)<\/section>/i)?.[1] || 
                  code.match(/<div[^>]*id="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1] || 
                  "";
   }
   
-  // Clean up the snippet
   return bodyContent
-    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "") // Remove scripts
-    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")    // Remove styles
-    .replace(/<[^>]+>/g, "")                                             // Remove all HTML tags
-    .replace(/\s+/g, " ")                                                // Normalize whitespace
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\s+/g, " ")
     .trim()
-    .substring(0, 150) + (bodyContent.length > 150 ? "..." : "");        // Limit length
+    .substring(0, 150) + (bodyContent.length > 150 ? "..." : "");
 };
 
 export function GamesList({
@@ -79,13 +75,23 @@ export function GamesList({
               
               {game.code && (
                 <div className="flex flex-col">
-                  <div className={`px-4 py-3 border-t text-xs font-mono truncate text-gray-600 ${getColorForCode(game.code)}`}>
-                    <div className="flex items-center gap-1.5 mb-1">
-                      <Code size={14} className="text-gray-500" />
-                      <span className="text-gray-500 font-medium">Preview</span>
+                  {game.preview ? (
+                    <div className="border-t border-gray-100 overflow-hidden">
+                      <img 
+                        src={game.preview} 
+                        alt="Project preview" 
+                        className="w-full h-32 object-cover object-top"
+                      />
                     </div>
-                    <p className="line-clamp-2 text-xs opacity-80">{getCodeSnippet(game.code)}</p>
-                  </div>
+                  ) : (
+                    <div className={`px-4 py-3 border-t text-xs font-mono truncate text-gray-600 ${getColorForCode(game.code)}`}>
+                      <div className="flex items-center gap-1.5 mb-1">
+                        <Code size={14} className="text-gray-500" />
+                        <span className="text-gray-500 font-medium">Preview</span>
+                      </div>
+                      <p className="line-clamp-2 text-xs opacity-80">{getCodeSnippet(game.code)}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </button>

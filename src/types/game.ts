@@ -5,6 +5,7 @@ export interface Game {
   created_at: string;
   type?: string;
   code?: string;
+  preview?: string;
 }
 
 export const contentTypes = [
