@@ -1,5 +1,5 @@
 
-import { MessageSquare, Search, ArrowUp } from "lucide-react";
+import { Wand2 } from "lucide-react";
 import { contentTypes } from "@/types/game";
 import { useRef, useEffect } from "react";
 
@@ -71,6 +71,33 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
     }
   };
 
+  const handleEnhancePrompt = async () => {
+    if (!value.trim()) return;
+    
+    try {
+      const response = await fetch('/functions/v1/enhance-prompt', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          prompt: value,
+          contentType: selectedType 
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to enhance prompt');
+      }
+      
+      const data = await response.json();
+      onChange(data.enhancedPrompt);
+    } catch (error) {
+      console.error('Error enhancing prompt:', error);
+      // You might want to show a toast notification here
+    }
+  };
+
   return (
     <div className="relative">
       <textarea
@@ -81,14 +108,18 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
         className="w-full p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all text-gray-800 placeholder:text-gray-400 min-h-[48px] resize-none pr-20"
         style={{ height: 'auto', overflow: 'hidden' }}
       />
-      <div className="absolute right-3 top-3 flex gap-2">
-        <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-          <MessageSquare size={18} className="text-gray-400" />
-        </button>
-        <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-          <Search size={18} className="text-gray-400" />
-        </button>
-      </div>
+      {value.trim().length > 0 && (
+        <div className="absolute right-3 top-3">
+          <button 
+            onClick={handleEnhancePrompt}
+            className="flex items-center gap-1.5 p-2 rounded-lg text-gray-700 hover:bg-gray-100 transition-colors"
+            title="Enhance your prompt with AI"
+          >
+            <Wand2 size={16} />
+            <span className="text-sm">Enhance prompt</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }
