@@ -45,7 +45,7 @@ const Index = () => {
         clearInterval(timerRef.current);
       }
     };
-  }, [loading, timerRef]);
+  }, [loading, timerRef, setThinkingTime]);
 
   const handleImageUploaded = (url: string) => {
     setImageUrl(url);
@@ -56,16 +56,28 @@ const Index = () => {
   };
 
   const handleGenerate = async () => {
-    const gameData = await generateGame(prompt, gameType, imageUrl);
-    if (gameData) {
-      toast({
-        title: "Generated successfully!",
-        description: "Redirecting to view the content...",
-      });
+    try {
+      // Only pass imageUrl if it's a data URL (from FileReader)
+      const imageUrlToUse = imageUrl && imageUrl.startsWith('data:') ? imageUrl : undefined;
       
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      setShowTerminal(false);
-      navigate(`/play/${gameData.id}`);
+      const gameData = await generateGame(prompt, gameType, imageUrlToUse);
+      if (gameData) {
+        toast({
+          title: "Generated successfully!",
+          description: "Redirecting to view the content...",
+        });
+        
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        setShowTerminal(false);
+        navigate(`/play/${gameData.id}`);
+      }
+    } catch (error) {
+      console.error("Error generating game:", error);
+      toast({
+        title: "Generation failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive",
+      });
     }
   };
 

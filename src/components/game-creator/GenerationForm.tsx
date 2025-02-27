@@ -46,6 +46,12 @@ export function GenerationForm({
       </div>
       
       <div className="space-y-3">
+        <ImageUpload
+          onImageUploaded={onImageUploaded}
+          onImageRemoved={onImageRemoved}
+          imageUrl={imageUrl}
+        />
+        
         <div className="flex items-center gap-3">
           <button
             onClick={onGenerate}
@@ -70,12 +76,6 @@ export function GenerationForm({
               <Terminal size={18} className="text-gray-600" />
             </button>
           )}
-        </div>
-        <div className="flex items-center justify-center">
-          <ImageUpload
-            onImageUploaded={onImageUploaded}
-            onImageRemoved={onImageRemoved}
-          />
         </div>
       </div>
     </div>
