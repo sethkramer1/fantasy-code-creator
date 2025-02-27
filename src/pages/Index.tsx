@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Terminal, MessageSquare, Search, Timer } from "lucide-react";
@@ -10,13 +9,6 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 
 interface Game {
   id: string;
@@ -274,19 +266,30 @@ const Index = () => {
           </div>
 
           <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm space-y-4">
-            <div className="space-y-4">
-              <Select value={gameType} onValueChange={setGameType}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a game type for inspiration (optional)" />
-                </SelectTrigger>
-                <SelectContent>
+            <div className="space-y-6">
+              <div>
+                <h2 className="text-lg font-medium text-gray-900 mb-3">Choose a game type for inspiration (optional)</h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {gameTypes.map((type) => (
-                    <SelectItem key={type.id} value={type.id}>
-                      {type.label}
-                    </SelectItem>
+                    <button
+                      key={type.id}
+                      onClick={() => setGameType(type.id === gameType ? "" : type.id)}
+                      className={`p-4 rounded-lg border ${
+                        type.id === gameType 
+                          ? 'border-black bg-black text-white' 
+                          : 'border-gray-200 bg-white hover:border-gray-300'
+                      } transition-all text-left h-full group`}
+                    >
+                      <h3 className="font-medium mb-2">{type.label}</h3>
+                      <p className={`text-sm ${
+                        type.id === gameType ? 'text-gray-300' : 'text-gray-500'
+                      }`}>
+                        {type.example}
+                      </p>
+                    </button>
                   ))}
-                </SelectContent>
-              </Select>
+                </div>
+              </div>
 
               <div className="relative">
                 <textarea
