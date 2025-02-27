@@ -1,6 +1,7 @@
 
-import { MessageSquare, Search } from "lucide-react";
+import { MessageSquare, Search, ArrowUp } from "lucide-react";
 import { contentTypes } from "@/types/game";
+import { useRef, useEffect } from "react";
 
 interface GamePromptInputProps {
   value: string;
@@ -9,6 +10,17 @@ interface GamePromptInputProps {
 }
 
 export function GamePromptInput({ value, onChange, selectedType }: GamePromptInputProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [value]);
+
   const getPlaceholder = () => {
     const type = contentTypes.find(t => t.id === selectedType);
     
@@ -62,10 +74,12 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
   return (
     <div className="relative">
       <textarea
+        ref={textareaRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={getPlaceholder()}
-        className="w-full h-48 p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all text-gray-800 placeholder:text-gray-400"
+        className="w-full p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all text-gray-800 placeholder:text-gray-400 min-h-[48px] resize-none pr-20"
+        style={{ height: 'auto', overflow: 'hidden' }}
       />
       <div className="absolute right-3 top-3 flex gap-2">
         <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">

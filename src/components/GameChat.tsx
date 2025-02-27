@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, MessageSquare, Image as ImageIcon, X } from "lucide-react";
+import { Loader2, ArrowUp, Image as ImageIcon, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { GenerationTerminal } from "./game-creator/GenerationTerminal";
@@ -33,9 +33,19 @@ export const GameChat = ({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const {
     toast
   } = useToast();
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    }
+  }, [message]);
 
   useEffect(() => {
     const fetchMessages = async () => {
@@ -267,7 +277,7 @@ export const GameChat = ({
             </div>)}
       </div>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t">
+      <form onSubmit={handleSubmit} className="p-4 border-t relative">
         {imageUrl && (
           <div className="mb-3 relative">
             <div className="relative rounded-lg overflow-hidden border border-gray-200 inline-flex max-w-xs">
@@ -287,16 +297,37 @@ export const GameChat = ({
           </div>
         )}
         
-        <div className="flex space-x-2">
-          <input 
-            type="text" 
-            value={message} 
-            onChange={e => setMessage(e.target.value)} 
-            onKeyDown={e => e.stopPropagation()} 
-            placeholder="Ask me to modify the game..." 
-            className="flex-1 p-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none" 
-            disabled={loading} 
-          />
+        <div className="flex space-x-2 items-end">
+          <div className="flex-1 relative">
+            <textarea 
+              ref={textareaRef}
+              value={message} 
+              onChange={e => setMessage(e.target.value)} 
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }} 
+              placeholder="Ask me to modify the game..." 
+              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[44px] max-h-[200px] resize-none pr-12" 
+              disabled={loading}
+              rows={1}
+            />
+            
+            <button 
+              type="submit" 
+              disabled={loading || (!message.trim() && !imageUrl) || isUploading} 
+              className="absolute right-2 bottom-2 rounded-full bg-blue-500 p-2 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center h-8 w-8"
+              aria-label="Send message"
+            >
+              {loading ? 
+                <Loader2 className="animate-spin" size={16} /> : 
+                <ArrowUp size={16} />
+              }
+            </button>
+          </div>
           
           <label
             className={`p-2 border rounded-lg cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'} transition-colors`}
@@ -312,15 +343,6 @@ export const GameChat = ({
               disabled={loading || isUploading}
             />
           </label>
-          
-          <button 
-            type="submit" 
-            disabled={loading || (!message.trim() && !imageUrl) || isUploading} 
-            className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
-          >
-            {loading ? <Loader2 className="animate-spin" size={20} /> : <MessageSquare size={20} />}
-            <span>Send</span>
-          </button>
         </div>
         
         {isUploading && (
