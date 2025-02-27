@@ -23,7 +23,7 @@ serve(async (req) => {
   try {
     const { prompt } = await req.json()
     
-    console.log('Generating game with prompt:', prompt)
+    console.log('Generating content with prompt:', prompt)
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -36,24 +36,21 @@ serve(async (req) => {
         model: 'claude-3-7-sonnet-20250219',
         max_tokens: 20000,
         stream: true,
-        thinking: {
-          type: "enabled",
-          budget_tokens: 16000
-        },
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert developer specializing in web technologies, particularly in creating interactive web content, SVG graphics, data visualizations, and infographics. 
+        system: `You are an expert developer specializing in web technologies, particularly in creating interactive web content, SVG graphics, data visualizations, and infographics. 
             
 Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
 
-Follow these structure requirements precisely and generate clean, semantic, and accessible code.`
-          },
+Follow these structure requirements precisely and generate clean, semantic, and accessible code.`,
+        messages: [
           {
             role: 'user',
             content: prompt
           }
-        ]
+        ],
+        thinking: {
+          type: "enabled",
+          budget_tokens: 16000
+        }
       }),
     })
 
