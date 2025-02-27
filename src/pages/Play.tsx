@@ -1,12 +1,13 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw } from "lucide-react";
+import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw, Copy, Code } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface GameVersion {
   id: string;
@@ -129,6 +130,14 @@ const Play = () => {
     }
   };
 
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    toast({
+      title: "Copied to clipboard",
+      description: "The code has been copied to your clipboard",
+    });
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
@@ -185,6 +194,33 @@ const Play = () => {
                   </SelectContent>
                 </Select>
               </div>
+              <Dialog>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <Code size={16} />
+                    <span>View Code</span>
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>Code - Version {currentVersion?.version_number}</DialogTitle>
+                  </DialogHeader>
+                  <div className="relative">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="absolute right-2 top-2"
+                      onClick={() => currentVersion && handleCopyCode(currentVersion.code)}
+                    >
+                      <Copy size={16} className="mr-2" />
+                      Copy Code
+                    </Button>
+                    <pre className="p-4 bg-gray-50 rounded-lg overflow-x-auto mt-2">
+                      <code className="text-sm">{currentVersion?.code}</code>
+                    </pre>
+                  </div>
+                </DialogContent>
+              </Dialog>
               {!showChat && <button onClick={() => setShowChat(true)} className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm">
                   <MessageSquare size={18} />
                   <span>Show Chat</span>
