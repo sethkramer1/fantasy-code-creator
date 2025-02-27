@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -31,7 +32,7 @@ export const useGameGeneration = () => {
 
     setLoading(true);
     setShowTerminal(true);
-    setTerminalOutput([`> Starting generation with prompt: "${prompt}"`]);
+    setTerminalOutput([`> Starting generation with prompt: "${prompt}"${imageUrl ? ' (with image)' : ''}`]);
     
     let gameContent = '';
     let currentThinking = '';
@@ -229,6 +230,12 @@ INFOGRAPHIC REQUIREMENTS:
 
       // Combine the system instructions with the enhanced prompt and image URL
       const finalPrompt = `${systemInstructions}\n\n${enhancedPrompt}`;
+      setTerminalOutput(prev => [...prev, `> Enhanced prompt created with ${systemInstructions.length} characters of instructions`]);
+
+      // Log if an image is being included
+      if (imageUrl) {
+        setTerminalOutput(prev => [...prev, `> Including image reference with generation request`]);
+      }
 
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
@@ -246,8 +253,16 @@ INFOGRAPHIC REQUIREMENTS:
       );
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
+        } catch (e) {
+          throw new Error(`HTTP error! status: ${response.status}, response: ${errorText.substring(0, 100)}...`);
+        }
       }
+
+      setTerminalOutput(prev => [...prev, `> Connected to generation service, receiving stream...`]);
 
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No reader available");

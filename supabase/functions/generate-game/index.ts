@@ -11,18 +11,14 @@ const corsHeaders = {
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 
-async function fetchImageAsBase64(imageUrl: string): Promise<string> {
-  try {
-    const response = await fetch(imageUrl);
-    if (!response.ok) {
-      throw new Error(`Failed to fetch image: ${response.status} ${response.statusText}`);
-    }
-    const arrayBuffer = await response.arrayBuffer();
-    return btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-  } catch (error) {
-    console.error('Error fetching image:', error);
-    throw error;
+// Function to extract Base64 data from a data URL
+function extractBase64FromDataUrl(dataUrl: string): string {
+  // Format is like: data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD...
+  const match = dataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+  if (match && match[1]) {
+    return match[1];
   }
+  throw new Error('Invalid data URL format');
 }
 
 serve(async (req) => {
@@ -32,14 +28,18 @@ serve(async (req) => {
   }
 
   if (!ANTHROPIC_API_KEY) {
-    throw new Error('ANTHROPIC_API_KEY is not set')
+    console.error('ANTHROPIC_API_KEY is not set');
+    return new Response(
+      JSON.stringify({ error: 'ANTHROPIC_API_KEY is not set' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   try {
-    const { prompt, imageUrl } = await req.json()
+    const { prompt, imageUrl } = await req.json();
     
-    console.log('Received request with prompt:', prompt)
-    console.log('Image URL:', imageUrl)
+    console.log('Received request with prompt length:', prompt?.length || 0);
+    console.log('Image URL provided:', imageUrl ? 'Yes (data URL)' : 'No');
 
     // Define the system message
     const systemMessage = `You are an expert developer specializing in web technologies, particularly in creating interactive web content, SVG graphics, data visualizations, and infographics. 
@@ -49,12 +49,11 @@ Important: Only return the raw HTML/CSS/JS code without any markdown code block 
 Follow these structure requirements precisely and generate clean, semantic, and accessible code.`;
 
     // Prepare the request body with the correct structure
-    let requestBody = {
+    let requestBody: any = {
       model: "claude-3-7-sonnet-20250219",
       max_tokens: 30000,
       stream: true,
       system: systemMessage,
-      messages: [],
       thinking: {
         type: "enabled",
         budget_tokens: 7000
@@ -62,11 +61,15 @@ Follow these structure requirements precisely and generate clean, semantic, and 
     };
 
     // Handle the message content differently based on whether there's an image
-    if (imageUrl) {
-      console.log('Converting image to base64...');
+    if (imageUrl && imageUrl.startsWith('data:image/')) {
+      console.log('Processing data URL image...');
       try {
-        const base64Image = await fetchImageAsBase64(imageUrl);
-        console.log('Successfully converted image to base64');
+        // Extract the base64 data from the data URL
+        const base64Image = extractBase64FromDataUrl(imageUrl);
+        console.log('Successfully extracted base64 data, length:', base64Image.length);
+        
+        const mediaType = imageUrl.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
+        console.log('Detected media type:', mediaType);
         
         // Structure for image-with-text request
         requestBody.messages = [
@@ -81,7 +84,7 @@ Follow these structure requirements precisely and generate clean, semantic, and 
                 type: "image",
                 source: {
                   type: "base64",
-                  media_type: "image/jpeg",
+                  media_type: mediaType,
                   data: base64Image
                 }
               }
@@ -89,8 +92,14 @@ Follow these structure requirements precisely and generate clean, semantic, and 
           }
         ];
       } catch (imageError) {
-        console.error('Error processing image:', imageError);
-        throw imageError;
+        console.error('Error processing image data URL:', imageError);
+        return new Response(
+          JSON.stringify({ 
+            error: 'Failed to process image data',
+            details: imageError instanceof Error ? imageError.message : 'Unknown error'
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
       }
     } else {
       // Structure for text-only request
@@ -102,8 +111,10 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       ];
     }
 
-    console.log('Sending request to Anthropic API');
+    console.log('Sending request to Anthropic API with message structure:', 
+      imageUrl ? 'Image + Text' : 'Text only');
 
+    // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
