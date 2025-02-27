@@ -202,7 +202,6 @@ const Play = () => {
     if (!currentVersion) return;
     
     try {
-      const content = currentVersion.code;
       const style = `
         <style>
           body {
@@ -212,17 +211,16 @@ const Play = () => {
             max-width: 800px;
             margin: 0 auto;
           }
-          pre {
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 5px;
-            overflow-x: auto;
-          }
-          code {
-            font-family: monospace;
+          @media print {
+            body {
+              padding: 0;
+              margin: 0;
+            }
           }
         </style>
       `;
+      
+      const iframeContent = currentVersion.code;
       
       const htmlContent = `
         <!DOCTYPE html>
@@ -232,10 +230,17 @@ const Play = () => {
           ${style}
         </head>
         <body>
-          <h1>Version ${currentVersion.version_number}</h1>
-          ${currentVersion.instructions ? `<div class="instructions"><h2>Instructions</h2>${currentVersion.instructions}</div>` : ''}
-          <h2>Code</h2>
-          <pre><code>${content.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</code></pre>
+          ${currentVersion.instructions ? `
+            <div class="instructions" style="margin-bottom: 20px;">
+              <h1 style="margin-bottom: 10px;">Version ${currentVersion.version_number}</h1>
+              <h2 style="margin-bottom: 10px;">Instructions</h2>
+              <div>${currentVersion.instructions}</div>
+            </div>
+            <hr style="margin: 20px 0;">
+          ` : ''}
+          <div class="preview">
+            ${iframeContent}
+          </div>
         </body>
         </html>
       `;
