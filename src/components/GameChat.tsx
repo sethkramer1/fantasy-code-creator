@@ -131,15 +131,18 @@ export const GameChat = ({
     setShowTerminal(true);
     setTerminalOutput([`> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`]);
     
-    // Store message locally first to show immediately in UI
-    const tempMessage: Message = {
-      id: crypto.randomUUID(),
+    // Create temp message to show in UI
+    const tempId = crypto.randomUUID();
+    const tempMessage = {
+      id: tempId,
       message: message.trim(),
       created_at: new Date().toISOString(),
       image_url: imageUrl
     };
     
     setMessages(prev => [...prev, tempMessage]);
+    
+    // Save values before clearing form
     const currentMessage = message.trim();
     const currentImageUrl = imageUrl;
     
@@ -151,189 +154,154 @@ export const GameChat = ({
     }
     
     try {
-      console.log("Step 1: Inserting message into database...");
-      const { data: messageData, error: messageError } = await supabase
+      // Add the message to database (simplify this step)
+      console.log("Inserting message into database...");
+      const { error: messageError } = await supabase
         .from('game_messages')
         .insert({
           game_id: gameId,
           message: currentMessage,
           image_url: currentImageUrl
-        })
-        .select('*')
-        .single();
+        });
       
       if (messageError) {
-        console.error("Database insertion error:", messageError);
-        throw new Error(`Failed to insert message: ${messageError.message}`);
+        console.error("Failed to save message:", messageError);
+        throw new Error(`Database error: ${messageError.message}`);
       }
       
-      console.log("Step 2: Message inserted successfully:", messageData);
+      setTerminalOutput(prev => [...prev, "> Message saved successfully"]);
+      console.log("Message inserted successfully");
       
-      // Replace temp message with actual message from DB
-      setMessages(prev => prev.map(msg => 
-        msg.id === tempMessage.id ? messageData : msg
-      ));
-      
-      console.log("Step 3: Preparing request to edge function...");
-      const requestBody = {
-        gameId,
-        prompt: currentMessage,
-        imageUrl: currentImageUrl
-      };
-      console.log("Request body:", JSON.stringify(requestBody));
-      
-      console.log("Step 4: Sending request to edge function...");
-      const response = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
-        },
-        body: JSON.stringify(requestBody)
-      });
-      
-      console.log("Step 5: Received response:", response.status, response.statusText);
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Edge function error response:", errorText);
-        throw new Error(`Edge function error: ${response.status} ${response.statusText} - ${errorText}`);
-      }
-      
-      console.log("Step 6: Processing streaming response...");
-      const reader = response.body?.getReader();
-      if (!reader) {
-        throw new Error("No response body reader available");
-      }
-      
-      let gameContent = '';
-      let contentStarted = false;
-      
-      setTerminalOutput(prev => [...prev, '> Receiving response from AI...']);
+      // Call the edge function to process the request
+      console.log("Calling process-game-update function...");
+      setTerminalOutput(prev => [...prev, "> Sending request to AI..."]);
       
       try {
+        const apiResponse = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
+          },
+          body: JSON.stringify({
+            gameId: gameId,
+            prompt: currentMessage,
+            imageUrl: currentImageUrl
+          })
+        });
+        
+        if (!apiResponse.ok) {
+          const errorText = await apiResponse.text();
+          console.error("Edge function returned an error:", errorText);
+          throw new Error(`API error: ${apiResponse.status} ${apiResponse.statusText}`);
+        }
+        
+        console.log("Response received, processing stream...");
+        setTerminalOutput(prev => [...prev, "> Response received, generating content..."]);
+        
+        // Process the streamed response
+        const reader = apiResponse.body?.getReader();
+        if (!reader) throw new Error("Unable to read response stream");
+        
+        let gameContent = '';
+        
         while (true) {
           const { done, value } = await reader.read();
-          if (done) {
-            console.log("Step 7: Stream reading complete");
-            break;
-          }
+          if (done) break;
           
-          const text = new TextDecoder().decode(value);
-          console.log("Received chunk:", text.substring(0, 50) + "...");
+          const chunk = new TextDecoder().decode(value);
+          console.log("Received chunk of length:", chunk.length);
           
-          const lines = text.split('\n').filter(Boolean);
+          const lines = chunk.split('\n').filter(Boolean);
           
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
             
             try {
-              const data = JSON.parse(line.slice(5));
+              const parsedData = JSON.parse(line.slice(5));
               
-              if (data.type === 'content_block_start') {
-                contentStarted = true;
-                setTerminalOutput(prev => [...prev, '> Starting game code generation...']);
-              } else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
-                const content = data.delta.text || '';
-                
+              if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
+                const content = parsedData.delta.text || '';
                 if (content) {
                   gameContent += content;
-                  const contentLines = content.split('\n');
-                  
-                  for (const contentLine of contentLines) {
-                    if (contentLine.trim()) {
-                      setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                  const lines = content.split('\n');
+                  for (const line of lines) {
+                    if (line.trim()) {
+                      setTerminalOutput(prev => [...prev, `> ${line}`]);
                     }
                   }
                 }
-              } else if (data.type === 'content_block_stop') {
-                setTerminalOutput(prev => [...prev, '> Finished generating game code']);
               }
             } catch (e) {
-              console.error('Error parsing line:', e, 'Line content:', line);
+              console.warn("Error parsing streaming data:", e);
             }
           }
         }
-      } catch (streamError) {
-        console.error("Error reading stream:", streamError);
-        throw new Error(`Failed to read response stream: ${streamError instanceof Error ? streamError.message : 'Unknown error'}`);
+        
+        console.log("Stream complete, content length:", gameContent.length);
+        
+        if (!gameContent || !gameContent.includes('<html')) {
+          console.error("Invalid content received:", gameContent.substring(0, 100));
+          throw new Error("Invalid content received from AI");
+        }
+        
+        // Update the game with the new content
+        setTerminalOutput(prev => [...prev, "> Updating game..."]);
+        onGameUpdate(gameContent, "Game updated successfully");
+        
+        // Update the message response
+        const { error: updateError } = await supabase
+          .from('game_messages')
+          .update({ response: "Game updated successfully" })
+          .eq('game_id', gameId)
+          .eq('message', currentMessage);
+        
+        if (updateError) {
+          console.error("Error updating message response:", updateError);
+        }
+        
+        // Refresh the messages list
+        const { data: updatedMessages } = await supabase
+          .from('game_messages')
+          .select('*')
+          .eq('game_id', gameId)
+          .order('created_at', { ascending: true });
+          
+        if (updatedMessages) {
+          setMessages(updatedMessages);
+        }
+        
+        setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
+        
+        setTimeout(() => {
+          setShowTerminal(false);
+        }, 2000);
+        
+        toast({
+          title: "Game updated successfully",
+          description: "The changes have been applied to your game."
+        });
+        
+      } catch (apiError) {
+        console.error("API error:", apiError);
+        throw apiError;
       }
-      
-      console.log("Step 8: Validating generated content...");
-      console.log("Content length:", gameContent.length);
-      console.log("Content preview:", gameContent.substring(0, 100) + "...");
-      
-      if (!gameContent) {
-        throw new Error('No content received from AI');
-      }
-      
-      if (!gameContent.includes('<html')) {
-        console.error("Invalid game content format");
-        throw new Error('Invalid game content format - HTML not detected');
-      }
-      
-      console.log("Step 9: Updating game with new content...");
-      setTerminalOutput(prev => [...prev, "> Saving new game version..."]);
-      onGameUpdate(gameContent, "Game updated successfully");
-      
-      console.log("Step 10: Updating message response in database...");
-      const { error: updateError } = await supabase
-        .from('game_messages')
-        .update({ response: "Game updated successfully" })
-        .eq('id', messageData.id);
-      
-      if (updateError) {
-        console.error("Error updating message response:", updateError);
-        // Don't throw here, as the game has already been updated successfully
-      }
-      
-      setMessages(prev => prev.map(msg => 
-        msg.id === messageData.id 
-          ? { ...msg, response: "Game updated successfully" } 
-          : msg
-      ));
-      
-      setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
-      
-      setTimeout(() => {
-        setShowTerminal(false);
-      }, 2000);
-      
-      toast({
-        title: "Game updated successfully",
-        description: "The changes have been applied to your game."
-      });
       
     } catch (error) {
-      console.error('Error in handleSubmit:', error);
+      console.error("Error in handleSubmit:", error);
       
-      // Display the specific error in the terminal
       setTerminalOutput(prev => [...prev, 
         `> Error: ${error instanceof Error ? error.message : 'Unknown error'}`
       ]);
       
-      // Show a more user-friendly message in the toast
       toast({
         title: "Error processing message",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
       
-      // Try to update the message in the database with the error
-      if (tempMessage) {
-        try {
-          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-          await supabase
-            .from('game_messages')
-            .update({ response: `Error: ${errorMessage}` })
-            .eq('id', tempMessage.id);
-        } catch (dbError) {
-          console.error("Failed to update message with error:", dbError);
-        }
-      }
-      
-      // Remove the temporary message from UI only if it wasn't saved to DB
-      setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
+      // Remove the temporary message since it failed
+      setMessages(prev => prev.filter(msg => msg.id !== tempId));
       
     } finally {
       setLoading(false);
