@@ -34,9 +34,7 @@ export const GameChat = ({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
 
   // Auto-resize textarea
   useEffect(() => {
@@ -50,12 +48,12 @@ export const GameChat = ({
   useEffect(() => {
     const fetchMessages = async () => {
       try {
-        const {
-          data,
-          error
-        } = await supabase.from('game_messages').select('*').eq('game_id', gameId).order('created_at', {
-          ascending: true
-        });
+        const { data, error } = await supabase
+          .from('game_messages')
+          .select('*')
+          .eq('game_id', gameId)
+          .order('created_at', { ascending: true });
+          
         if (error) throw error;
         setMessages(data || []);
       } catch (error) {
@@ -68,6 +66,7 @@ export const GameChat = ({
         setLoadingHistory(false);
       }
     };
+    
     fetchMessages();
   }, [gameId, toast]);
 
@@ -132,38 +131,61 @@ export const GameChat = ({
     setShowTerminal(true);
     setTerminalOutput([`> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`]);
     
+    // Store message locally first to show immediately in UI
+    const tempMessage: Message = {
+      id: crypto.randomUUID(),
+      message: message.trim(),
+      created_at: new Date().toISOString(),
+      image_url: imageUrl
+    };
+    
+    setMessages(prev => [...prev, tempMessage]);
+    const currentMessage = message.trim();
+    const currentImageUrl = imageUrl;
+    
+    // Clear form
+    setMessage("");
+    setImageUrl(null);
+    
     try {
-      // First, insert the message into the database
-      console.log("Inserting message into database:", { gameId, message: message.trim(), imageUrl: imageUrl ? "yes" : "no" });
-      const {
-        data: messageData,
-        error: messageError
-      } = await supabase.from('game_messages').insert([{
-        game_id: gameId,
-        message: message.trim(),
-        image_url: imageUrl
-      }]).select().single();
+      // Insert the message into the database
+      console.log("Inserting message into database:", { 
+        gameId, 
+        message: currentMessage, 
+        imageUrl: currentImageUrl ? "yes" : "no" 
+      });
+      
+      const { data: messageData, error: messageError } = await supabase
+        .from('game_messages')
+        .insert({
+          game_id: gameId,
+          message: currentMessage,
+          image_url: currentImageUrl
+        })
+        .select('*')
+        .single();
       
       if (messageError) {
         console.error("Error inserting message:", messageError);
         throw messageError;
       }
       
-      setMessages(prev => [...prev, messageData]);
-      setMessage("");
-      setImageUrl(null);
+      // Replace temp message with actual message from DB
+      setMessages(prev => prev.map(msg => 
+        msg.id === tempMessage.id ? messageData : msg
+      ));
       
       console.log("Calling process-game-update function...");
       const response = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo'
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
         },
         body: JSON.stringify({
           gameId,
-          message: message.trim(),
-          imageUrl: imageUrl
+          message: currentMessage,
+          imageUrl: currentImageUrl
         })
       });
       
@@ -179,27 +201,30 @@ export const GameChat = ({
       
       let gameContent = '';
       while (true) {
-        const {
-          done,
-          value
-        } = await reader.read();
+        const { done, value } = await reader.read();
         if (done) break;
+        
         const text = new TextDecoder().decode(value);
         const lines = text.split('\n').filter(Boolean);
+        
         for (const line of lines) {
           if (!line.startsWith('data: ')) continue;
+          
           try {
             const data = JSON.parse(line.slice(5));
+            
             if (data.type === 'content_block_start') {
               setTerminalOutput(prev => [...prev, '> Starting game code generation...']);
             } else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
               const content = data.delta.text || '';
+              
               if (content) {
                 gameContent += content;
-                const lines = content.split('\n');
-                for (const line of lines) {
-                  if (line.trim()) {
-                    setTerminalOutput(prev => [...prev, `> ${line}`]);
+                const contentLines = content.split('\n');
+                
+                for (const contentLine of contentLines) {
+                  if (contentLine.trim()) {
+                    setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
                   }
                 }
               }
@@ -220,23 +245,24 @@ export const GameChat = ({
       setTerminalOutput(prev => [...prev, "> Saving new game version..."]);
       onGameUpdate(gameContent, "Game updated successfully");
       
-      const {
-        error: updateError
-      } = await supabase.from('game_messages').update({
-        response: "Game updated successfully"
-      }).eq('id', messageData.id);
+      const { error: updateError } = await supabase
+        .from('game_messages')
+        .update({ response: "Game updated successfully" })
+        .eq('id', messageData.id);
       
       if (updateError) {
         console.error("Error updating message response:", updateError);
         throw updateError;
       }
       
-      setMessages(prev => prev.map(msg => msg.id === messageData.id ? {
-        ...msg,
-        response: "Game updated successfully"
-      } : msg));
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageData.id 
+          ? { ...msg, response: "Game updated successfully" } 
+          : msg
+      ));
       
       setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
+      
       setTimeout(() => {
         setShowTerminal(false);
       }, 2000);
@@ -247,7 +273,10 @@ export const GameChat = ({
       });
     } catch (error) {
       console.error('Error in handleSubmit:', error);
-      setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      
+      setTerminalOutput(prev => [...prev, 
+        `> Error: ${error instanceof Error ? error.message : 'Unknown error'}`
+      ]);
       
       toast({
         title: "Error processing message",
@@ -255,14 +284,8 @@ export const GameChat = ({
         variant: "destructive"
       });
       
-      if (messages[messages.length - 1]?.response === undefined) {
-        const {
-          error: deleteError
-        } = await supabase.from('game_messages').delete().eq('id', messages[messages.length - 1].id);
-        if (!deleteError) {
-          setMessages(prev => prev.slice(0, -1));
-        }
-      }
+      // Remove the temporary message from UI
+      setMessages(prev => prev.filter(msg => msg.id !== tempMessage.id));
     } finally {
       setLoading(false);
     }
@@ -311,7 +334,7 @@ export const GameChat = ({
           </div>
         )}
         
-        <div className="bg-[#222222] rounded-2xl shadow-md p-4">
+        <div className="bg-[#2A2A2A] rounded-2xl shadow-md p-4">
           <div className="relative">
             <textarea 
               ref={textareaRef}
@@ -324,7 +347,7 @@ export const GameChat = ({
                   handleSubmit(e);
                 }
               }} 
-              placeholder="Ask Lovable..." 
+              placeholder="Request a change" 
               className="w-full bg-transparent text-white border-none focus:ring-0 focus:outline-none resize-none min-h-[24px] max-h-[200px] py-0 px-0" 
               disabled={loading}
               rows={1}
