@@ -84,7 +84,7 @@ export function GamesList({
           height: contentHeight,
           windowWidth: 1200,
           windowHeight: contentHeight,
-          scale: 1,
+          scale: 2, // Increased from 1 to 2 for higher quality
           useCORS: true,
           allowTaint: true,
           backgroundColor: '#ffffff',
@@ -106,8 +106,8 @@ export function GamesList({
           }
         });
         
-        // Convert canvas to data URL
-        const imageUrl = canvas.toDataURL('image/png');
+        // Convert canvas to data URL with maximum quality
+        const imageUrl = canvas.toDataURL('image/png', 1.0);
         
         // Create download link
         const link = document.createElement('a');
