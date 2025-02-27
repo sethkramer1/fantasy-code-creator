@@ -34,7 +34,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         model: 'claude-3-7-sonnet-20250219',
-        max_tokens: 20000,
+        max_tokens: 30000,
         stream: true,
         system: `You are an expert developer specializing in web technologies, particularly in creating interactive web content, SVG graphics, data visualizations, and infographics. 
             
@@ -49,7 +49,7 @@ Follow these structure requirements precisely and generate clean, semantic, and 
         ],
         thinking: {
           type: "enabled",
-          budget_tokens: 16000
+          budget_tokens: 7000
         }
       }),
     })
