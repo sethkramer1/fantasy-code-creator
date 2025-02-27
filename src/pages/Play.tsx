@@ -262,9 +262,13 @@ const Play = () => {
                       />
                     </div>
                   ) : (
-                    <pre className="p-4 bg-gray-50 rounded-lg overflow-x-auto border border-gray-100">
-                      <code className="text-sm whitespace-pre-wrap">{currentVersion.code}</code>
-                    </pre>
+                    <div className="relative aspect-[4/3]">
+                      <div className="absolute inset-0 overflow-auto">
+                        <pre className="p-4 bg-gray-50 rounded-lg h-full">
+                          <code className="text-sm whitespace-pre-wrap break-words">{currentVersion.code}</code>
+                        </pre>
+                      </div>
+                    </div>
                   )}
                 </div>
 
