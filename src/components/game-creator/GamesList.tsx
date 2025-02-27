@@ -42,7 +42,7 @@ export function GamesList({
       iframe.style.top = '0';
       iframe.style.left = '0';
       iframe.style.width = '1200px';
-      iframe.style.height = '800px';
+      iframe.style.height = '100vh'; // Make it full viewport height initially
       iframe.style.border = 'none';
       iframe.style.zIndex = '-1000';
       iframe.style.opacity = '0';
@@ -67,13 +67,43 @@ export function GamesList({
       
       // Capture iframe content
       if (iframe.contentDocument?.body) {
+        // Get actual content height
+        const contentHeight = Math.max(
+          iframe.contentDocument.body.scrollHeight,
+          iframe.contentDocument.documentElement.scrollHeight,
+          iframe.contentDocument.body.offsetHeight,
+          iframe.contentDocument.documentElement.offsetHeight
+        );
+        
+        // Update iframe height to match content
+        iframe.style.height = `${contentHeight}px`;
+        
+        // Create canvas with appropriate dimensions
         const canvas = await html2canvas(iframe.contentDocument.body, {
           width: 1200,
-          height: 800,
+          height: contentHeight,
+          windowWidth: 1200,
+          windowHeight: contentHeight,
           scale: 1,
           useCORS: true,
           allowTaint: true,
-          backgroundColor: '#ffffff'
+          backgroundColor: '#ffffff',
+          logging: false, // Disable logging for cleaner console
+          imageTimeout: 0, // No timeout for image loading
+          onclone: (clonedDoc) => {
+            // Ensure all styles are applied in the cloned document
+            const styles = Array.from(document.styleSheets);
+            styles.forEach(styleSheet => {
+              try {
+                const rules = Array.from(styleSheet.cssRules || []);
+                const style = clonedDoc.createElement('style');
+                rules.forEach(rule => style.appendChild(document.createTextNode(rule.cssText)));
+                clonedDoc.head.appendChild(style);
+              } catch (e) {
+                // Ignore cross-origin stylesheet errors
+              }
+            });
+          }
         });
         
         // Convert canvas to data URL
