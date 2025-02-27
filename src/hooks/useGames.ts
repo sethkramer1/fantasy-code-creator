@@ -14,21 +14,18 @@ export const useGames = () => {
       try {
         const { data, error } = await supabase
           .from('games')
-          .select('id, prompt, created_at, code')
+          .select('id, prompt, created_at')
           .order('created_at', { ascending: false });
         
         if (error) throw error;
-        
-        // Set games without previews first to avoid freezing the UI
         setGames(data || []);
-        setGamesLoading(false);
-        
       } catch (error) {
         toast({
           title: "Error loading games",
           description: error instanceof Error ? error.message : "Please try again",
           variant: "destructive"
         });
+      } finally {
         setGamesLoading(false);
       }
     };
