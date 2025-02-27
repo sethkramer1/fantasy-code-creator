@@ -119,20 +119,27 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
       if (!reader) throw new Error("No reader available");
 
       let gameContent = '';
+      let fullResponse = '';
 
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
         const text = new TextDecoder().decode(value);
+        console.log('Raw stream chunk:', text); // Debug log
+        fullResponse += text;
+        
         const lines = text.split('\n').filter(Boolean);
 
         for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
+          if (!line.startsWith('data: ')) {
+            console.log('Skipping non-SSE line:', line); // Debug log
+            continue;
+          }
           
           try {
             const data = JSON.parse(line.slice(5));
-            console.log('Received SSE data:', data);
+            console.log('Parsed SSE data:', data); // Debug log
 
             if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
               const content = data.delta.text || '';
@@ -140,16 +147,24 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
                 gameContent += content;
                 setTerminalOutput(prev => [...prev, `> Generated ${content.length} characters of game code`]);
               }
+            } else if (data.type === 'content_block_start') {
+              setTerminalOutput(prev => [...prev, '> Starting game code generation...']);
+            } else if (data.type === 'content_block_stop') {
+              setTerminalOutput(prev => [...prev, '> Finished generating game code']);
             }
           } catch (e) {
-            console.error('Error parsing SSE line:', e);
-            setTerminalOutput(prev => [...prev, `> Error: ${e instanceof Error ? e.message : 'Unknown error'}`]);
+            console.error('Error parsing SSE line:', e, 'Line:', line);
+            setTerminalOutput(prev => [...prev, `> Error parsing response: ${e instanceof Error ? e.message : 'Unknown error'}`]);
           }
         }
       }
 
+      console.log('Full response received:', fullResponse); // Debug log
+      console.log('Extracted game content:', gameContent); // Debug log
+
       if (!gameContent) {
-        throw new Error("No game content received");
+        console.error('No game content extracted from response');
+        throw new Error("No game content received. Please try again.");
       }
 
       // Update the game in parent component
@@ -169,6 +184,8 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
 
     } catch (error) {
       console.error('Error in handleSubmit:', error);
+      setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      
       toast({
         title: "Error processing message",
         description: error instanceof Error ? error.message : "Please try again",
