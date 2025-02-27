@@ -94,6 +94,7 @@ export type Database = {
           id: string
           instructions: string | null
           prompt: string
+          type: string | null
         }
         Insert: {
           code: string
@@ -102,6 +103,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           prompt: string
+          type?: string | null
         }
         Update: {
           code?: string
@@ -110,6 +112,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           prompt?: string
+          type?: string | null
         }
         Relationships: []
       }
