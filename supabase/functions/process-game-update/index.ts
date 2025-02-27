@@ -113,11 +113,8 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       model: "claude-3-7-sonnet-20250219",
       max_tokens: 30000,
       stream: true,
-      system: systemMessage,
-      thinking: {
-        type: "enabled",
-        budget_tokens: 7000
-      }
+      system: systemMessage
+      // Removed thinking configuration as requested
     };
 
     // Handle the message content differently based on whether there's an image
