@@ -96,24 +96,28 @@ export function GenerationForm({
       </div>
       
       <div className="space-y-3">
-        <div className="flex items-center gap-3 flex-wrap">
-          <ImageUpload
-            onImageUploaded={onImageUploaded}
-            onImageRemoved={onImageRemoved}
-            imageUrl={imageUrl}
-          />
+        <div className="flex items-center justify-between">
+          <div>
+            <ImageUpload
+              onImageUploaded={onImageUploaded}
+              onImageRemoved={onImageRemoved}
+              imageUrl={imageUrl}
+            />
+          </div>
           
-          {prompt.trim().length > 0 && (
-            <button 
-              onClick={handleEnhancePrompt}
-              disabled={isEnhancing}
-              className="flex items-center gap-1.5 p-2 rounded-lg text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              title="Enhance your prompt with AI"
-            >
-              <Wand2 size={16} className={isEnhancing ? "animate-spin" : ""} />
-              <span className="text-sm">{isEnhancing ? "Enhancing..." : "Enhance prompt"}</span>
-            </button>
-          )}
+          <div>
+            {prompt.trim().length > 0 && (
+              <button 
+                onClick={handleEnhancePrompt}
+                disabled={isEnhancing}
+                className="flex items-center gap-1.5 p-2 rounded-lg text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Enhance your prompt with AI"
+              >
+                <Wand2 size={16} className={isEnhancing ? "animate-spin" : ""} />
+                <span className="text-sm">{isEnhancing ? "Enhancing..." : "Enhance prompt"}</span>
+              </button>
+            )}
+          </div>
         </div>
         
         <div className="flex items-center gap-3">
