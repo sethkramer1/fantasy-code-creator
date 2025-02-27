@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -232,14 +233,13 @@ const Play = () => {
             {currentVersion && (
               <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 space-y-6 shadow-sm">
                 <div 
-                  className="relative w-full rounded-lg overflow-hidden bg-white"
-                  style={{ paddingTop: '75%' }}
+                  className="relative w-full aspect-[4/3] bg-white rounded-lg overflow-hidden"
                   onClick={() => iframeRef.current?.focus()}
                 >
                   <iframe
                     ref={iframeRef}
                     srcDoc={currentVersion.code}
-                    className="absolute top-0 left-0 w-full h-full border border-gray-100"
+                    className="absolute inset-0 w-full h-full border border-gray-100"
                     sandbox="allow-scripts"
                     title="Generated Content"
                     tabIndex={0}
