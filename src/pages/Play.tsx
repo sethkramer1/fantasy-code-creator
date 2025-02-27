@@ -351,131 +351,138 @@ const Play = () => {
   const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
 
   return (
-    <div className="min-h-screen flex bg-[#F5F5F5]">
-      <div className="w-[400px] h-screen flex flex-col bg-white border-r border-gray-200">
-        <div className="p-4 border-b border-gray-200">
-          <div className="flex items-center">
-            <h2 className="text-lg font-medium text-gray-900">Modify Content</h2>
-          </div>
-        </div>
-        <div className="flex-1">
-          <GameChat gameId={id!} onGameUpdate={handleGameUpdate} />
-        </div>
+    <div className="min-h-screen flex flex-col bg-[#F5F5F5]">
+      {/* Navbar */}
+      <div className="w-full h-12 bg-white border-b border-gray-200 px-4 flex items-center z-10 shadow-sm">
+        <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
+          <ArrowLeft size={18} />
+          <span className="text-sm font-medium">Back</span>
+        </Link>
       </div>
-
-      <div className="flex-1 p-4 md:p-8 flex flex-col">
-        <div className="max-w-[1200px] mx-auto w-full space-y-6 flex-1 flex flex-col">
-          <div className="flex items-center justify-between">
-            <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
-              <ArrowLeft size={18} />
-              <span className="text-sm">Back to Generator</span>
-            </Link>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
-                {!isLatestVersion && currentVersion && (
-                  <button 
-                    onClick={() => handleRevertToVersion(currentVersion)} 
-                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                  >
-                    <RotateCcw size={16} />
-                    <span>Revert to this version</span>
-                  </button>
-                )}
-                <History size={18} className="text-gray-500" />
-                <Select value={selectedVersion} onValueChange={handleVersionChange}>
-                  <SelectTrigger className="w-[180px] bg-white border-gray-200">
-                    <SelectValue placeholder="Select version" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {gameVersions.map(version => (
-                      <SelectItem key={version.id} value={version.id} className="flex items-center justify-between">
-                        <span>Version {version.version_number}</span>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={handleDownload}
-                >
-                  <Download size={16} />
-                  Download Files
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="gap-2"
-                  onClick={handleDownloadPDF}
-                >
-                  <FileText size={16} />
-                  Download PDF
-                </Button>
-              </div>
+      
+      {/* Main content */}
+      <div className="flex flex-1 overflow-hidden">
+        <div className="w-[400px] h-full flex flex-col bg-white border-r border-gray-200">
+          <div className="p-4 border-b border-gray-200">
+            <div className="flex items-center">
+              <h2 className="text-lg font-medium text-gray-900">Modify Content</h2>
             </div>
           </div>
+          <div className="flex-1 overflow-auto">
+            <GameChat gameId={id!} onGameUpdate={handleGameUpdate} />
+          </div>
+        </div>
 
-          {currentVersion && (
-            <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="bg-zinc-900 p-0.5 rounded-full">
+        <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
+          <div className="max-w-[1200px] mx-auto w-full space-y-4 flex-1 flex flex-col">
+            <div className="flex items-center justify-end">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  {!isLatestVersion && currentVersion && (
+                    <button 
+                      onClick={() => handleRevertToVersion(currentVersion)} 
+                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                    >
+                      <RotateCcw size={16} />
+                      <span>Revert to this version</span>
+                    </button>
+                  )}
+                  <History size={18} className="text-gray-500" />
+                  <Select value={selectedVersion} onValueChange={handleVersionChange}>
+                    <SelectTrigger className="w-[180px] bg-white border-gray-200">
+                      <SelectValue placeholder="Select version" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {gameVersions.map(version => (
+                        <SelectItem key={version.id} value={version.id} className="flex items-center justify-between">
+                          <span>Version {version.version_number}</span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-center gap-2">
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-                      !showCode 
-                        ? 'bg-white text-black' 
-                        : 'text-white hover:bg-white/20'
-                    }`}
-                    onClick={() => setShowCode(false)}
+                    className="gap-2"
+                    onClick={handleDownload}
                   >
-                    Preview
+                    <Download size={16} />
+                    Download Files
                   </Button>
                   <Button
-                    variant="ghost"
+                    variant="outline"
                     size="sm"
-                    className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-                      showCode 
-                        ? 'bg-white text-black' 
-                        : 'text-white hover:bg-white/20'
-                    }`}
-                    onClick={() => setShowCode(true)}
+                    className="gap-2"
+                    onClick={handleDownloadPDF}
                   >
-                    Code
+                    <FileText size={16} />
+                    Download PDF
                   </Button>
                 </div>
               </div>
-
-              <div className="flex-1 bg-white rounded-lg overflow-hidden">
-                {!showCode ? (
-                  <div 
-                    className="h-full relative"
-                    onClick={() => iframeRef.current?.focus()}
-                  >
-                    <iframe
-                      ref={iframeRef}
-                      srcDoc={currentVersion.code}
-                      className="absolute inset-0 w-full h-full border border-gray-100"
-                      sandbox="allow-scripts"
-                      title="Generated Content"
-                      tabIndex={0}
-                    />
-                  </div>
-                ) : (
-                  <div className="h-full relative">
-                    <div className="absolute inset-0 overflow-auto">
-                      <pre className="p-4 bg-gray-50 rounded-lg h-full">
-                        <code className="text-sm whitespace-pre-wrap break-words">{currentVersion.code}</code>
-                      </pre>
-                    </div>
-                  </div>
-                )}
-              </div>
             </div>
-          )}
+
+            {currentVersion && (
+              <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="bg-zinc-900 p-0.5 rounded-full">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                        !showCode 
+                          ? 'bg-white text-black' 
+                          : 'text-white hover:bg-white/20'
+                      }`}
+                      onClick={() => setShowCode(false)}
+                    >
+                      Preview
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                        showCode 
+                          ? 'bg-white text-black' 
+                          : 'text-white hover:bg-white/20'
+                      }`}
+                      onClick={() => setShowCode(true)}
+                    >
+                      Code
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="flex-1 bg-white rounded-lg overflow-hidden">
+                  {!showCode ? (
+                    <div 
+                      className="h-full relative"
+                      onClick={() => iframeRef.current?.focus()}
+                    >
+                      <iframe
+                        ref={iframeRef}
+                        srcDoc={currentVersion.code}
+                        className="absolute inset-0 w-full h-full border border-gray-100"
+                        sandbox="allow-scripts"
+                        title="Generated Content"
+                        tabIndex={0}
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-full relative">
+                      <div className="absolute inset-0 overflow-auto">
+                        <pre className="p-4 bg-gray-50 rounded-lg h-full">
+                          <code className="text-sm whitespace-pre-wrap break-words">{currentVersion.code}</code>
+                        </pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
