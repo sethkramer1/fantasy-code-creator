@@ -1,5 +1,4 @@
 
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY');
@@ -51,6 +50,8 @@ serve(async (req) => {
         contentTypeInstructions = 'your request with specific details';
     }
 
+    console.log(`Processing prompt enhancement for ${contentType}: "${prompt}"`);
+
     // Make request to Anthropic API
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -77,10 +78,12 @@ Return only the enhanced prompt text without any explanations or additional comm
 
     if (!response.ok) {
       const errorData = await response.json();
+      console.error('Anthropic API error:', errorData);
       throw new Error(`Anthropic API error: ${errorData.error?.message || response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('Received response from Anthropic API');
     const enhancedPrompt = data.content[0].text;
 
     return new Response(
