@@ -302,12 +302,12 @@ export const GameChat = ({
       
       // Update the game with the new content
       setTerminalOutput(prev => [...prev, "> Updating game..."]);
-      onGameUpdate(gameContent, "Game updated successfully");
+      onGameUpdate(gameContent, "Code updated successfully");
       
       // Update the message response
       const { error: updateError } = await supabase
         .from('game_messages')
-        .update({ response: "Game updated successfully" })
+        .update({ response: "Code updated successfully" })
         .eq('id', insertedMessage.id);
       
       if (updateError) {
@@ -333,7 +333,7 @@ export const GameChat = ({
       }, 3000);
       
       toast({
-        title: "Game updated successfully",
+        title: "Code updated successfully",
         description: "The changes have been applied to your game."
       });
       
