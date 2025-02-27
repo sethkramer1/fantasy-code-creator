@@ -94,20 +94,15 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
       setMessage("");
 
       // Call Edge Function to process the message
-      console.log('Calling process-game-update with:', { gameId, message: message.trim() });
-      
       const response = await fetch(
-        'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update',
+        'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
           },
-          body: JSON.stringify({ 
-            gameId, 
-            message: message.trim() 
-          })
+          body: JSON.stringify({ prompt: message.trim() })
         }
       );
 
@@ -126,20 +121,18 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
         if (done) break;
 
         const text = new TextDecoder().decode(value);
-        console.log('Raw stream chunk:', text); // Debug log
         fullResponse += text;
         
         const lines = text.split('\n').filter(Boolean);
 
         for (const line of lines) {
           if (!line.startsWith('data: ')) {
-            console.log('Skipping non-SSE line:', line); // Debug log
+            console.log('Skipping non-SSE line:', line);
             continue;
           }
           
           try {
             const data = JSON.parse(line.slice(5));
-            console.log('Parsed SSE data:', data); // Debug log
 
             if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
               const content = data.delta.text || '';
@@ -153,18 +146,14 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
               setTerminalOutput(prev => [...prev, '> Finished generating game code']);
             }
           } catch (e) {
-            console.error('Error parsing SSE line:', e, 'Line:', line);
+            console.error('Error parsing line:', e);
             setTerminalOutput(prev => [...prev, `> Error parsing response: ${e instanceof Error ? e.message : 'Unknown error'}`]);
           }
         }
       }
 
-      console.log('Full response received:', fullResponse); // Debug log
-      console.log('Extracted game content:', gameContent); // Debug log
-
-      if (!gameContent) {
-        console.error('No game content extracted from response');
-        throw new Error("No game content received. Please try again.");
+      if (!gameContent || !gameContent.includes('<html')) {
+        throw new Error("No valid game content received. Please try again.");
       }
 
       // Update the game in parent component
