@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -170,8 +169,8 @@ const Play = () => {
         </div>
       )}
 
-      <div className="flex-1 p-4 md:p-8">
-        <div className="max-w-[1200px] mx-auto space-y-6">
+      <div className="flex-1 p-4 md:p-8 flex flex-col">
+        <div className="max-w-[1200px] mx-auto w-full space-y-6 flex-1 flex flex-col">
           <div className="flex items-center justify-between">
             <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
               <ArrowLeft size={18} />
@@ -214,75 +213,73 @@ const Play = () => {
             </div>
           </div>
 
-          <div className="space-y-6">
-            {currentVersion && (
-              <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 space-y-6 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <div className="bg-zinc-900 p-0.5 rounded-full">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-                        !showCode 
-                          ? 'bg-white text-black' 
-                          : 'text-white hover:bg-white/20'
-                      }`}
-                      onClick={() => setShowCode(false)}
-                    >
-                      Preview
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-                        showCode 
-                          ? 'bg-white text-black' 
-                          : 'text-white hover:bg-white/20'
-                      }`}
-                      onClick={() => setShowCode(true)}
-                    >
-                      Code
-                    </Button>
+          {currentVersion && (
+            <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="bg-zinc-900 p-0.5 rounded-full">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                      !showCode 
+                        ? 'bg-white text-black' 
+                        : 'text-white hover:bg-white/20'
+                    }`}
+                    onClick={() => setShowCode(false)}
+                  >
+                    Preview
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                      showCode 
+                        ? 'bg-white text-black' 
+                        : 'text-white hover:bg-white/20'
+                    }`}
+                    onClick={() => setShowCode(true)}
+                  >
+                    Code
+                  </Button>
+                </div>
+              </div>
+
+              <div className="flex-1 bg-white rounded-lg overflow-hidden">
+                {!showCode ? (
+                  <div 
+                    className="h-full relative"
+                    onClick={() => iframeRef.current?.focus()}
+                  >
+                    <iframe
+                      ref={iframeRef}
+                      srcDoc={currentVersion.code}
+                      className="absolute inset-0 w-full h-full border border-gray-100"
+                      sandbox="allow-scripts"
+                      title="Generated Content"
+                      tabIndex={0}
+                    />
                   </div>
-                </div>
-
-                <div className="w-full bg-white rounded-lg overflow-hidden">
-                  {!showCode ? (
-                    <div 
-                      className="relative aspect-[4/3]"
-                      onClick={() => iframeRef.current?.focus()}
-                    >
-                      <iframe
-                        ref={iframeRef}
-                        srcDoc={currentVersion.code}
-                        className="absolute inset-0 w-full h-full border border-gray-100"
-                        sandbox="allow-scripts"
-                        title="Generated Content"
-                        tabIndex={0}
-                      />
-                    </div>
-                  ) : (
-                    <div className="relative aspect-[4/3]">
-                      <div className="absolute inset-0 overflow-auto">
-                        <pre className="p-4 bg-gray-50 rounded-lg h-full">
-                          <code className="text-sm whitespace-pre-wrap break-words">{currentVersion.code}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {currentVersion.instructions && (
-                  <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-lg border border-gray-100">
-                    <h2 className="text-lg font-medium text-gray-900 mb-2">Details</h2>
-                    <div className="prose prose-sm max-w-none text-gray-600">
-                      <ReactMarkdown>{currentVersion.instructions}</ReactMarkdown>
+                ) : (
+                  <div className="h-full relative">
+                    <div className="absolute inset-0 overflow-auto">
+                      <pre className="p-4 bg-gray-50 rounded-lg h-full">
+                        <code className="text-sm whitespace-pre-wrap break-words">{currentVersion.code}</code>
+                      </pre>
                     </div>
                   </div>
                 )}
               </div>
-            )}
-          </div>
+
+              {currentVersion.instructions && (
+                <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-lg border border-gray-100 mt-6">
+                  <h2 className="text-lg font-medium text-gray-900 mb-2">Details</h2>
+                  <div className="prose prose-sm max-w-none text-gray-600">
+                    <ReactMarkdown>{currentVersion.instructions}</ReactMarkdown>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
