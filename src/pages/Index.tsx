@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { Loader2, Terminal, MessageSquare, Search, Timer } from "lucide-react";
@@ -9,6 +10,13 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface Game {
   id: string;
@@ -16,8 +24,18 @@ interface Game {
   created_at: string;
 }
 
+const gameTypes = [
+  { id: 'puzzle', label: 'Puzzle Games (like Candy Crush)', example: 'matching puzzles, sliding puzzles, or block-clearing mechanics' },
+  { id: 'word', label: 'Word Games (like Wordle)', example: 'word guessing, crosswords, or letter arrangements' },
+  { id: 'arcade', label: 'Arcade Games (like Space Invaders)', example: 'fast-paced action, shooting, or obstacle avoidance' },
+  { id: 'card', label: 'Card Games (like Solitaire)', example: 'card matching, deck building, or traditional card games' },
+  { id: 'strategy', label: 'Strategy Games (like Tower Defense)', example: 'resource management, tower placement, or tactical decisions' },
+  { id: 'action', label: 'Action Games (like Super Mario)', example: 'platforming, running, jumping, or collecting items' }
+] as const;
+
 const Index = () => {
   const [prompt, setPrompt] = useState("");
+  const [gameType, setGameType] = useState<string>("");
   const [loading, setLoading] = useState(false);
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
@@ -95,6 +113,11 @@ const Index = () => {
     let currentThinking = '';
 
     try {
+      const selectedType = gameTypes.find(type => type.id === gameType);
+      const enhancedPrompt = selectedType 
+        ? `Create a ${selectedType.label} with ${selectedType.example}. Specific requirements: ${prompt}`
+        : prompt;
+
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
         {
@@ -103,7 +126,7 @@ const Index = () => {
             'Content-Type': 'application/json',
             'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
           },
-          body: JSON.stringify({ prompt }),
+          body: JSON.stringify({ prompt: enhancedPrompt }),
         }
       );
 
@@ -251,25 +274,40 @@ const Index = () => {
           </div>
 
           <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm space-y-4">
-            <div className="relative">
-              <textarea
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                placeholder="Describe the game you want to create. Be specific about:
+            <div className="space-y-4">
+              <Select value={gameType} onValueChange={setGameType}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a game type for inspiration (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gameTypes.map((type) => (
+                    <SelectItem key={type.id} value={type.id}>
+                      {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <div className="relative">
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  placeholder="Describe the game you want to create. Be specific about:
 - The type of game (platformer, puzzle, etc.)
 - Core gameplay mechanics
 - How the player controls the game
 - Scoring or winning conditions
 - Visual style and theme"
-                className="w-full h-48 p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all text-gray-800 placeholder:text-gray-400"
-              />
-              <div className="absolute right-3 top-3 flex gap-2">
-                <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                  <MessageSquare size={18} className="text-gray-400" />
-                </button>
-                <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-                  <Search size={18} className="text-gray-400" />
-                </button>
+                  className="w-full h-48 p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all text-gray-800 placeholder:text-gray-400"
+                />
+                <div className="absolute right-3 top-3 flex gap-2">
+                  <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <MessageSquare size={18} className="text-gray-400" />
+                  </button>
+                  <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
+                    <Search size={18} className="text-gray-400" />
+                  </button>
+                </div>
               </div>
             </div>
             
