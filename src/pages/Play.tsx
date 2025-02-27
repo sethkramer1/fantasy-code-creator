@@ -60,11 +60,15 @@ const Play = () => {
           `).eq('id', id).single();
         if (error) throw error;
         if (!data) throw new Error("Game not found");
+        
+        // Sort versions by version_number in descending order (latest first)
         const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
         setGameVersions(sortedVersions);
-        const currentVersion = sortedVersions.find(v => v.version_number === data.current_version);
-        if (currentVersion) {
-          setSelectedVersion(currentVersion.id);
+        
+        // Always select the latest version (first in the sorted array)
+        if (sortedVersions.length > 0) {
+          setSelectedVersion(sortedVersions[0].id);
+          console.log("Selected latest version:", sortedVersions[0].version_number);
         }
       } catch (error) {
         toast({
