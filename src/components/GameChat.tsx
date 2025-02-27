@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -229,18 +228,23 @@ export const GameChat = ({
       if (!reader) throw new Error("Unable to read response stream");
       
       let gameContent = '';
+      let buffer = '';
       
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
+        // Decode the chunk and add it to our buffer
         const chunk = new TextDecoder().decode(value);
-        console.log("Received chunk of length:", chunk.length);
+        buffer += chunk;
         
-        const lines = chunk.split('\n').filter(Boolean);
-        
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) continue;
+        // Process complete lines from the buffer
+        let lineEnd;
+        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, lineEnd).trim();
+          buffer = buffer.slice(lineEnd + 1);
+          
+          if (!line || !line.startsWith('data: ')) continue;
           
           try {
             const parsedData = JSON.parse(line.slice(5));
@@ -250,27 +254,37 @@ export const GameChat = ({
               if (content) {
                 gameContent += content;
                 
-                // Display meaningful code snippets in the terminal
-                // Break the content into lines for better display
-                const contentLines = content.split('\n');
-                for (const contentLine of contentLines) {
-                  if (contentLine.trim()) {
-                    // Add each non-empty line to the terminal output
-                    setTerminalOutput(prev => [...prev, `> ${contentLine.substring(0, 80)}${contentLine.length > 80 ? '...' : ''}`]);
+                // Display the actual content in the terminal
+                if (content.includes('\n')) {
+                  // If it contains newlines, split it and display each line
+                  const contentLines = content.split('\n');
+                  for (const contentLine of contentLines) {
+                    if (contentLine.trim()) {
+                      setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                    }
                   }
-                }
-                
-                // If we've received a substantial amount of content, add a progress indicator
-                if (content.length > 100) {
-                  setTerminalOutput(prev => [...prev, `> Generated ${gameContent.length} characters so far...`]);
+                } else {
+                  // Otherwise display the chunk directly
+                  setTerminalOutput(prev => [...prev, `> ${content}`]);
                 }
               }
-            } else if (parsedData.type === 'thinking_delta') {
-              // Display thinking updates if they're in the stream
+            } else if (parsedData.type === 'thinking') {
               const thinking = parsedData.thinking || '';
               if (thinking && thinking.trim()) {
                 setTerminalOutput(prev => [...prev, `> Thinking: ${thinking}`]);
               }
+            } else if (parsedData.delta?.type === 'thinking_delta') {
+              const thinking = parsedData.delta.thinking || '';
+              if (thinking && thinking.trim()) {
+                setTerminalOutput(prev => [...prev, `> Thinking: ${thinking}`]);
+              }
+            } else if (parsedData.type === 'message_delta' && parsedData.delta?.stop_reason) {
+              setTerminalOutput(prev => [...prev, `> Generation ${parsedData.delta.stop_reason}`]);
+            } else if (parsedData.type === 'message_stop') {
+              setTerminalOutput(prev => [...prev, "> Generation completed!"]);
+            } else if (parsedData.type) {
+              // Log other event types for debugging
+              setTerminalOutput(prev => [...prev, `> Event: ${parsedData.type}`]);
             }
           } catch (e) {
             console.warn("Error parsing streaming data:", e);
@@ -312,9 +326,10 @@ export const GameChat = ({
       
       setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
       
+      // Allow terminal to remain visible for a moment after completion
       setTimeout(() => {
         setShowTerminal(false);
-      }, 2000);
+      }, 3000);
       
       toast({
         title: "Game updated successfully",

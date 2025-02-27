@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -35,7 +34,7 @@ export const useGameGeneration = () => {
     setTerminalOutput([`> Starting generation with prompt: "${prompt}"${imageUrl ? ' (with image)' : ''}`]);
     
     let gameContent = '';
-    let currentThinking = '';
+    let buffer = '';
 
     try {
       const selectedType = contentTypes.find(type => type.id === gameType);
@@ -271,13 +270,19 @@ INFOGRAPHIC REQUIREMENTS:
         const { done, value } = await reader.read();
         if (done) break;
 
+        // Decode the chunk and add it to our buffer
         const text = new TextDecoder().decode(value);
-        const lines = text.split('\n').filter(Boolean);
-
-        for (const line of lines) {
+        buffer += text;
+        
+        // Process complete lines from the buffer
+        let lineEnd;
+        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, lineEnd);
+          buffer = buffer.slice(lineEnd + 1);
+          
+          if (!line.startsWith('data: ')) continue;
+          
           try {
-            if (!line.startsWith('data: ')) continue;
-            
             const data = JSON.parse(line.slice(5));
 
             switch (data.type) {
@@ -288,30 +293,40 @@ INFOGRAPHIC REQUIREMENTS:
               case 'content_block_start':
                 if (data.content_block?.type === 'thinking') {
                   setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
-                  currentThinking = '';
                 }
                 break;
 
               case 'content_block_delta':
                 if (data.delta?.type === 'thinking_delta') {
                   const thinking = data.delta.thinking || '';
-                  if (thinking && thinking !== currentThinking) {
-                    currentThinking = thinking;
+                  if (thinking && thinking.trim()) {
                     setTerminalOutput(prev => [...prev, `> ${thinking}`]);
                   }
                 } else if (data.delta?.type === 'text_delta') {
                   const content = data.delta.text || '';
                   if (content) {
                     gameContent += content;
-                    setTerminalOutput(prev => [...prev, `> Generated ${content.length} characters of game code`]);
+                    
+                    // Display the content in smaller chunks for better visibility
+                    if (content.includes('\n')) {
+                      // If it contains newlines, split it and display each line
+                      const contentLines = content.split('\n');
+                      for (const contentLine of contentLines) {
+                        if (contentLine.trim()) {
+                          setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                        }
+                      }
+                    } else {
+                      // Otherwise display the chunk directly
+                      setTerminalOutput(prev => [...prev, `> ${content}`]);
+                    }
                   }
                 }
                 break;
 
               case 'content_block_stop':
-                if (currentThinking) {
+                if (data.content_block?.type === 'thinking') {
                   setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
-                  currentThinking = '';
                 }
                 break;
 
