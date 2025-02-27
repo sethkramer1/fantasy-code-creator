@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, ArrowUp, Image as ImageIcon, X } from "lucide-react";
+import { Loader2, ArrowUp, Paperclip, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { GenerationTerminal } from "./game-creator/GenerationTerminal";
@@ -311,59 +311,64 @@ export const GameChat = ({
           </div>
         )}
         
-        <div className="relative">
-          <textarea 
-            ref={textareaRef}
-            value={message} 
-            onChange={e => setMessage(e.target.value)} 
-            onKeyDown={e => {
-              e.stopPropagation();
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSubmit(e);
-              }
-            }} 
-            placeholder="Ask me to modify the game..." 
-            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[44px] max-h-[200px] resize-none pr-12 pl-12" 
-            disabled={loading}
-            rows={1}
-          />
-          
-          {/* Image upload button moved to bottom left */}
-          <label
-            className={`absolute left-2 bottom-2 p-2 rounded-full bg-gray-100 cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'} transition-colors`}
-            title="Upload image"
-          >
-            <ImageIcon size={18} className="text-gray-600" />
-            <input
-              type="file"
-              ref={fileInputRef}
-              className="hidden"
-              accept="image/*"
-              onChange={handleImageUpload}
-              disabled={loading || isUploading}
+        <div className="bg-[#222222] rounded-2xl shadow-md p-4">
+          <div className="relative">
+            <textarea 
+              ref={textareaRef}
+              value={message} 
+              onChange={e => setMessage(e.target.value)} 
+              onKeyDown={e => {
+                e.stopPropagation();
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSubmit(e);
+                }
+              }} 
+              placeholder="Ask Lovable..." 
+              className="w-full bg-transparent text-white border-none focus:ring-0 focus:outline-none resize-none min-h-[24px] max-h-[200px] py-0 px-0" 
+              disabled={loading}
+              rows={1}
             />
-          </label>
-          
-          {/* Submit button stays on bottom right */}
-          <button 
-            type="submit" 
-            disabled={loading || (!message.trim() && !imageUrl) || isUploading} 
-            className="absolute right-2 bottom-2 rounded-full bg-blue-500 p-2 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center h-8 w-8 shadow-sm"
-            aria-label="Send message"
-          >
-            {loading ? 
-              <Loader2 className="animate-spin" size={16} /> : 
-              <ArrowUp size={16} />
-            }
-          </button>
-        </div>
-        
-        {isUploading && (
-          <div className="mt-1 text-xs text-gray-500 animate-pulse">
-            Uploading image...
           </div>
-        )}
+          
+          <div className="flex items-center justify-between mt-6 gap-2">
+            <div className="flex items-center gap-4">
+              <label
+                className="flex items-center gap-2 text-white/80 cursor-pointer hover:text-white transition-colors"
+                title="Attach"
+              >
+                <Paperclip size={20} />
+                <span className="text-sm font-medium">Attach</span>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  className="hidden"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  disabled={loading || isUploading}
+                />
+              </label>
+            </div>
+            
+            <button 
+              type="submit" 
+              disabled={loading || (!message.trim() && !imageUrl) || isUploading} 
+              className="h-10 w-10 rounded-full bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
+              aria-label="Send message"
+            >
+              {loading ? 
+                <Loader2 className="animate-spin" size={18} /> : 
+                <ArrowUp size={18} />
+              }
+            </button>
+          </div>
+          
+          {isUploading && (
+            <div className="mt-2 text-xs text-gray-400 animate-pulse">
+              Uploading image...
+            </div>
+          )}
+        </div>
       </form>
 
       <GenerationTerminal open={showTerminal} onOpenChange={setShowTerminal} output={terminalOutput} thinkingTime={thinkingTime} loading={loading} />
