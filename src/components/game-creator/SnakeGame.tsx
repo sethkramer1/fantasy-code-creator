@@ -10,7 +10,7 @@ const INITIAL_SNAKE = [
 ];
 const INITIAL_DIRECTION = 'RIGHT';
 const INITIAL_FOOD = { x: 15, y: 10 };
-const GAME_SPEED = 60; // Slowed down from 100 to 180 milliseconds between moves
+const GAME_SPEED = 300; // Slowed down significantly from 180 to 300 milliseconds between moves
 const CANVAS_SIZE = 360; // Increased from 300 to 360
 const CELL_SIZE = CANVAS_SIZE / GRID_SIZE;
 
