@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -23,13 +24,8 @@ const Play = () => {
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showCode, setShowCode] = useState(false);
-  const previewContainerRef = useRef<HTMLDivElement>(null);
-  const shadowRootRef = useRef<ShadowRoot | null>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
-
-  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
-  const selectedVersionNumber = currentVersion?.version_number;
-  const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -63,9 +59,11 @@ const Play = () => {
         if (error) throw error;
         if (!data) throw new Error("Game not found");
         
+        // Sort versions by version_number in descending order (latest first)
         const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
         setGameVersions(sortedVersions);
         
+        // Always select the latest version (first in the sorted array)
         if (sortedVersions.length > 0) {
           setSelectedVersion(sortedVersions[0].id);
           console.log("Selected latest version:", sortedVersions[0].version_number);
@@ -84,70 +82,17 @@ const Play = () => {
   }, [id, toast]);
 
   useEffect(() => {
-    return () => {
-      if (shadowRootRef.current) {
-        while (shadowRootRef.current.firstChild) {
-          shadowRootRef.current.removeChild(shadowRootRef.current.firstChild);
-        }
-      }
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!loading && previewContainerRef.current && currentVersion) {
-      if (!shadowRootRef.current) {
-        shadowRootRef.current = previewContainerRef.current.attachShadow({ mode: 'open' });
-      }
-
-      while (shadowRootRef.current.firstChild) {
-        shadowRootRef.current.removeChild(shadowRootRef.current.firstChild);
-      }
-
-      const parser = new DOMParser();
-      const doc = parser.parseFromString(currentVersion.code, 'text/html');
-      
-      const styles = Array.from(doc.getElementsByTagName('style'));
-      const links = Array.from(doc.getElementsByTagName('link'));
-      const scripts = Array.from(doc.getElementsByTagName('script'));
-      
-      if (styles.length > 0) {
-        const combinedStyle = document.createElement('style');
-        combinedStyle.textContent = styles.map(style => style.textContent).join('\n');
-        shadowRootRef.current.appendChild(combinedStyle);
-      }
-      
-      links.forEach(link => {
-        if (link.rel === 'stylesheet') {
-          const newLink = document.createElement('link');
-          newLink.rel = 'stylesheet';
-          newLink.href = link.href;
-          shadowRootRef.current?.appendChild(newLink);
-        }
-      });
-      
-      const contentContainer = document.createElement('div');
-      contentContainer.className = 'shadow-content';
-      contentContainer.innerHTML = doc.body.innerHTML;
-      shadowRootRef.current.appendChild(contentContainer);
-      
-      scripts.forEach(script => {
-        const newScript = document.createElement('script');
-        if (script.src) {
-          newScript.src = script.src;
-        } else {
-          newScript.textContent = script.textContent;
-        }
-        shadowRootRef.current?.appendChild(newScript);
-      });
-      
-      previewContainerRef.current.focus();
+    if (!loading && iframeRef.current) {
+      iframeRef.current.focus();
     }
-  }, [loading, selectedVersion, currentVersion]);
+  }, [loading]);
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
+      // Create a new version with incremented version number
       const newVersionNumber = gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1;
       
+      // Insert the new version into database
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .insert({
@@ -162,6 +107,7 @@ const Play = () => {
       if (versionError) throw versionError;
       if (!versionData) throw new Error("Failed to save new version");
       
+      // Update the game's current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -173,6 +119,7 @@ const Play = () => {
         
       if (gameError) throw gameError;
       
+      // Add the new version to state and select it
       const newVersion: GameVersion = {
         id: versionData.id,
         version_number: versionData.version_number,
@@ -221,6 +168,7 @@ const Play = () => {
       });
       if (error) throw error;
       
+      // Update the game's current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -314,14 +262,21 @@ const Play = () => {
     }
   };
 
+  // PDF download function is kept but button is removed
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
       </div>;
   }
 
+  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
+  const selectedVersionNumber = currentVersion?.version_number;
+  const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
+
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
+      {/* Navbar */}
       <div className="w-full h-12 bg-white border-b border-gray-200 px-4 flex items-center justify-between z-10 shadow-sm flex-shrink-0">
         <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
           <ArrowLeft size={18} />
@@ -367,6 +322,7 @@ const Play = () => {
         </div>
       </div>
       
+      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         <div className="w-[400px] flex flex-col bg-white border-r border-gray-200">
           <div className="p-4 border-b border-gray-200 flex-shrink-0">
@@ -416,11 +372,14 @@ const Play = () => {
                   {!showCode ? (
                     <div 
                       className="h-full relative"
-                      onClick={() => previewContainerRef.current?.focus()}
+                      onClick={() => iframeRef.current?.focus()}
                     >
-                      <div
-                        ref={previewContainerRef}
-                        className="absolute inset-0 w-full h-full border border-gray-100 overflow-auto"
+                      <iframe
+                        ref={iframeRef}
+                        srcDoc={currentVersion.code}
+                        className="absolute inset-0 w-full h-full border border-gray-100"
+                        sandbox="allow-scripts"
+                        title="Generated Content"
                         tabIndex={0}
                       />
                     </div>
