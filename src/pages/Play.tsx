@@ -27,6 +27,11 @@ const Play = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
+  // Get current version early to prevent TS errors
+  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
+  const selectedVersionNumber = currentVersion?.version_number;
+  const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
+
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -262,17 +267,11 @@ const Play = () => {
     }
   };
 
-  // PDF download function is kept but button is removed
-
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
       </div>;
   }
-
-  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
-  const selectedVersionNumber = currentVersion?.version_number;
-  const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
 
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
@@ -378,7 +377,7 @@ const Play = () => {
                         ref={iframeRef}
                         srcDoc={currentVersion.code}
                         className="absolute inset-0 w-full h-full border border-gray-100"
-                        sandbox="allow-scripts"
+                        sandbox="allow-scripts allow-forms"
                         title="Generated Content"
                         tabIndex={0}
                       />
