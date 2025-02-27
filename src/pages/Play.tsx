@@ -85,16 +85,63 @@ const Play = () => {
     }
   }, [loading]);
 
-  const handleGameUpdate = (newCode: string, newInstructions: string) => {
-    const newVersion: GameVersion = {
-      id: crypto.randomUUID(),
-      version_number: gameVersions[0].version_number + 1,
-      code: newCode,
-      instructions: newInstructions,
-      created_at: new Date().toISOString()
-    };
-    setGameVersions(prev => [newVersion, ...prev]);
-    setSelectedVersion(newVersion.id);
+  const handleGameUpdate = async (newCode: string, newInstructions: string) => {
+    try {
+      // Create a new version with incremented version number
+      const newVersionNumber = gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1;
+      
+      // Insert the new version into database
+      const { data: versionData, error: versionError } = await supabase
+        .from('game_versions')
+        .insert({
+          game_id: id,
+          version_number: newVersionNumber,
+          code: newCode,
+          instructions: newInstructions
+        })
+        .select()
+        .single();
+        
+      if (versionError) throw versionError;
+      if (!versionData) throw new Error("Failed to save new version");
+      
+      // Update the game's current version
+      const { error: gameError } = await supabase
+        .from('games')
+        .update({ 
+          current_version: newVersionNumber,
+          code: newCode,
+          instructions: newInstructions
+        })
+        .eq('id', id);
+        
+      if (gameError) throw gameError;
+      
+      // Add the new version to state and select it
+      const newVersion: GameVersion = {
+        id: versionData.id,
+        version_number: versionData.version_number,
+        code: versionData.code,
+        instructions: versionData.instructions,
+        created_at: versionData.created_at
+      };
+      
+      setGameVersions(prev => [newVersion, ...prev]);
+      setSelectedVersion(newVersion.id);
+      
+      toast({
+        title: "Game updated successfully",
+        description: `Version ${newVersionNumber} has been created and set as current.`
+      });
+      
+    } catch (error) {
+      console.error("Error saving new version:", error);
+      toast({
+        title: "Error saving version",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleVersionChange = (versionId: string) => {
@@ -118,6 +165,19 @@ const Play = () => {
         instructions: newVersion.instructions
       });
       if (error) throw error;
+      
+      // Update the game's current version
+      const { error: gameError } = await supabase
+        .from('games')
+        .update({ 
+          current_version: newVersion.version_number,
+          code: newVersion.code,
+          instructions: newVersion.instructions
+        })
+        .eq('id', id);
+        
+      if (gameError) throw gameError;
+      
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
       toast({
