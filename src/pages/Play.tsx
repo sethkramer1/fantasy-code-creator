@@ -4,7 +4,6 @@ import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw, Download, FileText } from "lucide-react";
-import ReactMarkdown from 'react-markdown';
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -486,15 +485,6 @@ const Play = () => {
                   </div>
                 )}
               </div>
-
-              {currentVersion.instructions && (
-                <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-lg border border-gray-100 mt-6">
-                  <h2 className="text-lg font-medium text-gray-900 mb-2">Details</h2>
-                  <div className="prose prose-sm max-w-none text-gray-600">
-                    <ReactMarkdown>{currentVersion.instructions}</ReactMarkdown>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>

@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -398,6 +399,22 @@ INFOGRAPHIC REQUIREMENTS:
         }]);
 
       if (versionError) throw versionError;
+      
+      // Add initial message to game_messages
+      const { error: messageError } = await supabase
+        .from('game_messages')
+        .insert([{
+          game_id: gameData.id,
+          message: prompt,
+          response: "Content generated successfully",
+          image_url: imageUrl
+        }]);
+        
+      if (messageError) {
+        console.error("Error saving initial message:", messageError);
+      } else {
+        setTerminalOutput(prev => [...prev, "> Initial message saved to chat"]);
+      }
       
       setTerminalOutput(prev => [...prev, "> Saved successfully! Redirecting..."]);
       
