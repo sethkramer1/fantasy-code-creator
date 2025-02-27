@@ -381,7 +381,7 @@ export const GameChat = ({
             </div>)}
       </div>
 
-      <form onSubmit={handleSubmit} className="p-4 border-t relative">
+      <form onSubmit={handleSubmit} className="p-4 border-t relative flex-shrink-0">
         {imageUrl && (
           <div className="mb-3 relative">
             <div className="relative rounded-lg overflow-hidden border border-gray-200 inline-flex max-w-xs">
