@@ -142,19 +142,14 @@ export const GameChat = ({
         game_id: gameId,
         message: message.trim(),
         image_url: imageUrl
-      }]).select();
+      }]).select().single();
       
       if (messageError) {
         console.error("Error inserting message:", messageError);
         throw messageError;
       }
       
-      if (!messageData || messageData.length === 0) {
-        throw new Error("Failed to get inserted message data");
-      }
-      
-      const insertedMessage = messageData[0];
-      setMessages(prev => [...prev, insertedMessage]);
+      setMessages(prev => [...prev, messageData]);
       setMessage("");
       setImageUrl(null);
       
@@ -229,14 +224,14 @@ export const GameChat = ({
         error: updateError
       } = await supabase.from('game_messages').update({
         response: "Game updated successfully"
-      }).eq('id', insertedMessage.id);
+      }).eq('id', messageData.id);
       
       if (updateError) {
         console.error("Error updating message response:", updateError);
         throw updateError;
       }
       
-      setMessages(prev => prev.map(msg => msg.id === insertedMessage.id ? {
+      setMessages(prev => prev.map(msg => msg.id === messageData.id ? {
         ...msg,
         response: "Game updated successfully"
       } : msg));
@@ -260,18 +255,12 @@ export const GameChat = ({
         variant: "destructive"
       });
       
-      // Only attempt to delete the message if we have a last message to delete
-      if (messages.length > 0 && messages[messages.length - 1]?.response === undefined) {
-        try {
-          const {
-            error: deleteError
-          } = await supabase.from('game_messages').delete().eq('id', messages[messages.length - 1].id);
-          
-          if (!deleteError) {
-            setMessages(prev => prev.slice(0, -1));
-          }
-        } catch (deleteError) {
-          console.error("Error cleaning up message:", deleteError);
+      if (messages[messages.length - 1]?.response === undefined) {
+        const {
+          error: deleteError
+        } = await supabase.from('game_messages').delete().eq('id', messages[messages.length - 1].id);
+        if (!deleteError) {
+          setMessages(prev => prev.slice(0, -1));
         }
       }
     } finally {
@@ -335,7 +324,7 @@ export const GameChat = ({
                   handleSubmit(e);
                 }
               }} 
-              placeholder="Request a change" 
+              placeholder="Ask Lovable..." 
               className="w-full bg-transparent text-white border-none focus:ring-0 focus:outline-none resize-none min-h-[24px] max-h-[200px] py-0 px-0" 
               disabled={loading}
               rows={1}
