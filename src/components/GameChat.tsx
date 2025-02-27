@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -400,7 +401,7 @@ export const GameChat = ({
           </div>
         )}
         
-        <div className="bg-[#2A2A2A] rounded-2xl shadow-md p-4">
+        <div className="bg-[#F1F1F1] rounded-2xl shadow-sm p-4 border border-gray-100">
           <div className="relative">
             <textarea 
               ref={textareaRef}
@@ -414,7 +415,7 @@ export const GameChat = ({
                 }
               }} 
               placeholder="Request a change" 
-              className="w-full bg-transparent text-white border-none focus:ring-0 focus:outline-none resize-none min-h-[24px] max-h-[200px] py-0 px-0" 
+              className="w-full bg-transparent text-gray-800 border-none focus:ring-0 focus:outline-none resize-none min-h-[24px] max-h-[200px] py-0 px-0 placeholder-gray-500" 
               disabled={loading}
               rows={1}
             />
@@ -423,7 +424,7 @@ export const GameChat = ({
           <div className="flex items-center justify-between mt-6 gap-2">
             <div className="flex items-center gap-4">
               <label
-                className="flex items-center gap-2 text-white/80 cursor-pointer hover:text-white transition-colors"
+                className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-800 transition-colors"
                 title="Attach"
               >
                 <Paperclip size={20} />
@@ -442,7 +443,7 @@ export const GameChat = ({
             <button 
               type="submit" 
               disabled={loading || (!message.trim() && !imageUrl) || isUploading} 
-              className="h-10 w-10 rounded-full bg-gray-700 text-white hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
+              className="h-10 w-10 rounded-full bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
               aria-label="Send message"
             >
               {loading ? 
@@ -453,7 +454,7 @@ export const GameChat = ({
           </div>
           
           {isUploading && (
-            <div className="mt-2 text-xs text-gray-400 animate-pulse">
+            <div className="mt-2 text-xs text-gray-500 animate-pulse">
               Uploading image...
             </div>
           )}
