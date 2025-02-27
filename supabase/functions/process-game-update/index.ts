@@ -44,15 +44,47 @@ serve(async (req) => {
       .eq('id', gameId)
       .single()
 
-    if (gameError) throw gameError;
-    if (!gameData) throw new Error('Game not found');
+    if (gameError) {
+      console.error('Error fetching game:', gameError);
+      throw gameError;
+    }
+    if (!gameData) {
+      console.error('No game data found for id:', gameId);
+      throw new Error('Game not found');
+    }
 
     const currentVersion = gameData.current_version;
     const currentCode = gameData.game_versions[0].code;
 
-    console.log('Current game version:', currentVersion)
+    console.log('Current game version:', currentVersion);
+    console.log('Current code length:', currentCode.length);
+    console.log('First 100 chars of code:', currentCode.substring(0, 100));
 
     // Stream the response from Claude
+    const promptData = {
+      model: "claude-3-7-sonnet-20250219",
+      max_tokens: 20000,
+      stream: true,
+      messages: [
+        {
+          role: "user",
+          content: `Here is the current HTML game code:\n\n${currentCode}\n\nPlease modify the game according to this request: ${message}\n\n
+                   When modifying the game, ensure:
+                   - All existing functionality remains working (Start button, controls, game over handling, etc.)
+                   - Game initializes and starts correctly when the user clicks play/start
+                   - The changes integrate smoothly with the current game mechanics
+                   - Any new features have proper user feedback and error handling
+                   - The game remains mobile-friendly
+                   - All code remains in one HTML file with no external dependencies
+                   - Changes are properly tested and don't break existing features
+                   
+                   Return ONLY the complete HTML code, nothing else.`,
+        },
+      ],
+    };
+
+    console.log('Sending request to Claude with prompt length:', promptData.messages[0].content.length);
+
     const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
@@ -60,29 +92,14 @@ serve(async (req) => {
         "anthropic-version": "2023-06-01",
         "content-type": "application/json",
       },
-      body: JSON.stringify({
-        model: "claude-3-sonnet-20240229",
-        max_tokens: 20000,
-        temperature: 0,
-        system: "You are an AI that modifies HTML games based on user requests. You should respond ONLY with the complete HTML code for the game, nothing else. No explanations, no comments, just the game code.",
-        messages: [
-          {
-            role: "user",
-            content: `Here is the current HTML game code:\n\n${currentCode}\n\nPlease modify the game according to this request: ${message}\n\n
-                     When modifying the game, ensure:
-                     - All existing functionality remains working (Start button, controls, game over handling, etc.)
-                     - Game initializes and starts correctly when the user clicks play/start
-                     - The changes integrate smoothly with the current game mechanics
-                     - Any new features have proper user feedback and error handling
-                     - The game remains mobile-friendly
-                     - All code remains in one HTML file with no external dependencies
-                     - Changes are properly tested and don't break existing features
-                     
-                     Return ONLY the complete HTML code, nothing else.`,
-          },
-        ],
-      }),
+      body: JSON.stringify(promptData),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Claude API error:', errorText);
+      throw new Error(`Claude API error: ${response.status} ${errorText}`);
+    }
 
     // Create a new readable stream to forward Claude's response
     const stream = new ReadableStream({
@@ -98,42 +115,41 @@ serve(async (req) => {
             if (done) break;
 
             const text = new TextDecoder().decode(value);
+            console.log('Received chunk from Claude:', text); // Debug raw response
+
             const lines = text.split('\n').filter(Boolean);
 
             for (const line of lines) {
-              console.log('Processing line:', line); // Debug log
-              
               if (!line.startsWith('data: ')) {
-                controller.enqueue('data: {"type":"debug","message":"Skipping non-SSE line"}\n\n');
+                console.log('Skipping non-SSE line:', line);
                 continue;
               }
               
               try {
                 const data = JSON.parse(line.slice(5));
-                console.log('Parsed data:', data); // Debug log
                 
-                if (data.type === 'message_start') {
-                  controller.enqueue('data: {"type":"content_block_start"}\n\n');
-                } else if (data.type === 'content_block') {
-                  const content = data.content[0]?.text || '';
+                if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
+                  const content = data.delta.text || '';
                   if (content) {
                     gameContent += content;
-                    controller.enqueue(`data: {"type":"content_block_delta","delta":{"type":"text_delta","text":${JSON.stringify(content)}}}\n\n`);
+                    controller.enqueue(line + '\n');
+                    console.log('Added content chunk, current length:', gameContent.length);
                   }
-                } else if (data.type === 'message_stop') {
-                  controller.enqueue('data: {"type":"content_block_stop"}\n\n');
+                } else {
+                  controller.enqueue(line + '\n');
                 }
               } catch (e) {
-                console.error('Error processing line:', e);
+                console.error('Error parsing line:', e);
                 controller.enqueue(`data: {"type":"error","message":"Error processing response: ${e.message}"}\n\n`);
               }
             }
           }
 
-          console.log('Final game content length:', gameContent.length); // Debug log
+          console.log('Final game content length:', gameContent.length);
+          console.log('First 100 chars of final content:', gameContent.substring(0, 100));
 
-          // Save the new version
-          if (gameContent) {
+          // Save the new version only if we got content
+          if (gameContent && gameContent.includes('<html')) {
             const newVersionNumber = currentVersion + 1;
             
             const { data: versionData, error: versionError } = await supabaseAdmin
@@ -149,7 +165,10 @@ serve(async (req) => {
               .select()
               .single();
 
-            if (versionError) throw versionError;
+            if (versionError) {
+              console.error('Error saving new version:', versionError);
+              throw versionError;
+            }
 
             // Update current version in games table
             const { error: updateError } = await supabaseAdmin
@@ -157,9 +176,15 @@ serve(async (req) => {
               .update({ current_version: newVersionNumber })
               .eq('id', gameId);
 
-            if (updateError) throw updateError;
+            if (updateError) {
+              console.error('Error updating game version:', updateError);
+              throw updateError;
+            }
 
-            console.log('Saved and set new version:', newVersionNumber);
+            console.log('Successfully saved new version:', newVersionNumber);
+          } else {
+            console.error('Invalid game content received:', gameContent.substring(0, 100));
+            throw new Error('Invalid game content received from Claude');
           }
 
           controller.close();
