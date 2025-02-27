@@ -89,7 +89,7 @@ serve(async (req) => {
 
     // Assemble the full prompt with context
     const fullPrompt = `
-You're helping modify this HTML game. Please update it according to this request: "${prompt}"
+You're helping modify this code. Please update it according to this request: "${prompt}"
 
 Game info:
 - Original prompt: ${gameData.prompt}
@@ -97,12 +97,12 @@ Game info:
 
 ${conversationContext ? `\nPrevious conversation context:\n${conversationContext}` : ''}
 
-Please make the changes requested while preserving the overall structure and functionality of the game.
+Please make the changes requested while preserving the overall structure and functionality.
 Return only the full new HTML code with all needed CSS and JavaScript embedded. Do not include any markdown formatting, explanation, or code blocks - ONLY return the raw HTML.
 `;
 
     // Define the system message
-    const systemMessage = `You are an expert developer specializing in web technologies, particularly in creating interactive web content, games, and interactive experiences. 
+    const systemMessage = `You are an expert developer specializing in web technologies. 
             
 Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
 
