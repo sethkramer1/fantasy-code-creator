@@ -74,7 +74,8 @@ serve(async (req) => {
               {
                 role: "user",
                 content: `Here is the current code:\n\n${currentCode}\n\nPlease modify the game according to this request: ${message}\n\n
-                         Keep all feature and code the same, except for the request. Make changes to update the game according to the request only. Return ONLY the complete HTML code, nothing else.`,
+                         Keep all feature and code the same, except for the request. Make changes to update the game according to the request only. Return ONLY the complete code, nothing else. start with the code, do not include anything befor or after the code.
+`,
               },
             ],
           }),
