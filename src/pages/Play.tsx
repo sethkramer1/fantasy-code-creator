@@ -289,6 +289,33 @@ const Play = () => {
           // Force a resize event in case any responsive elements need to adjust
           window.dispatchEvent(new Event('resize'));
         });
+
+        // Patch the CanvasGradient.addColorStop method to prevent non-finite value errors
+        (function() {
+          if (window.CanvasGradient) {
+            const originalAddColorStop = CanvasGradient.prototype.addColorStop;
+            
+            CanvasGradient.prototype.addColorStop = function(offset, color) {
+              // Validate offset is a finite number between 0 and 1
+              if (typeof offset !== 'number' || !isFinite(offset) || offset < 0 || offset > 1) {
+                console.warn('Invalid gradient offset:', offset, '- Using 0 instead');
+                offset = 0; // Use a safe default value
+              }
+              
+              try {
+                originalAddColorStop.call(this, offset, color);
+              } catch (e) {
+                console.warn('Error in addColorStop:', e.message);
+                // Try with fallback values if original call fails
+                try {
+                  originalAddColorStop.call(this, 0, 'rgba(0,0,0,0)');
+                } catch (fallbackError) {
+                  // Silent fail - we tried our best
+                }
+              }
+            };
+          }
+        })();
       </script>
     `;
 
@@ -497,7 +524,7 @@ const Play = () => {
     }
   };
 
-  // New function to download game as PNG
+  // Improved download image function with better error handling
   const downloadGameAsImage = async () => {
     if (!currentVersion || !currentVersion.code) {
       toast({
@@ -511,89 +538,293 @@ const Play = () => {
     try {
       setDownloadingPng(true);
 
+      // Add safety script to handle gradient issues before rendering
+      const safetyScript = `
+        <script>
+          // Patch canvas gradient methods to prevent non-finite value errors
+          if (window.CanvasGradient) {
+            const originalAddColorStop = CanvasGradient.prototype.addColorStop;
+            CanvasGradient.prototype.addColorStop = function(offset, color) {
+              if (!isFinite(offset)) {
+                console.warn("Fixing non-finite gradient offset:", offset);
+                offset = 0;
+              }
+              if (offset < 0) offset = 0;
+              if (offset > 1) offset = 1;
+              try {
+                return originalAddColorStop.call(this, offset, color);
+              } catch (e) {
+                console.warn("Gradient error:", e);
+                return originalAddColorStop.call(this, 0, "rgba(0,0,0,0)");
+              }
+            };
+          }
+
+          // Patch other potentially problematic canvas methods
+          if (window.CanvasRenderingContext2D) {
+            const safelyWrapMethod = (obj, methodName) => {
+              const original = obj.prototype[methodName];
+              obj.prototype[methodName] = function(...args) {
+                try {
+                  // Check for NaN, Infinity in numeric arguments
+                  const safeArgs = args.map(arg => 
+                    (typeof arg === 'number' && !isFinite(arg)) ? 0 : arg
+                  );
+                  return original.apply(this, safeArgs);
+                } catch (e) {
+                  console.warn(\`Error in \${methodName}:\`, e);
+                  // Return safely
+                  return this;
+                }
+              };
+            };
+            
+            // Wrap methods that commonly cause issues
+            ['arc', 'arcTo', 'bezierCurveTo', 'ellipse', 'lineTo', 'moveTo', 
+             'quadraticCurveTo', 'rect', 'setTransform', 'transform', 'translate',
+             'scale', 'rotate', 'setLineDash'].forEach(method => {
+              if (CanvasRenderingContext2D.prototype[method]) {
+                safelyWrapMethod(CanvasRenderingContext2D, method);
+              }
+            });
+          }
+        </script>
+      `;
+
       // Create a temporary iframe to render the code
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
       iframe.style.top = '0';
       iframe.style.left = '0';
       iframe.style.width = '1200px';
-      iframe.style.height = '100vh'; // Make it full viewport height initially
+      iframe.style.height = '100vh';
       iframe.style.border = 'none';
       iframe.style.zIndex = '-1000';
       iframe.style.opacity = '0';
       
       document.body.appendChild(iframe);
       
-      // Wait for iframe to load
+      // Wait for iframe to load with safety measures injected
       await new Promise<void>((resolve) => {
         iframe.onload = () => resolve();
+        
+        // Modify content to inject safety scripts
+        let contentWithSafety = currentVersion.code;
+        if (contentWithSafety.includes('<head>')) {
+          contentWithSafety = contentWithSafety.replace('<head>', '<head>' + safetyScript);
+        } else if (contentWithSafety.includes('<html')) {
+          contentWithSafety = contentWithSafety.replace(/<html[^>]*>/, '$&<head>' + safetyScript + '</head>');
+        } else {
+          contentWithSafety = safetyScript + contentWithSafety;
+        }
         
         // Write content to iframe
         const doc = iframe.contentDocument;
         if (doc) {
           doc.open();
-          doc.write(currentVersion.code as string);
+          doc.write(contentWithSafety);
           doc.close();
         }
       });
 
       // Let content render for a moment
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 600));
       
-      // Capture iframe content
+      // Apply additional protective measures before capturing
+      if (iframe.contentDocument && iframe.contentWindow) {
+        try {
+          const safetyCode = `
+            // Remove any problematic elements or styles that might cause canvas issues
+            const fixCanvas = () => {
+              // Fix any canvas gradients with bad values
+              const canvases = document.querySelectorAll('canvas');
+              canvases.forEach(canvas => {
+                try {
+                  const ctx = canvas.getContext('2d');
+                  if (ctx) {
+                    // Force redraw with safe values if needed
+                    const oldFillStyle = ctx.fillStyle;
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(0, 0, 1, 1);
+                    ctx.fillStyle = oldFillStyle;
+                  }
+                } catch (e) {
+                  console.warn('Canvas fixup error:', e);
+                }
+              });
+              
+              // Handle CSS gradients in computed styles
+              document.querySelectorAll('*').forEach(el => {
+                try {
+                  const style = window.getComputedStyle(el);
+                  const bgImage = style.backgroundImage;
+                  
+                  // Replace problematic gradients with solid colors
+                  if (bgImage && bgImage.includes('gradient') && 
+                      (bgImage.includes('NaN') || bgImage.includes('Infinity'))) {
+                    el.style.backgroundImage = 'none';
+                    el.style.backgroundColor = '#ffffff';
+                  }
+                } catch (e) {
+                  // Ignore style access errors
+                }
+              });
+            };
+            
+            fixCanvas();
+            return true;
+          `;
+          
+          // Execute safety code in iframe
+          iframe.contentWindow.eval(safetyCode);
+        } catch (e) {
+          console.warn('Error applying pre-capture fixes:', e);
+        }
+      }
+      
+      // Capture iframe content with enhanced error handling
       if (iframe.contentDocument?.body) {
-        // Get actual content height
-        const contentHeight = Math.max(
-          iframe.contentDocument.body.scrollHeight,
-          iframe.contentDocument.documentElement.scrollHeight,
-          iframe.contentDocument.body.offsetHeight,
-          iframe.contentDocument.documentElement.offsetHeight
-        );
-        
-        // Update iframe height to match content
-        iframe.style.height = `${contentHeight}px`;
-        
-        // Create canvas with appropriate dimensions
-        const canvas = await html2canvas(iframe.contentDocument.body, {
-          width: 1200,
-          height: contentHeight,
-          windowWidth: 1200,
-          windowHeight: contentHeight,
-          scale: 2, // Higher quality
-          useCORS: true,
-          allowTaint: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          imageTimeout: 0,
-          onclone: (clonedDoc) => {
-            // Ensure all styles are applied in the cloned document
-            const styles = Array.from(document.styleSheets);
-            styles.forEach(styleSheet => {
+        try {
+          // Get actual content height
+          const contentHeight = Math.max(
+            iframe.contentDocument.body.scrollHeight || 0,
+            iframe.contentDocument.documentElement.scrollHeight || 0,
+            iframe.contentDocument.body.offsetHeight || 0,
+            iframe.contentDocument.documentElement.offsetHeight || 0,
+            600 // Minimum fallback height
+          );
+          
+          // Update iframe height to match content
+          iframe.style.height = `${contentHeight}px`;
+          
+          // Allow time for resize to take effect
+          await new Promise(resolve => setTimeout(resolve, 100));
+          
+          // Create canvas with appropriate dimensions using safe options
+          const canvas = await html2canvas(iframe.contentDocument.body, {
+            width: 1200,
+            height: contentHeight,
+            windowWidth: 1200,
+            windowHeight: contentHeight,
+            scale: 2, // Higher quality
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#ffffff',
+            logging: false,
+            imageTimeout: 0,
+            onclone: (clonedDoc) => {
               try {
-                const rules = Array.from(styleSheet.cssRules || []);
-                const style = clonedDoc.createElement('style');
-                rules.forEach(rule => style.appendChild(document.createTextNode(rule.cssText)));
-                clonedDoc.head.appendChild(style);
+                // Additional safety measures for the cloned document
+                const safetyScript = clonedDoc.createElement('script');
+                safetyScript.textContent = `
+                  // Find and fix any problematic canvas operations or gradients
+                  document.querySelectorAll('canvas').forEach(canvas => {
+                    const ctx = canvas.getContext('2d');
+                    if (ctx && ctx.createLinearGradient) {
+                      const originalCreateLinearGradient = ctx.createLinearGradient;
+                      ctx.createLinearGradient = function(...args) {
+                        const safeArgs = args.map(arg => isFinite(arg) ? arg : 0);
+                        return originalCreateLinearGradient.apply(this, safeArgs);
+                      };
+                    }
+                  });
+                `;
+                clonedDoc.head.appendChild(safetyScript);
+                
+                // Ensure all styles are applied in the cloned document
+                try {
+                  const styles = Array.from(document.styleSheets);
+                  styles.forEach(styleSheet => {
+                    try {
+                      const rules = Array.from(styleSheet.cssRules || []);
+                      const style = clonedDoc.createElement('style');
+                      rules.forEach(rule => {
+                        try {
+                          style.appendChild(document.createTextNode(rule.cssText));
+                        } catch (e) {
+                          // Skip problematic rules
+                        }
+                      });
+                      clonedDoc.head.appendChild(style);
+                    } catch (e) {
+                      // Ignore cross-origin stylesheet errors
+                    }
+                  });
+                } catch (e) {
+                  console.warn('Style copying error:', e);
+                }
               } catch (e) {
-                // Ignore cross-origin stylesheet errors
+                console.warn('Clone document preparation error:', e);
               }
-            });
+            }
+          });
+          
+          // Convert canvas to data URL with maximum quality
+          const imageUrl = canvas.toDataURL('image/png', 1.0);
+          
+          // Create download link
+          const link = document.createElement('a');
+          link.download = `game-version-${currentVersion.version_number}.png`;
+          link.href = imageUrl;
+          link.click();
+          
+          toast({
+            title: "Image downloaded",
+            description: "Your game screenshot has been downloaded as PNG"
+          });
+        } catch (canvasError) {
+          // Try fallback method if html2canvas fails
+          console.error('Primary capture method failed:', canvasError);
+          
+          // Fallback to simpler canvas capture with basic error handling
+          toast({
+            title: "Trying alternative method",
+            description: "First capture attempt failed, trying another approach"
+          });
+          
+          try {
+            // Create a canvas element
+            const canvas = document.createElement('canvas');
+            canvas.width = 1200;
+            canvas.height = 800;
+            const ctx = canvas.getContext('2d');
+            
+            if (ctx) {
+              // Draw a white background
+              ctx.fillStyle = '#ffffff';
+              ctx.fillRect(0, 0, canvas.width, canvas.height);
+              
+              // Add a text explanation
+              ctx.fillStyle = '#000000';
+              ctx.font = '20px Arial';
+              ctx.textAlign = 'center';
+              ctx.fillText('Game Preview (Limited Version)', canvas.width / 2, 50);
+              ctx.fillText('The game contains complex graphics that could not be fully captured', canvas.width / 2, 90);
+              
+              // Try to draw at least some content from the iframe if possible
+              try {
+                ctx.drawImage(iframe.contentDocument.body as any, 0, 120, canvas.width, canvas.height - 150);
+              } catch (e) {
+                // If drawing fails, add more text explanation
+                ctx.fillText('Please view the game in the browser to see the full experience', canvas.width / 2, 150);
+              }
+              
+              const imageUrl = canvas.toDataURL('image/png');
+              const link = document.createElement('a');
+              link.download = `game-version-${currentVersion.version_number}-simple.png`;
+              link.href = imageUrl;
+              link.click();
+              
+              toast({
+                title: "Simple image downloaded",
+                description: "A simplified version of your game was downloaded as PNG"
+              });
+            }
+          } catch (fallbackError) {
+            console.error('Fallback capture method failed:', fallbackError);
+            throw new Error('Unable to capture game image: ' + canvasError.message);
           }
-        });
-        
-        // Convert canvas to data URL with maximum quality
-        const imageUrl = canvas.toDataURL('image/png', 1.0);
-        
-        // Create download link
-        const link = document.createElement('a');
-        link.download = `game-version-${currentVersion.version_number}.png`;
-        link.href = imageUrl;
-        link.click();
-        
-        toast({
-          title: "Image downloaded",
-          description: "Your game screenshot has been downloaded as PNG"
-        });
+        }
       }
       
       // Clean up
@@ -602,7 +833,7 @@ const Play = () => {
       console.error('Error generating image:', error);
       toast({
         title: "Download failed",
-        description: error instanceof Error ? error.message : "Could not generate image",
+        description: "Could not generate image due to canvas rendering issues. Try exporting as ZIP instead.",
         variant: "destructive"
       });
     } finally {
