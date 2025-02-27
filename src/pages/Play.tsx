@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import JSZip from 'jszip';
 import html2pdf from 'html2pdf.js';
+import html2canvas from 'html2canvas';
 
 interface GameVersion {
   id: string;
@@ -24,6 +25,7 @@ const Play = () => {
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showCode, setShowCode] = useState(false);
+  const [downloadingPng, setDownloadingPng] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
@@ -495,6 +497,119 @@ const Play = () => {
     }
   };
 
+  // New function to download game as PNG
+  const downloadGameAsImage = async () => {
+    if (!currentVersion || !currentVersion.code) {
+      toast({
+        title: "Cannot download",
+        description: "This game doesn't have any code to render",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      setDownloadingPng(true);
+
+      // Create a temporary iframe to render the code
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.top = '0';
+      iframe.style.left = '0';
+      iframe.style.width = '1200px';
+      iframe.style.height = '100vh'; // Make it full viewport height initially
+      iframe.style.border = 'none';
+      iframe.style.zIndex = '-1000';
+      iframe.style.opacity = '0';
+      
+      document.body.appendChild(iframe);
+      
+      // Wait for iframe to load
+      await new Promise<void>((resolve) => {
+        iframe.onload = () => resolve();
+        
+        // Write content to iframe
+        const doc = iframe.contentDocument;
+        if (doc) {
+          doc.open();
+          doc.write(currentVersion.code as string);
+          doc.close();
+        }
+      });
+
+      // Let content render for a moment
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // Capture iframe content
+      if (iframe.contentDocument?.body) {
+        // Get actual content height
+        const contentHeight = Math.max(
+          iframe.contentDocument.body.scrollHeight,
+          iframe.contentDocument.documentElement.scrollHeight,
+          iframe.contentDocument.body.offsetHeight,
+          iframe.contentDocument.documentElement.offsetHeight
+        );
+        
+        // Update iframe height to match content
+        iframe.style.height = `${contentHeight}px`;
+        
+        // Create canvas with appropriate dimensions
+        const canvas = await html2canvas(iframe.contentDocument.body, {
+          width: 1200,
+          height: contentHeight,
+          windowWidth: 1200,
+          windowHeight: contentHeight,
+          scale: 2, // Higher quality
+          useCORS: true,
+          allowTaint: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          imageTimeout: 0,
+          onclone: (clonedDoc) => {
+            // Ensure all styles are applied in the cloned document
+            const styles = Array.from(document.styleSheets);
+            styles.forEach(styleSheet => {
+              try {
+                const rules = Array.from(styleSheet.cssRules || []);
+                const style = clonedDoc.createElement('style');
+                rules.forEach(rule => style.appendChild(document.createTextNode(rule.cssText)));
+                clonedDoc.head.appendChild(style);
+              } catch (e) {
+                // Ignore cross-origin stylesheet errors
+              }
+            });
+          }
+        });
+        
+        // Convert canvas to data URL with maximum quality
+        const imageUrl = canvas.toDataURL('image/png', 1.0);
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.download = `game-version-${currentVersion.version_number}.png`;
+        link.href = imageUrl;
+        link.click();
+        
+        toast({
+          title: "Image downloaded",
+          description: "Your game screenshot has been downloaded as PNG"
+        });
+      }
+      
+      // Clean up
+      document.body.removeChild(iframe);
+    } catch (error) {
+      console.error('Error generating image:', error);
+      toast({
+        title: "Download failed",
+        description: error instanceof Error ? error.message : "Could not generate image",
+        variant: "destructive"
+      });
+    } finally {
+      setDownloadingPng(false);
+    }
+  };
+
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
@@ -536,15 +651,31 @@ const Play = () => {
                 </SelectContent>
               </Select>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1 text-sm"
-              onClick={handleDownload}
-            >
-              <Download size={14} />
-              Download
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1 text-sm"
+                onClick={handleDownload}
+              >
+                <Download size={14} />
+                ZIP
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1 text-sm"
+                onClick={downloadGameAsImage}
+                disabled={downloadingPng}
+              >
+                {downloadingPng ? (
+                  <Loader2 size={14} className="animate-spin mr-1" />
+                ) : (
+                  <Download size={14} />
+                )}
+                PNG
+              </Button>
+            </div>
           </div>
         </div>
       </div>
