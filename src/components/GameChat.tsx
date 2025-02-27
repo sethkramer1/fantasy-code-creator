@@ -133,6 +133,8 @@ export const GameChat = ({
     setTerminalOutput([`> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`]);
     
     try {
+      // First, insert the message into the database
+      console.log("Inserting message into database:", { gameId, message: message.trim(), imageUrl: imageUrl ? "yes" : "no" });
       const {
         data: messageData,
         error: messageError
@@ -142,11 +144,16 @@ export const GameChat = ({
         image_url: imageUrl
       }]).select().single();
       
-      if (messageError) throw messageError;
+      if (messageError) {
+        console.error("Error inserting message:", messageError);
+        throw messageError;
+      }
+      
       setMessages(prev => [...prev, messageData]);
       setMessage("");
       setImageUrl(null);
       
+      console.log("Calling process-game-update function...");
       const response = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update', {
         method: 'POST',
         headers: {
@@ -161,9 +168,12 @@ export const GameChat = ({
       });
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const responseText = await response.text();
+        console.error("Error response from edge function:", responseText);
+        throw new Error(`HTTP error! status: ${response.status} - ${responseText}`);
       }
       
+      console.log("Processing streaming response...");
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No reader available");
       
@@ -203,6 +213,7 @@ export const GameChat = ({
       }
       
       if (!gameContent || !gameContent.includes('<html')) {
+        console.error("Invalid game content received:", gameContent.substring(0, 100) + "...");
         throw new Error('Invalid game content received');
       }
       
@@ -215,7 +226,10 @@ export const GameChat = ({
         response: "Game updated successfully"
       }).eq('id', messageData.id);
       
-      if (updateError) throw updateError;
+      if (updateError) {
+        console.error("Error updating message response:", updateError);
+        throw updateError;
+      }
       
       setMessages(prev => prev.map(msg => msg.id === messageData.id ? {
         ...msg,
@@ -297,43 +311,30 @@ export const GameChat = ({
           </div>
         )}
         
-        <div className="flex space-x-2 items-end">
-          <div className="flex-1 relative">
-            <textarea 
-              ref={textareaRef}
-              value={message} 
-              onChange={e => setMessage(e.target.value)} 
-              onKeyDown={e => {
-                e.stopPropagation();
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSubmit(e);
-                }
-              }} 
-              placeholder="Ask me to modify the game..." 
-              className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[44px] max-h-[200px] resize-none pr-12" 
-              disabled={loading}
-              rows={1}
-            />
-            
-            <button 
-              type="submit" 
-              disabled={loading || (!message.trim() && !imageUrl) || isUploading} 
-              className="absolute right-2 bottom-2 rounded-full bg-blue-500 p-2 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center h-8 w-8"
-              aria-label="Send message"
-            >
-              {loading ? 
-                <Loader2 className="animate-spin" size={16} /> : 
-                <ArrowUp size={16} />
+        <div className="relative">
+          <textarea 
+            ref={textareaRef}
+            value={message} 
+            onChange={e => setMessage(e.target.value)} 
+            onKeyDown={e => {
+              e.stopPropagation();
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e);
               }
-            </button>
-          </div>
+            }} 
+            placeholder="Ask me to modify the game..." 
+            className="w-full p-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none min-h-[44px] max-h-[200px] resize-none pr-12 pl-12" 
+            disabled={loading}
+            rows={1}
+          />
           
+          {/* Image upload button moved to bottom left */}
           <label
-            className={`p-2 border rounded-lg cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-100'} transition-colors`}
+            className={`absolute left-2 bottom-2 p-2 rounded-full bg-gray-100 cursor-pointer ${loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'} transition-colors`}
             title="Upload image"
           >
-            <ImageIcon size={20} className="text-gray-600" />
+            <ImageIcon size={18} className="text-gray-600" />
             <input
               type="file"
               ref={fileInputRef}
@@ -343,6 +344,19 @@ export const GameChat = ({
               disabled={loading || isUploading}
             />
           </label>
+          
+          {/* Submit button stays on bottom right */}
+          <button 
+            type="submit" 
+            disabled={loading || (!message.trim() && !imageUrl) || isUploading} 
+            className="absolute right-2 bottom-2 rounded-full bg-blue-500 p-2 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center h-8 w-8 shadow-sm"
+            aria-label="Send message"
+          >
+            {loading ? 
+              <Loader2 className="animate-spin" size={16} /> : 
+              <ArrowUp size={16} />
+            }
+          </button>
         </div>
         
         {isUploading && (
