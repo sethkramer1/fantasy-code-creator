@@ -3,11 +3,10 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw, Copy, Code } from "lucide-react";
+import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw } from "lucide-react";
 import ReactMarkdown from 'react-markdown';
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
 interface GameVersion {
@@ -24,6 +23,7 @@ const Play = () => {
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showChat, setShowChat] = useState(true);
+  const [showCode, setShowCode] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
@@ -179,72 +179,84 @@ const Play = () => {
             </Link>
             <div className="flex items-center gap-4">
               <div className="flex items-center gap-2">
-                {!isLatestVersion && currentVersion && <button onClick={() => handleRevertToVersion(currentVersion)} className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">
+                {!isLatestVersion && currentVersion && (
+                  <button 
+                    onClick={() => handleRevertToVersion(currentVersion)} 
+                    className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+                  >
                     <RotateCcw size={16} />
                     <span>Revert to this version</span>
-                  </button>}
+                  </button>
+                )}
                 <History size={18} className="text-gray-500" />
                 <Select value={selectedVersion} onValueChange={handleVersionChange}>
                   <SelectTrigger className="w-[180px] bg-white border-gray-200">
                     <SelectValue placeholder="Select version" />
                   </SelectTrigger>
                   <SelectContent>
-                    {gameVersions.map(version => <SelectItem key={version.id} value={version.id} className="flex items-center justify-between">
+                    {gameVersions.map(version => (
+                      <SelectItem key={version.id} value={version.id} className="flex items-center justify-between">
                         <span>Version {version.version_number}</span>
-                      </SelectItem>)}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
-              <Dialog>
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="flex items-center gap-2">
-                    <Code size={16} />
-                    <span>View Code</span>
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-                  <DialogHeader>
-                    <DialogTitle>Code - Version {currentVersion?.version_number}</DialogTitle>
-                  </DialogHeader>
-                  <div className="relative">
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="absolute right-2 top-2"
-                      onClick={() => currentVersion && handleCopyCode(currentVersion.code)}
-                    >
-                      <Copy size={16} className="mr-2" />
-                      Copy Code
-                    </Button>
-                    <pre className="p-4 bg-gray-50 rounded-lg overflow-x-auto mt-2">
-                      <code className="text-sm">{currentVersion?.code}</code>
-                    </pre>
-                  </div>
-                </DialogContent>
-              </Dialog>
-              {!showChat && <button onClick={() => setShowChat(true)} className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm">
+              {!showChat && (
+                <button 
+                  onClick={() => setShowChat(true)} 
+                  className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
+                >
                   <MessageSquare size={18} />
                   <span>Show Chat</span>
-                </button>}
+                </button>
+              )}
             </div>
           </div>
 
           <div className="space-y-6">
             {currentVersion && (
               <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 space-y-6 shadow-sm">
-                <div 
-                  className="relative w-full aspect-[4/3] bg-white rounded-lg overflow-hidden"
-                  onClick={() => iframeRef.current?.focus()}
-                >
-                  <iframe
-                    ref={iframeRef}
-                    srcDoc={currentVersion.code}
-                    className="absolute inset-0 w-full h-full border border-gray-100"
-                    sandbox="allow-scripts"
-                    title="Generated Content"
-                    tabIndex={0}
-                  />
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="bg-zinc-900 p-0.5 rounded-full">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${!showCode ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}
+                      onClick={() => setShowCode(false)}
+                    >
+                      Preview
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${showCode ? 'bg-white text-black' : 'text-white hover:bg-white/10'}`}
+                      onClick={() => setShowCode(true)}
+                    >
+                      Code
+                    </Button>
+                  </div>
                 </div>
+
+                {!showCode ? (
+                  <div 
+                    className="relative w-full aspect-[4/3] bg-white rounded-lg overflow-hidden"
+                    onClick={() => iframeRef.current?.focus()}
+                  >
+                    <iframe
+                      ref={iframeRef}
+                      srcDoc={currentVersion.code}
+                      className="absolute inset-0 w-full h-full border border-gray-100"
+                      sandbox="allow-scripts"
+                      title="Generated Content"
+                      tabIndex={0}
+                    />
+                  </div>
+                ) : (
+                  <pre className="p-4 bg-gray-50 rounded-lg overflow-x-auto">
+                    <code className="text-sm">{currentVersion.code}</code>
+                  </pre>
+                )}
 
                 {currentVersion.instructions && (
                   <div className="bg-gray-50/80 backdrop-blur-sm p-4 rounded-lg border border-gray-100">
