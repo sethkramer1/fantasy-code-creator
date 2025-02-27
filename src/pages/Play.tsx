@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, History, RotateCcw, Download, FileText } from "lucide-react";
+import { Loader2, ArrowLeft, History, RotateCcw, Download } from "lucide-react";
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -262,83 +262,7 @@ const Play = () => {
     }
   };
 
-  const handleDownloadPDF = async () => {
-    if (!currentVersion || !iframeRef.current) return;
-    
-    try {
-      toast({
-        title: "Preparing PDF",
-        description: "This may take a moment...",
-      });
-      
-      // Create a hidden iframe to render the HTML
-      const tempIframe = document.createElement('iframe');
-      tempIframe.style.position = 'absolute';
-      tempIframe.style.top = '-9999px';
-      tempIframe.style.left = '-9999px';
-      tempIframe.style.width = '1200px';
-      tempIframe.style.height = '1600px'; // Approximate A4 proportions
-      document.body.appendChild(tempIframe);
-      
-      // Write the content to the iframe
-      const tempDocument = tempIframe.contentDocument || tempIframe.contentWindow?.document;
-      if (!tempDocument) {
-        throw new Error("Cannot access temporary iframe document");
-      }
-      
-      tempDocument.open();
-      tempDocument.write(currentVersion.code);
-      tempDocument.close();
-      
-      // Wait for the iframe content to load
-      await new Promise(resolve => {
-        tempIframe.onload = resolve;
-        // Fallback if onload doesn't trigger
-        setTimeout(resolve, 2000);
-      });
-      
-      // Define PDF options
-      const opt = {
-        margin: 10,
-        filename: `version-${currentVersion.version_number}.pdf`,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2,
-          useCORS: true,
-          logging: true,
-          allowTaint: true,
-          scrollX: 0,
-          scrollY: 0
-        },
-        jsPDF: { 
-          unit: 'mm', 
-          format: 'a4', 
-          orientation: 'portrait' 
-        }
-      };
-      
-      // Generate the PDF from the iframe content
-      await html2pdf()
-        .from(tempDocument.body)
-        .set(opt)
-        .save();
-        
-      // Clean up
-      document.body.removeChild(tempIframe);
-        
-      toast({
-        title: "PDF downloaded",
-        description: "The content has been downloaded as a PDF file.",
-      });
-    } catch (error) {
-      console.error('PDF generation error:', error);
-      toast({
-        title: "Download failed",
-        description: "There was an error downloading the PDF. Please try again.",
-        variant: "destructive"
-      });
-    }
-  };
+  // PDF download function is kept but button is removed
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
@@ -353,11 +277,49 @@ const Play = () => {
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
       {/* Navbar */}
-      <div className="w-full h-12 bg-white border-b border-gray-200 px-4 flex items-center z-10 shadow-sm flex-shrink-0">
+      <div className="w-full h-12 bg-white border-b border-gray-200 px-4 flex items-center justify-between z-10 shadow-sm flex-shrink-0">
         <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
           <ArrowLeft size={18} />
           <span className="text-sm font-medium">Back</span>
         </Link>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            {!isLatestVersion && currentVersion && (
+              <button 
+                onClick={() => handleRevertToVersion(currentVersion)} 
+                className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
+              >
+                <RotateCcw size={16} />
+                <span>Revert to this version</span>
+              </button>
+            )}
+            <div className="flex items-center gap-2">
+              <History size={16} className="text-gray-500" />
+              <Select value={selectedVersion} onValueChange={handleVersionChange}>
+                <SelectTrigger className="w-[140px] h-8 bg-white border-gray-200 text-sm">
+                  <SelectValue placeholder="Select version" />
+                </SelectTrigger>
+                <SelectContent>
+                  {gameVersions.map(version => (
+                    <SelectItem key={version.id} value={version.id} className="flex items-center justify-between">
+                      <span>Version {version.version_number}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1 text-sm"
+              onClick={handleDownload}
+            >
+              <Download size={14} />
+              Download
+            </Button>
+          </div>
+        </div>
       </div>
       
       {/* Main content */}
@@ -374,56 +336,7 @@ const Play = () => {
         </div>
 
         <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
-          <div className="max-w-[1200px] mx-auto w-full space-y-4 flex-1 flex flex-col">
-            <div className="flex items-center justify-end flex-shrink-0">
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  {!isLatestVersion && currentVersion && (
-                    <button 
-                      onClick={() => handleRevertToVersion(currentVersion)} 
-                      className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-                    >
-                      <RotateCcw size={16} />
-                      <span>Revert to this version</span>
-                    </button>
-                  )}
-                  <History size={18} className="text-gray-500" />
-                  <Select value={selectedVersion} onValueChange={handleVersionChange}>
-                    <SelectTrigger className="w-[180px] bg-white border-gray-200">
-                      <SelectValue placeholder="Select version" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {gameVersions.map(version => (
-                        <SelectItem key={version.id} value={version.id} className="flex items-center justify-between">
-                          <span>Version {version.version_number}</span>
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={handleDownload}
-                  >
-                    <Download size={16} />
-                    Download Files
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-2"
-                    onClick={handleDownloadPDF}
-                  >
-                    <FileText size={16} />
-                    Download PDF
-                  </Button>
-                </div>
-              </div>
-            </div>
-
+          <div className="max-w-[1200px] mx-auto w-full flex-1 flex flex-col">
             {currentVersion && (
               <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
                 <div className="flex items-center gap-2 mb-4 flex-shrink-0">
