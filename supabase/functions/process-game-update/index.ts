@@ -85,35 +85,67 @@ serve(async (req) => {
           throw new Error(`Claude API error: ${error}`);
         }
 
+        let gameContent = '';
+        let currentChunk = '';
+        let lineBuffer = '';
+
         const reader = response.body?.getReader();
         if (!reader) throw new Error("No reader available");
 
-        let gameContent = '';
+        // Send initial message
+        await writer.write(new TextEncoder().encode(
+          `data: ${JSON.stringify({ type: 'content_block_start' })}\n\n`
+        ));
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
           const text = new TextDecoder().decode(value);
-          const lines = text.split('\n').filter(Boolean);
+          lineBuffer += text;
+          
+          // Process complete lines
+          while (lineBuffer.includes('\n')) {
+            const newlineIndex = lineBuffer.indexOf('\n');
+            const line = lineBuffer.slice(0, newlineIndex);
+            lineBuffer = lineBuffer.slice(newlineIndex + 1);
 
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            
-            try {
-              const data = JSON.parse(line.slice(5));
-              await writer.write(new TextEncoder().encode(line + '\n'));
-              
-              if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
-                const content = data.delta.text || '';
-                if (content) {
-                  gameContent += content;
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(5));
+                if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
+                  const content = data.delta.text || '';
+                  if (content) {
+                    currentChunk += content;
+                    gameContent += content;
+
+                    // If we have a complete line or significant chunk, send it
+                    if (content.includes('\n') || currentChunk.length > 50) {
+                      await writer.write(new TextEncoder().encode(
+                        `data: ${JSON.stringify({
+                          type: 'content_block_delta',
+                          delta: { type: 'text_delta', text: currentChunk }
+                        })}\n\n`
+                      ));
+                      currentChunk = '';
+                    }
+                  }
                 }
+              } catch (e) {
+                console.error('Error parsing line:', e);
               }
-            } catch (e) {
-              console.error('Error parsing line:', e);
             }
           }
+        }
+
+        // Send any remaining content
+        if (currentChunk) {
+          await writer.write(new TextEncoder().encode(
+            `data: ${JSON.stringify({
+              type: 'content_block_delta',
+              delta: { type: 'text_delta', text: currentChunk }
+            })}\n\n`
+          ));
         }
 
         // Save new version if we got valid content
@@ -122,31 +154,31 @@ serve(async (req) => {
           
           const { data: versionData, error: versionError } = await supabaseAdmin
             .from('game_versions')
-            .insert([
-              {
-                game_id: gameId,
-                code: gameContent,
-                instructions: "Game updated successfully",
-                version_number: newVersionNumber,
-              }
-            ])
+            .insert([{
+              game_id: gameId,
+              code: gameContent,
+              instructions: "Game updated successfully",
+              version_number: newVersionNumber,
+            }])
             .select()
             .single();
 
           if (versionError) throw versionError;
 
-          // Update current version in games table
-          const { error: updateError } = await supabaseAdmin
+          await supabaseAdmin
             .from('games')
             .update({ current_version: newVersionNumber })
             .eq('id', gameId);
-
-          if (updateError) throw updateError;
 
           console.log('Successfully saved new version:', newVersionNumber);
         } else {
           throw new Error('Invalid game content received');
         }
+
+        // Send completion message
+        await writer.write(new TextEncoder().encode(
+          `data: ${JSON.stringify({ type: 'content_block_stop' })}\n\n`
+        ));
       } catch (error) {
         console.error('Stream processing error:', error);
         const errorMessage = `data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`;

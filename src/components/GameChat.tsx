@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -75,7 +74,6 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
     setTerminalOutput([`> Processing request: "${message}"`]);
 
     try {
-      // First, save the message
       const { data: messageData, error: messageError } = await supabase
         .from('game_messages')
         .insert([
@@ -89,11 +87,9 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
 
       if (messageError) throw messageError;
 
-      // Add message to local state
       setMessages(prev => [...prev, messageData]);
       setMessage("");
 
-      // Call process-game-update function with streaming
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update',
         {
@@ -137,7 +133,12 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
               const content = data.delta.text || '';
               if (content) {
                 gameContent += content;
-                setTerminalOutput(prev => [...prev, `> Generated ${content.length} characters of game code`]);
+                const lines = content.split('\n');
+                for (const line of lines) {
+                  if (line.trim()) {
+                    setTerminalOutput(prev => [...prev, `> ${line}`]);
+                  }
+                }
               }
             } else if (data.type === 'content_block_stop') {
               setTerminalOutput(prev => [...prev, '> Finished generating game code']);
@@ -154,10 +155,8 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
 
       setTerminalOutput(prev => [...prev, "> Saving new game version..."]);
 
-      // Update the game in parent component
       onGameUpdate(gameContent, "Game updated successfully");
       
-      // Update message with response
       const { error: updateError } = await supabase
         .from('game_messages')
         .update({
@@ -167,7 +166,6 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
 
       if (updateError) throw updateError;
 
-      // Update local state
       setMessages(prev => prev.map(msg => 
         msg.id === messageData.id 
           ? { ...msg, response: "Game updated successfully" }
@@ -176,7 +174,6 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
 
       setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
       
-      // Close terminal after a delay
       setTimeout(() => {
         setShowTerminal(false);
       }, 2000);
@@ -195,7 +192,6 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
         variant: "destructive",
       });
       
-      // Clean up the message if there was an error
       if (messages[messages.length - 1]?.response === undefined) {
         const { error: deleteError } = await supabase
           .from('game_messages')
