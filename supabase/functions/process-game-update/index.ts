@@ -1,6 +1,7 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.5.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -10,6 +11,8 @@ const corsHeaders = {
 }
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
+const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 
 // Function to extract Base64 data from a data URL
 function extractBase64FromDataUrl(dataUrl: string): string {
@@ -36,75 +39,90 @@ serve(async (req) => {
   }
 
   try {
-    const { gameId, message, imageUrl } = await req.json()
+    const { gameId, prompt, imageUrl } = await req.json();
     
-    console.log('Received update request for game:', gameId);
-    console.log('Message length:', message?.length || 0);
-    console.log('Image provided:', imageUrl ? 'Yes' : 'No');
+    if (!gameId) {
+      return new Response(
+        JSON.stringify({ error: 'gameId is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-    const { createClient } = await import('https://esm.sh/@supabase/supabase-js@2.7.1')
-    
-    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') as string
-    const SUPABASE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string
-    
-    const supabase = createClient(SUPABASE_URL, SUPABASE_KEY)
-    
-    // Fetch the current game code
+    console.log('Received request for gameId:', gameId);
+    console.log('Prompt length:', prompt?.length || 0);
+    console.log('Image URL provided:', imageUrl ? 'Yes (data URL)' : 'No');
+
+    // Initialize Supabase client
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
+    // Fetch the current game to get context
     const { data: gameData, error: gameError } = await supabase
       .from('games')
-      .select(`
-        id,
-        code,
-        prompt,
-        type,
-        current_version,
-        game_versions (
-          id,
-          version_number,
-          code
-        )
-      `)
+      .select('*')
       .eq('id', gameId)
-      .single()
-    
+      .single();
+
     if (gameError) {
-      throw new Error(`Failed to fetch game: ${gameError.message}`)
+      console.error('Error fetching game:', gameError);
+      return new Response(
+        JSON.stringify({ error: 'Failed to fetch game data' }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
-    
-    if (!gameData) {
-      throw new Error('Game not found')
+
+    // Fetch previous messages for context
+    const { data: messagesData, error: messagesError } = await supabase
+      .from('game_messages')
+      .select('*')
+      .eq('game_id', gameId)
+      .order('created_at', { ascending: true })
+      .limit(10);
+
+    if (messagesError) {
+      console.error('Error fetching messages:', messagesError);
     }
-    
-    console.log('Retrieved game data, current version:', gameData.current_version);
-    
-    // Get the current version code
-    const currentVersionCode = gameData.game_versions.find(
-      v => v.version_number === gameData.current_version
-    )?.code || gameData.code
-    
+
+    // Create a context from previous messages
+    const conversationContext = messagesData 
+      ? messagesData.map(msg => `User: ${msg.message}\n${msg.response ? `AI: ${msg.response}` : ''}`).join('\n\n')
+      : '';
+
+    // Assemble the full prompt with context
+    const fullPrompt = `
+You're helping modify this HTML game. Please update it according to this request: "${prompt}"
+
+Game info:
+- Original prompt: ${gameData.prompt}
+- Type: ${gameData.type || 'Not specified'}
+
+${conversationContext ? `\nPrevious conversation context:\n${conversationContext}` : ''}
+
+Please make the changes requested while preserving the overall structure and functionality of the game.
+Return only the full new HTML code with all needed CSS and JavaScript embedded. Do not include any markdown formatting, explanation, or code blocks - ONLY return the raw HTML.
+`;
+
     // Define the system message
-    const systemMessage = `You are an expert web developer, specializing in modifying existing web applications. 
-You'll be given the HTML/CSS/JS code of a web application and a request to modify it.
+    const systemMessage = `You are an expert developer specializing in web technologies, particularly in creating interactive web content, games, and interactive experiences. 
+            
+Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
 
-1. Only return the complete, modified HTML/CSS/JS code as your response. Do not include explanations, comments about what you did, or markdown formatting.
-2. Make sure your response is a fully functional standalone web application.
-3. Make targeted changes based on the request, preserving the existing structure and functionality when not directly related to the request.
-4. Your output must be valid HTML that can be directly set as the srcdoc of an iframe.
-5. Never include \`\`\` markers, code block markers, or any explanation text.
-6. Keep all original functionality working while adding the new features.
-7. Preserve the original style and aesthetic unless specifically asked to change it.`;
+Follow these structure requirements precisely and generate clean, semantic, and accessible code.`;
 
-    // Prepare the request body (removed "thinking" configuration as requested)
+    // Prepare the request body with the correct structure
     let requestBody: any = {
       model: "claude-3-7-sonnet-20250219",
       max_tokens: 30000,
       stream: true,
-      system: systemMessage
+      system: systemMessage,
+      thinking: {
+        type: "enabled",
+        budget_tokens: 7000
+      }
     };
 
     // Handle the message content differently based on whether there's an image
     if (imageUrl && imageUrl.startsWith('data:image/')) {
-      console.log('Processing image data URL...');
+      console.log('Processing data URL image...');
       try {
         // Extract the base64 data from the data URL
         const base64Image = extractBase64FromDataUrl(imageUrl);
@@ -120,11 +138,7 @@ You'll be given the HTML/CSS/JS code of a web application and a request to modif
             content: [
               {
                 type: "text",
-                text: `This is the current code of the web application:
-
-${currentVersionCode}
-
-Modify this code according to this request: ${message}`
+                text: fullPrompt
               },
               {
                 type: "image",
@@ -152,11 +166,7 @@ Modify this code according to this request: ${message}`
       requestBody.messages = [
         {
           role: "user",
-          content: `This is the current code of the web application:
-
-${currentVersionCode}
-
-Modify this code according to this request: ${message}`
+          content: fullPrompt
         }
       ];
     }
@@ -164,7 +174,7 @@ Modify this code according to this request: ${message}`
     console.log('Sending request to Anthropic API with message structure:', 
       imageUrl ? 'Image + Text' : 'Text only');
 
-    // Send the request to Anthropic
+    // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -173,16 +183,19 @@ Modify this code according to this request: ${message}`
         'content-type': 'application/json',
       },
       body: JSON.stringify(requestBody),
-    })
-    
+    });
+
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`)
+      const errorText = await response.text();
+      console.error('Anthropic API error response:', errorText);
+      throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
+
+    console.log('Successfully got response from Anthropic API');
+
+    // If everything is successful, create a new game version
+    const versionNumber = gameData.current_version ? gameData.current_version + 1 : 1;
     
-    console.log('Streaming response from Anthropic API');
-    
-    // Return the streaming response
     return new Response(response.body, {
       headers: {
         ...corsHeaders,
@@ -190,19 +203,20 @@ Modify this code according to this request: ${message}`
         'Cache-Control': 'no-cache',
         'Connection': 'keep-alive',
       },
-    })
+    });
+
   } catch (error) {
-    console.error('Error in process-game-update function:', error)
-    
+    console.error('Error in process-game-update function:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return new Response(
       JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error',
-        details: error instanceof Error ? error.stack : undefined 
+        error: errorMessage,
+        details: error instanceof Error ? error.stack : undefined
       }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       }
-    )
+    );
   }
-})
+});
