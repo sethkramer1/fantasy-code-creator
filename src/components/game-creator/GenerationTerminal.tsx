@@ -48,7 +48,7 @@ export function GenerationTerminal({
           className="mt-4 space-y-1 h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 scroll-smooth"
         >
           {output.map((line, index) => (
-            <div key={`line-${index}-${line.substring(0, 10)}`} className="whitespace-pre-wrap py-1">
+            <div key={`line-${index}-${line.substring(0, 10)}`} className="whitespace-pre-wrap py-1 break-all">
               {line}
             </div>
           ))}
