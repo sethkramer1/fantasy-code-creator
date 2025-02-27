@@ -493,44 +493,22 @@ const Play = () => {
           if (window.CanvasGradient) {
             const originalAddColorStop = CanvasGradient.prototype.addColorStop;
             CanvasGradient.prototype.addColorStop = function(offset, color) {
-              if (!isFinite(offset)) {
-                console.warn("Fixing non-finite gradient offset:", offset);
-                offset = 0;
+              if (typeof offset === 'number' && !isFinite(offset)) {
+                offset = offset < 0 ? 0 : (offset > 0 ? 1 : 0);
+                console.warn("Fixed non-finite gradient offset");
               }
-              if (offset < 0) offset = 0;
-              if (offset > 1) offset = 1;
               try {
                 return originalAddColorStop.call(this, offset, color);
               } catch (e) {
-                console.warn("Gradient error:", e);
-                return originalAddColorStop.call(this, 0, "rgba(0,0,0,0)");
-              }
-            };
-          }
-
-          if (window.CanvasRenderingContext2D) {
-            const safelyWrapMethod = (obj, methodName) => {
-              const original = obj.prototype[methodName];
-              obj.prototype[methodName] = function(...args) {
+                console.warn("Handled gradient error:", e.message);
                 try {
-                  const safeArgs = args.map(arg => 
-                    (typeof arg === 'number' && !isFinite(arg)) ? 0 : arg
-                  );
-                  return original.apply(this, safeArgs);
-                } catch (e) {
-                  console.warn(\`Error in \${methodName}:\`, e);
-                  return this;
+                  let safeOffset = typeof offset === 'number' ? Math.max(0, Math.min(1, offset)) : 0;
+                  return originalAddColorStop.call(this, safeOffset, color || 'rgba(0,0,0,0.01)');
+                } catch (fallbackError) {
+                  console.warn("Using last resort gradient fallback");
                 }
-              };
-            };
-            
-            ['arc', 'arcTo', 'bezierCurveTo', 'ellipse', 'lineTo', 'moveTo', 
-             'quadraticCurveTo', 'rect', 'setTransform', 'transform', 'translate',
-             'scale', 'rotate', 'setLineDash'].forEach(method => {
-              if (CanvasRenderingContext2D.prototype[method]) {
-                safelyWrapMethod(CanvasRenderingContext2D, method);
               }
-            });
+            };
           }
         </script>
       `;
@@ -567,45 +545,36 @@ const Play = () => {
         }
       });
 
-      await new Promise(resolve => setTimeout(resolve, 600));
-      
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       if (iframe.contentDocument && iframe.contentWindow) {
         try {
           const script = iframe.contentDocument.createElement('script');
           script.textContent = `
-            const fixCanvas = () => {
+            const findAndFixGradientIssues = () => {
               const canvases = document.querySelectorAll('canvas');
               canvases.forEach(canvas => {
                 try {
                   const ctx = canvas.getContext('2d');
-                  if (ctx) {
-                    const oldFillStyle = ctx.fillStyle;
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(0, 0, 1, 1);
-                    ctx.fillStyle = oldFillStyle;
+                  if (ctx && ctx.createLinearGradient) {
+                    const originalCreateLinearGradient = ctx.createLinearGradient;
+                    ctx.createLinearGradient = function(x0, y0, x1, y1) {
+                      if (!isFinite(x0) || !isFinite(y0) || !isFinite(x1) || !isFinite(y1)) {
+                        x0 = isFinite(x0) ? x0 : 0;
+                        y0 = isFinite(y0) ? y0 : 0;
+                        x1 = isFinite(x1) ? x1 : canvas.width || 100;
+                        y1 = isFinite(y1) ? y1 : canvas.height || 100;
+                      }
+                      return originalCreateLinearGradient.call(this, x0, y0, x1, y1);
+                    };
                   }
                 } catch (e) {
-                  console.warn('Canvas fixup error:', e);
-                }
-              });
-              
-              document.querySelectorAll('*').forEach(el => {
-                try {
-                  const style = window.getComputedStyle(el);
-                  const bgImage = style.backgroundImage;
-                  
-                  if (bgImage && bgImage.includes('gradient') && 
-                      (bgImage.includes('NaN') || bgImage.includes('Infinity'))) {
-                    el.style.backgroundImage = 'none';
-                    el.style.backgroundColor = '#ffffff';
-                  }
-                } catch (e) {
-                  // Ignore style access errors
+                  console.warn('Canvas prep error:', e);
                 }
               });
             };
             
-            fixCanvas();
+            findAndFixGradientIssues();
           `;
           iframe.contentDocument.head.appendChild(script);
         } catch (e) {
@@ -625,7 +594,7 @@ const Play = () => {
           
           iframe.style.height = `${contentHeight}px`;
           
-          await new Promise(resolve => setTimeout(resolve, 100));
+          await new Promise(resolve => setTimeout(resolve, 200));
           
           const canvas = await html2canvas(iframe.contentDocument.body, {
             width: 1200,
@@ -635,26 +604,31 @@ const Play = () => {
             scale: 2,
             useCORS: true,
             allowTaint: true,
-            backgroundColor: '#ffffff',
+            backgroundColor: null,
             logging: false,
-            imageTimeout: 0,
+            imageTimeout: 15000,
             onclone: (clonedDoc) => {
               try {
-                const styles = Array.from(document.styleSheets);
-                styles.forEach(styleSheet => {
+                Array.from(document.styleSheets).forEach(styleSheet => {
                   try {
-                    const rules = Array.from(styleSheet.cssRules || []);
-                    const style = clonedDoc.createElement('style');
-                    rules.forEach(rule => {
-                      try {
-                        style.appendChild(document.createTextNode(rule.cssText));
-                      } catch (e) {
-                        // Skip problematic rules
-                      }
-                    });
-                    clonedDoc.head.appendChild(style);
+                    if (styleSheet.href) {
+                      const link = clonedDoc.createElement('link');
+                      link.rel = 'stylesheet';
+                      link.href = styleSheet.href;
+                      clonedDoc.head.appendChild(link);
+                    } else if (styleSheet.cssRules) {
+                      const style = clonedDoc.createElement('style');
+                      Array.from(styleSheet.cssRules).forEach(rule => {
+                        try {
+                          style.appendChild(document.createTextNode(rule.cssText));
+                        } catch (e) {
+                          // Skip problematic rules
+                        }
+                      });
+                      clonedDoc.head.appendChild(style);
+                    }
                   } catch (e) {
-                    // Ignore cross-origin stylesheet errors
+                    // CORS issues with some stylesheets can be ignored
                   }
                 });
               } catch (e) {
@@ -676,42 +650,52 @@ const Play = () => {
           });
         } catch (canvasError) {
           console.error('Primary capture method failed:', canvasError);
-          
           toast({
-            title: "Trying alternative method",
-            description: "First capture attempt failed, trying another approach"
+            title: "Error with high-quality capture",
+            description: "Trying a simpler approach for the download"
           });
           
           try {
             const canvas = document.createElement('canvas');
-            canvas.width = 1200;
-            canvas.height = 800;
             const ctx = canvas.getContext('2d');
             
             if (ctx) {
+              const rect = iframe.getBoundingClientRect();
+              canvas.width = rect.width;
+              canvas.height = rect.height;
+              
               ctx.fillStyle = '#ffffff';
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               
-              ctx.fillStyle = '#000000';
-              ctx.font = '20px Arial';
-              ctx.textAlign = 'center';
-              ctx.fillText('Game Preview (Limited Version)', canvas.width / 2, 50);
-              ctx.fillText('The game contains complex graphics that could not be fully captured', canvas.width / 2, 90);
+              const image = new Image();
+              image.crossOrigin = 'anonymous';
               
-              try {
-                ctx.drawImage(iframe.contentDocument.body as any, 0, 120, canvas.width, canvas.height - 150);
-              } catch (e) {
-                ctx.fillText('Please view the game in the browser to see the full experience', canvas.width / 2, 150);
-              }
+              const contentCanvas = await html2canvas(iframe.contentDocument.body, {
+                width: rect.width,
+                height: rect.height,
+                scale: 1,
+                useCORS: true,
+                allowTaint: true,
+                backgroundColor: '#ffffff',
+                logging: false,
+                imageTimeout: 5000,
+                onclone: (doc) => {
+                  const script = doc.createElement('script');
+                  script.textContent = 'console.log("Fallback capture");';
+                  doc.head.appendChild(script);
+                }
+              });
+              
+              ctx.drawImage(contentCanvas, 0, 0);
               
               const imageUrl = canvas.toDataURL('image/png');
               const link = document.createElement('a');
-              link.download = `game-version-${currentVersion.version_number}-simple.png`;
+              link.download = `game-version-${currentVersion.version_number}.png`;
               link.href = imageUrl;
               link.click();
               
               toast({
-                title: "Simple image downloaded",
+                title: "Image downloaded (simple version)",
                 description: "A simplified version of your game was downloaded as PNG"
               });
             }
