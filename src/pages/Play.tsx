@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -213,13 +214,15 @@ const Play = () => {
       const content = iframeDocument.documentElement.cloneNode(true) as HTMLElement;
       
       const opt = {
-        margin: [0, 0, 0, 0],
+        margin: 0,
         filename: `version-${currentVersion.version_number}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
           scale: 2,
           useCORS: true,
-          logging: false
+          logging: true,
+          allowTaint: true,
+          foreignObjectRendering: true
         },
         jsPDF: { 
           unit: 'mm', 
@@ -228,21 +231,38 @@ const Play = () => {
         }
       };
 
+      // Create a temporary container and apply the iframe's content
       const container = document.createElement('div');
-      container.innerHTML = content.outerHTML;
+      
+      // Copy styles from iframe
+      const styles = Array.from(iframeDocument.getElementsByTagName('style'));
+      styles.forEach(style => {
+        container.appendChild(style.cloneNode(true));
+      });
+      
+      // Copy body content
+      const bodyContent = iframeDocument.body.cloneNode(true);
+      container.appendChild(bodyContent);
+      
+      // Add container to document temporarily
       document.body.appendChild(container);
       
-      html2pdf().set(opt).from(container).save().then(() => {
-        document.body.removeChild(container);
+      try {
+        await html2pdf()
+          .set(opt)
+          .from(container)
+          .save();
+          
         toast({
           title: "PDF downloaded",
           description: "The content has been downloaded as a PDF file.",
         });
-      }).catch((error) => {
+      } finally {
+        // Always clean up the temporary container
         document.body.removeChild(container);
-        throw error;
-      });
+      }
     } catch (error) {
+      console.error('PDF generation error:', error);
       toast({
         title: "Download failed",
         description: "There was an error downloading the PDF. Please try again.",
