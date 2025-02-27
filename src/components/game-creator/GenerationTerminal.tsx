@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { Button } from "../ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Loader2 } from "lucide-react";
@@ -20,6 +20,7 @@ export function GenerationTerminal({
   thinkingTime,
   loading,
 }: GenerationTerminalProps) {
+  const outputContainerRef = useRef<HTMLDivElement>(null);
   
   // Format thinking time nicely
   const formatTime = (seconds: number) => {
@@ -30,6 +31,14 @@ export function GenerationTerminal({
     const secs = seconds % 60;
     return `${mins}m ${secs}s`;
   };
+
+  // Auto-scroll to bottom when output changes
+  useEffect(() => {
+    if (outputContainerRef.current && loading) {
+      const container = outputContainerRef.current;
+      container.scrollTop = container.scrollHeight;
+    }
+  }, [output, loading]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -47,7 +56,10 @@ export function GenerationTerminal({
         
         <div className="flex flex-col md:flex-row h-full overflow-hidden">
           {/* Terminal Output */}
-          <div className="flex-1 overflow-y-auto p-5 md:min-w-[500px]">
+          <div 
+            ref={outputContainerRef} 
+            className="flex-1 overflow-y-auto p-5 md:min-w-[500px]"
+          >
             <div className="font-mono text-sm">
               {output.map((line, i) => (
                 <div key={i} className="mb-1">

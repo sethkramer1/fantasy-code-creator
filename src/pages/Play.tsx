@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -29,7 +28,6 @@ const Play = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
-  // Get current version early to prevent TS errors
   const currentVersion = gameVersions.find(v => v.id === selectedVersion);
   const selectedVersionNumber = currentVersion?.version_number;
   const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
@@ -66,11 +64,9 @@ const Play = () => {
         if (error) throw error;
         if (!data) throw new Error("Game not found");
         
-        // Sort versions by version_number in descending order (latest first)
         const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
         setGameVersions(sortedVersions);
         
-        // Always select the latest version (first in the sorted array)
         if (sortedVersions.length > 0) {
           setSelectedVersion(sortedVersions[0].id);
           console.log("Selected latest version:", sortedVersions[0].version_number);
@@ -88,16 +84,12 @@ const Play = () => {
     fetchGame();
   }, [id, toast]);
 
-  // Helper function to inject scripts and fix common iframe issues
   const prepareIframeContent = (html: string) => {
-    // Helper script to ensure tabs and anchor links work correctly
     const helperScript = `
       <script>
-        // Wait for document to be fully loaded
         document.addEventListener('DOMContentLoaded', function() {
           console.log('DOM fully loaded, setting up UI enhancements');
           
-          // Fix for anchor tag scrolling
           document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
               e.preventDefault();
@@ -113,10 +105,6 @@ const Play = () => {
             });
           });
           
-          // Generic tab functionality fix
-          // This handles multiple common tab patterns
-          
-          // Type 1: data-tab based tabs
           const setupDataTabs = function() {
             const tabs = document.querySelectorAll('[data-tab]');
             if (tabs.length > 0) {
@@ -125,12 +113,10 @@ const Play = () => {
                 tab.addEventListener('click', function() {
                   const target = this.getAttribute('data-tab');
                   
-                  // Hide all tab content
                   document.querySelectorAll('[data-tab-content]').forEach(content => {
                     content.style.display = 'none';
                   });
                   
-                  // Show selected tab content
                   if (target) {
                     const targetContent = document.querySelector('[data-tab-content="' + target + '"]');
                     if (targetContent) {
@@ -138,13 +124,11 @@ const Play = () => {
                     }
                   }
                   
-                  // Update active state
                   tabs.forEach(t => t.classList.remove('active'));
                   this.classList.add('active');
                 });
               });
               
-              // Activate first tab by default if none is active
               if (!document.querySelector('[data-tab].active')) {
                 const firstTab = document.querySelector('[data-tab]');
                 if (firstTab) {
@@ -154,7 +138,6 @@ const Play = () => {
             }
           };
           
-          // Type 2: aria-based tabs
           const setupAriaTabs = function() {
             const tabButtons = document.querySelectorAll('[role="tab"]');
             if (tabButtons.length > 0) {
@@ -165,23 +148,19 @@ const Play = () => {
                   const tablist = this.closest('[role="tablist"]');
                   
                   if (tablist) {
-                    // Deactivate all tabs
                     tablist.querySelectorAll('[role="tab"]').forEach(tab => {
                       tab.setAttribute('aria-selected', 'false');
                       tab.classList.remove('active');
                     });
                     
-                    // Activate this tab
                     this.setAttribute('aria-selected', 'true');
                     this.classList.add('active');
                     
-                    // Hide all tab panels
                     document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
                       panel.setAttribute('hidden', '');
                       panel.style.display = 'none';
                     });
                     
-                    // Show the selected panel
                     if (controls) {
                       const panel = document.getElementById(controls);
                       if (panel) {
@@ -193,10 +172,8 @@ const Play = () => {
                 });
               });
               
-              // Activate first tab by default if none is selected
-              const tablist = document.querySelector('[role="tablist"]');
-              if (tablist && !tablist.querySelector('[aria-selected="true"]')) {
-                const firstTab = tablist.querySelector('[role="tab"]');
+              if (!document.querySelector('[role="tablist"][aria-selected="true"]')) {
+                const firstTab = document.querySelector('[role="tab"]');
                 if (firstTab) {
                   firstTab.click();
                 }
@@ -204,7 +181,6 @@ const Play = () => {
             }
           };
           
-          // Type 3: Class-based tabs (common pattern)
           const setupClassTabs = function() {
             const tabButtons = document.querySelectorAll('.tabs .tab, .tab-list .tab, .tabs-nav .tab-link');
             if (tabButtons.length > 0) {
@@ -213,33 +189,27 @@ const Play = () => {
                 button.addEventListener('click', function(e) {
                   e.preventDefault();
                   
-                  // Try to get target from href or data attribute
                   let target = this.getAttribute('href');
                   if (!target || !target.startsWith('#')) {
                     target = this.dataset.target || this.dataset.href;
                   } else {
-                    target = target.substring(1); // Remove the # from href
+                    target = target.substring(1);
                   }
                   
-                  // Find tab container (parent or grandparent)
                   const tabContainer = this.closest('.tabs, .tab-container, .tabs-wrapper');
                   
                   if (tabContainer) {
-                    // Deactivate all tabs
                     tabContainer.querySelectorAll('.tab, .tab-link').forEach(tab => {
                       tab.classList.remove('active');
                     });
                     
-                    // Activate this tab
                     this.classList.add('active');
                     
-                    // Hide all content panels in this container
                     tabContainer.querySelectorAll('.tab-content, .tab-pane, .tabs-content > div').forEach(panel => {
                       panel.style.display = 'none';
                       panel.classList.remove('active');
                     });
                     
-                    // Show the selected panel
                     if (target) {
                       const panel = document.getElementById(target) || 
                                     tabContainer.querySelector('[data-tab="' + target + '"]') ||
@@ -254,10 +224,8 @@ const Play = () => {
                 });
               });
               
-              // Activate first tab by default if none is active
-              const tabContainer = document.querySelector('.tabs, .tab-container, .tabs-wrapper');
-              if (tabContainer && !tabContainer.querySelector('.tab.active, .tab-link.active')) {
-                const firstTab = tabContainer.querySelector('.tab, .tab-link');
+              if (!document.querySelector('.tabs, .tab-container, .tabs-wrapper .tab.active, .tabs, .tab-container, .tabs-wrapper .tab-link.active')) {
+                const firstTab = document.querySelector('.tabs, .tab-container, .tabs-wrapper .tab, .tabs, .tab-container, .tabs-wrapper .tab-link');
                 if (firstTab) {
                   firstTab.click();
                 }
@@ -265,12 +233,10 @@ const Play = () => {
             }
           };
           
-          // Run all tab setup functions
           setupDataTabs();
           setupAriaTabs();
           setupClassTabs();
           
-          // Final catch-all for any click events that might need to be triggered
           setTimeout(() => {
             document.querySelectorAll('.tabs .active, [role="tab"][aria-selected="true"], [data-tab].active')
               .forEach(activeTab => {
@@ -278,35 +244,29 @@ const Play = () => {
                 activeTab.click();
               });
             
-            // Dispatch resize event to fix any responsive elements
             window.dispatchEvent(new Event('resize'));
           }, 300);
         });
 
-        // Also run setup on load for any dynamically loaded content
         window.addEventListener('load', function() {
           console.log('Window loaded, re-running tab initialization');
-          // Force a resize event in case any responsive elements need to adjust
           window.dispatchEvent(new Event('resize'));
         });
 
-        // Patch the CanvasGradient.addColorStop method to prevent non-finite value errors
         (function() {
           if (window.CanvasGradient) {
             const originalAddColorStop = CanvasGradient.prototype.addColorStop;
             
             CanvasGradient.prototype.addColorStop = function(offset, color) {
-              // Validate offset is a finite number between 0 and 1
               if (typeof offset !== 'number' || !isFinite(offset) || offset < 0 || offset > 1) {
                 console.warn('Invalid gradient offset:', offset, '- Using 0 instead');
-                offset = 0; // Use a safe default value
+                offset = 0;
               }
               
               try {
                 originalAddColorStop.call(this, offset, color);
               } catch (e) {
                 console.warn('Error in addColorStop:', e.message);
-                // Try with fallback values if original call fails
                 try {
                   originalAddColorStop.call(this, 0, 'rgba(0,0,0,0)');
                 } catch (fallbackError) {
@@ -319,14 +279,11 @@ const Play = () => {
       </script>
     `;
 
-    // Check if the document has a <head> tag
     if (html.includes('<head>')) {
       return html.replace('<head>', '<head>' + helperScript);
     } else if (html.includes('<html')) {
-      // If it has <html> but no <head>, insert head after html opening tag
       return html.replace(/<html[^>]*>/, '$&<head>' + helperScript + '</head>');
     } else {
-      // If neither, just prepend the script
       return helperScript + html;
     }
   };
@@ -335,7 +292,6 @@ const Play = () => {
     if (!loading && iframeRef.current) {
       iframeRef.current.focus();
       
-      // Set up message event listener for communication with iframe
       const handleIframeMessage = (event: MessageEvent) => {
         if (event.source === iframeRef.current?.contentWindow) {
           console.log('Message from iframe:', event.data);
@@ -351,10 +307,8 @@ const Play = () => {
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
-      // Create a new version with incremented version number
       const newVersionNumber = gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1;
       
-      // Insert the new version into database
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .insert({
@@ -369,7 +323,6 @@ const Play = () => {
       if (versionError) throw versionError;
       if (!versionData) throw new Error("Failed to save new version");
       
-      // Update the game's current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -381,7 +334,6 @@ const Play = () => {
         
       if (gameError) throw gameError;
       
-      // Add the new version to state and select it
       const newVersion: GameVersion = {
         id: versionData.id,
         version_number: versionData.version_number,
@@ -430,7 +382,6 @@ const Play = () => {
       });
       if (error) throw error;
       
-      // Update the game's current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -524,7 +475,6 @@ const Play = () => {
     }
   };
 
-  // Improved download image function with better error handling
   const downloadGameAsImage = async () => {
     if (!currentVersion || !currentVersion.code) {
       toast({
@@ -538,10 +488,8 @@ const Play = () => {
     try {
       setDownloadingPng(true);
 
-      // Add safety script to handle gradient issues before rendering
       const safetyScript = `
         <script>
-          // Patch canvas gradient methods to prevent non-finite value errors
           if (window.CanvasGradient) {
             const originalAddColorStop = CanvasGradient.prototype.addColorStop;
             CanvasGradient.prototype.addColorStop = function(offset, color) {
@@ -560,26 +508,22 @@ const Play = () => {
             };
           }
 
-          // Patch other potentially problematic canvas methods
           if (window.CanvasRenderingContext2D) {
             const safelyWrapMethod = (obj, methodName) => {
               const original = obj.prototype[methodName];
               obj.prototype[methodName] = function(...args) {
                 try {
-                  // Check for NaN, Infinity in numeric arguments
                   const safeArgs = args.map(arg => 
                     (typeof arg === 'number' && !isFinite(arg)) ? 0 : arg
                   );
                   return original.apply(this, safeArgs);
                 } catch (e) {
                   console.warn(\`Error in \${methodName}:\`, e);
-                  // Return safely
                   return this;
                 }
               };
             };
             
-            // Wrap methods that commonly cause issues
             ['arc', 'arcTo', 'bezierCurveTo', 'ellipse', 'lineTo', 'moveTo', 
              'quadraticCurveTo', 'rect', 'setTransform', 'transform', 'translate',
              'scale', 'rotate', 'setLineDash'].forEach(method => {
@@ -591,7 +535,6 @@ const Play = () => {
         </script>
       `;
 
-      // Create a temporary iframe to render the code
       const iframe = document.createElement('iframe');
       iframe.style.position = 'fixed';
       iframe.style.top = '0';
@@ -604,11 +547,9 @@ const Play = () => {
       
       document.body.appendChild(iframe);
       
-      // Wait for iframe to load with safety measures injected
       await new Promise<void>((resolve) => {
         iframe.onload = () => resolve();
         
-        // Modify content to inject safety scripts
         let contentWithSafety = currentVersion.code;
         if (contentWithSafety.includes('<head>')) {
           contentWithSafety = contentWithSafety.replace('<head>', '<head>' + safetyScript);
@@ -618,7 +559,6 @@ const Play = () => {
           contentWithSafety = safetyScript + contentWithSafety;
         }
         
-        // Write content to iframe
         const doc = iframe.contentDocument;
         if (doc) {
           doc.open();
@@ -627,22 +567,18 @@ const Play = () => {
         }
       });
 
-      // Let content render for a moment
       await new Promise(resolve => setTimeout(resolve, 600));
       
-      // Apply additional protective measures before capturing
       if (iframe.contentDocument && iframe.contentWindow) {
         try {
-          const safetyCode = `
-            // Remove any problematic elements or styles that might cause canvas issues
+          const script = iframe.contentDocument.createElement('script');
+          script.textContent = `
             const fixCanvas = () => {
-              // Fix any canvas gradients with bad values
               const canvases = document.querySelectorAll('canvas');
               canvases.forEach(canvas => {
                 try {
                   const ctx = canvas.getContext('2d');
                   if (ctx) {
-                    // Force redraw with safe values if needed
                     const oldFillStyle = ctx.fillStyle;
                     ctx.fillStyle = '#ffffff';
                     ctx.fillRect(0, 0, 1, 1);
@@ -653,13 +589,11 @@ const Play = () => {
                 }
               });
               
-              // Handle CSS gradients in computed styles
               document.querySelectorAll('*').forEach(el => {
                 try {
                   const style = window.getComputedStyle(el);
                   const bgImage = style.backgroundImage;
                   
-                  // Replace problematic gradients with solid colors
                   if (bgImage && bgImage.includes('gradient') && 
                       (bgImage.includes('NaN') || bgImage.includes('Infinity'))) {
                     el.style.backgroundImage = 'none';
@@ -672,41 +606,33 @@ const Play = () => {
             };
             
             fixCanvas();
-            return true;
           `;
-          
-          // Execute safety code in iframe
-          iframe.contentWindow.eval(safetyCode);
+          iframe.contentDocument.head.appendChild(script);
         } catch (e) {
           console.warn('Error applying pre-capture fixes:', e);
         }
       }
       
-      // Capture iframe content with enhanced error handling
       if (iframe.contentDocument?.body) {
         try {
-          // Get actual content height
           const contentHeight = Math.max(
             iframe.contentDocument.body.scrollHeight || 0,
             iframe.contentDocument.documentElement.scrollHeight || 0,
             iframe.contentDocument.body.offsetHeight || 0,
             iframe.contentDocument.documentElement.offsetHeight || 0,
-            600 // Minimum fallback height
+            600
           );
           
-          // Update iframe height to match content
           iframe.style.height = `${contentHeight}px`;
           
-          // Allow time for resize to take effect
           await new Promise(resolve => setTimeout(resolve, 100));
           
-          // Create canvas with appropriate dimensions using safe options
           const canvas = await html2canvas(iframe.contentDocument.body, {
             width: 1200,
             height: contentHeight,
             windowWidth: 1200,
             windowHeight: contentHeight,
-            scale: 2, // Higher quality
+            scale: 2,
             useCORS: true,
             allowTaint: true,
             backgroundColor: '#ffffff',
@@ -714,55 +640,31 @@ const Play = () => {
             imageTimeout: 0,
             onclone: (clonedDoc) => {
               try {
-                // Additional safety measures for the cloned document
-                const safetyScript = clonedDoc.createElement('script');
-                safetyScript.textContent = `
-                  // Find and fix any problematic canvas operations or gradients
-                  document.querySelectorAll('canvas').forEach(canvas => {
-                    const ctx = canvas.getContext('2d');
-                    if (ctx && ctx.createLinearGradient) {
-                      const originalCreateLinearGradient = ctx.createLinearGradient;
-                      ctx.createLinearGradient = function(...args) {
-                        const safeArgs = args.map(arg => isFinite(arg) ? arg : 0);
-                        return originalCreateLinearGradient.apply(this, safeArgs);
-                      };
-                    }
-                  });
-                `;
-                clonedDoc.head.appendChild(safetyScript);
-                
-                // Ensure all styles are applied in the cloned document
-                try {
-                  const styles = Array.from(document.styleSheets);
-                  styles.forEach(styleSheet => {
-                    try {
-                      const rules = Array.from(styleSheet.cssRules || []);
-                      const style = clonedDoc.createElement('style');
-                      rules.forEach(rule => {
-                        try {
-                          style.appendChild(document.createTextNode(rule.cssText));
-                        } catch (e) {
-                          // Skip problematic rules
-                        }
-                      });
-                      clonedDoc.head.appendChild(style);
-                    } catch (e) {
-                      // Ignore cross-origin stylesheet errors
-                    }
-                  });
-                } catch (e) {
-                  console.warn('Style copying error:', e);
-                }
+                const styles = Array.from(document.styleSheets);
+                styles.forEach(styleSheet => {
+                  try {
+                    const rules = Array.from(styleSheet.cssRules || []);
+                    const style = clonedDoc.createElement('style');
+                    rules.forEach(rule => {
+                      try {
+                        style.appendChild(document.createTextNode(rule.cssText));
+                      } catch (e) {
+                        // Skip problematic rules
+                      }
+                    });
+                    clonedDoc.head.appendChild(style);
+                  } catch (e) {
+                    // Ignore cross-origin stylesheet errors
+                  }
+                });
               } catch (e) {
-                console.warn('Clone document preparation error:', e);
+                console.warn('Style copying error:', e);
               }
             }
           });
           
-          // Convert canvas to data URL with maximum quality
           const imageUrl = canvas.toDataURL('image/png', 1.0);
           
-          // Create download link
           const link = document.createElement('a');
           link.download = `game-version-${currentVersion.version_number}.png`;
           link.href = imageUrl;
@@ -773,39 +675,32 @@ const Play = () => {
             description: "Your game screenshot has been downloaded as PNG"
           });
         } catch (canvasError) {
-          // Try fallback method if html2canvas fails
           console.error('Primary capture method failed:', canvasError);
           
-          // Fallback to simpler canvas capture with basic error handling
           toast({
             title: "Trying alternative method",
             description: "First capture attempt failed, trying another approach"
           });
           
           try {
-            // Create a canvas element
             const canvas = document.createElement('canvas');
             canvas.width = 1200;
             canvas.height = 800;
             const ctx = canvas.getContext('2d');
             
             if (ctx) {
-              // Draw a white background
               ctx.fillStyle = '#ffffff';
               ctx.fillRect(0, 0, canvas.width, canvas.height);
               
-              // Add a text explanation
               ctx.fillStyle = '#000000';
               ctx.font = '20px Arial';
               ctx.textAlign = 'center';
               ctx.fillText('Game Preview (Limited Version)', canvas.width / 2, 50);
               ctx.fillText('The game contains complex graphics that could not be fully captured', canvas.width / 2, 90);
               
-              // Try to draw at least some content from the iframe if possible
               try {
                 ctx.drawImage(iframe.contentDocument.body as any, 0, 120, canvas.width, canvas.height - 150);
               } catch (e) {
-                // If drawing fails, add more text explanation
                 ctx.fillText('Please view the game in the browser to see the full experience', canvas.width / 2, 150);
               }
               
@@ -827,7 +722,6 @@ const Play = () => {
         }
       }
       
-      // Clean up
       document.body.removeChild(iframe);
     } catch (error) {
       console.error('Error generating image:', error);
@@ -849,7 +743,6 @@ const Play = () => {
 
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
-      {/* Navbar */}
       <div className="w-full h-12 bg-white border-b border-gray-200 px-4 flex items-center justify-between z-10 shadow-sm flex-shrink-0">
         <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
           <ArrowLeft size={18} />
@@ -911,7 +804,6 @@ const Play = () => {
         </div>
       </div>
       
-      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         <div className="w-[400px] flex flex-col bg-white border-r border-gray-200">
           <div className="p-4 border-b border-gray-200 flex-shrink-0">
