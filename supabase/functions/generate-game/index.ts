@@ -43,7 +43,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'user',
-            content: `You are an expert web developer. Create this: ${prompt}. `,
+            content: `You are an expert web developer. Create this: ${prompt} using HTML, CSS, and JS only (unless it's a SVG, then just write an SVG). Return only the code, with nothing else.`,
           },
         ]
       }),
