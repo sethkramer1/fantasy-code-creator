@@ -66,7 +66,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'user',
-            content: `Enhance this prompt to describe ${contentTypeInstructions} in more detail. Make it more specific and comprehensive, but maintain the user's original intent and ideas.
+            content: `Enhance this prompt to describe ${contentTypeInstructions} in more detail. Make it more specific and comprehensive, but maintain the user's original intent and ideas. Respond with only the enhanced prompt, with no additional commentary.
             
 Original prompt: "${prompt}"
 
