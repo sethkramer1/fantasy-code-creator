@@ -52,106 +52,118 @@ serve(async (req) => {
 
     console.log('Current game version:', currentVersion);
 
-    // Call Claude API
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "content-type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "claude-3-7-sonnet-20250219",
-        max_tokens: 20000,
-        stream: true,
-        messages: [
-          {
-            role: "user",
-            content: `Here is the current HTML game code:\n\n${currentCode}\n\nPlease modify the game according to this request: ${message}\n\n
-                     Return ONLY the complete HTML code, nothing else.`,
+    // Create a new TransformStream for streaming the response
+    const stream = new TransformStream();
+    const writer = stream.writable.getWriter();
+
+    // Start processing in the background
+    (async () => {
+      try {
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "x-api-key": ANTHROPIC_API_KEY,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json",
           },
-        ],
-      }),
-    });
+          body: JSON.stringify({
+            model: "claude-3-7-sonnet-20250219",
+            max_tokens: 20000,
+            stream: true,
+            messages: [
+              {
+                role: "user",
+                content: `Here is the current HTML game code:\n\n${currentCode}\n\nPlease modify the game according to this request: ${message}\n\n
+                         Return ONLY the complete HTML code, nothing else.`,
+              },
+            ],
+          }),
+        });
 
-    if (!response.ok) {
-      const error = await response.text();
-      console.error('Claude API error:', error);
-      throw new Error(`Claude API error: ${error}`);
-    }
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Claude API error: ${error}`);
+        }
 
-    let gameContent = '';
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No reader available");
 
-    // Read and process the stream
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("No reader available");
+        let gameContent = '';
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
 
-      const text = new TextDecoder().decode(value);
-      const lines = text.split('\n').filter(Boolean);
+          const text = new TextDecoder().decode(value);
+          const lines = text.split('\n').filter(Boolean);
 
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        
-        try {
-          const data = JSON.parse(line.slice(5));
-          if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
-            const content = data.delta.text || '';
-            if (content) {
-              gameContent += content;
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            
+            try {
+              const data = JSON.parse(line.slice(5));
+              await writer.write(new TextEncoder().encode(line + '\n'));
+              
+              if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
+                const content = data.delta.text || '';
+                if (content) {
+                  gameContent += content;
+                }
+              }
+            } catch (e) {
+              console.error('Error parsing line:', e);
             }
           }
-        } catch (e) {
-          console.error('Error parsing line:', e);
         }
-      }
-    }
 
-    if (!gameContent || !gameContent.includes('<html')) {
-      throw new Error('Invalid game content received');
-    }
+        // Save new version if we got valid content
+        if (gameContent && gameContent.includes('<html')) {
+          const newVersionNumber = currentVersion + 1;
+          
+          const { data: versionData, error: versionError } = await supabaseAdmin
+            .from('game_versions')
+            .insert([
+              {
+                game_id: gameId,
+                code: gameContent,
+                instructions: "Game updated successfully",
+                version_number: newVersionNumber,
+              }
+            ])
+            .select()
+            .single();
 
-    // Save new version
-    const newVersionNumber = currentVersion + 1;
-    
-    const { data: versionData, error: versionError } = await supabaseAdmin
-      .from('game_versions')
-      .insert([
-        {
-          game_id: gameId,
-          code: gameContent,
-          instructions: "Game updated successfully",
-          version_number: newVersionNumber,
+          if (versionError) throw versionError;
+
+          // Update current version in games table
+          const { error: updateError } = await supabaseAdmin
+            .from('games')
+            .update({ current_version: newVersionNumber })
+            .eq('id', gameId);
+
+          if (updateError) throw updateError;
+
+          console.log('Successfully saved new version:', newVersionNumber);
+        } else {
+          throw new Error('Invalid game content received');
         }
-      ])
-      .select()
-      .single();
-
-    if (versionError) throw versionError;
-
-    // Update current version in games table
-    const { error: updateError } = await supabaseAdmin
-      .from('games')
-      .update({ current_version: newVersionNumber })
-      .eq('id', gameId);
-
-    if (updateError) throw updateError;
-
-    return new Response(
-      JSON.stringify({
-        code: gameContent,
-        instructions: "Game updated successfully",
-        response: "Updates applied successfully",
-        versionId: versionData.id
-      }),
-      { 
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      } catch (error) {
+        console.error('Stream processing error:', error);
+        const errorMessage = `data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`;
+        await writer.write(new TextEncoder().encode(errorMessage));
+      } finally {
+        await writer.close();
       }
-    );
+    })();
+
+    return new Response(stream.readable, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive'
+      }
+    });
 
   } catch (error) {
     console.error('Error in process-game-update function:', error);

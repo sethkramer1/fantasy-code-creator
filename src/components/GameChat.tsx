@@ -93,57 +93,98 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
       setMessages(prev => [...prev, messageData]);
       setMessage("");
 
-      // Call process-game-update function
-      setTerminalOutput(prev => [...prev, "> Calling process-game-update function"]);
-      const { data: functionData, error: functionError } = await supabase.functions.invoke(
-        'process-game-update',
+      // Call process-game-update function with streaming
+      const response = await fetch(
+        'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update',
         {
-          body: { 
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${supabase.supabaseKey}`,
+          },
+          body: JSON.stringify({ 
             gameId, 
             message: message.trim() 
-          }
+          })
         }
       );
 
-      if (functionError) throw functionError;
-
-      // Process the response
-      if (functionData.code && functionData.instructions) {
-        setTerminalOutput(prev => [...prev, "> Received updated game code"]);
-        
-        // Update the game in parent component
-        onGameUpdate(functionData.code, functionData.instructions);
-        
-        // Update message with response
-        const { error: updateError } = await supabase
-          .from('game_messages')
-          .update({
-            response: functionData.response,
-            version_id: functionData.versionId
-          })
-          .eq('id', messageData.id);
-
-        if (updateError) throw updateError;
-
-        // Update local state
-        setMessages(prev => prev.map(msg => 
-          msg.id === messageData.id 
-            ? { ...msg, response: functionData.response, version_id: functionData.versionId }
-            : msg
-        ));
-
-        setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
-        
-        // Close terminal after a delay
-        setTimeout(() => {
-          setShowTerminal(false);
-        }, 2000);
-
-        toast({
-          title: "Game updated successfully",
-          description: "The changes have been applied to your game.",
-        });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader available");
+
+      let gameContent = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const text = new TextDecoder().decode(value);
+        const lines = text.split('\n').filter(Boolean);
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          
+          try {
+            const data = JSON.parse(line.slice(5));
+            
+            if (data.type === 'content_block_start') {
+              setTerminalOutput(prev => [...prev, '> Starting game code generation...']);
+            } else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
+              const content = data.delta.text || '';
+              if (content) {
+                gameContent += content;
+                setTerminalOutput(prev => [...prev, `> Generated ${content.length} characters of game code`]);
+              }
+            } else if (data.type === 'content_block_stop') {
+              setTerminalOutput(prev => [...prev, '> Finished generating game code']);
+            }
+          } catch (e) {
+            console.error('Error parsing line:', e);
+          }
+        }
+      }
+
+      if (!gameContent || !gameContent.includes('<html')) {
+        throw new Error('Invalid game content received');
+      }
+
+      setTerminalOutput(prev => [...prev, "> Saving new game version..."]);
+
+      // Update the game in parent component
+      onGameUpdate(gameContent, "Game updated successfully");
+      
+      // Update message with response
+      const { error: updateError } = await supabase
+        .from('game_messages')
+        .update({
+          response: "Game updated successfully",
+        })
+        .eq('id', messageData.id);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      setMessages(prev => prev.map(msg => 
+        msg.id === messageData.id 
+          ? { ...msg, response: "Game updated successfully" }
+          : msg
+      ));
+
+      setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
+      
+      // Close terminal after a delay
+      setTimeout(() => {
+        setShowTerminal(false);
+      }, 2000);
+
+      toast({
+        title: "Game updated successfully",
+        description: "The changes have been applied to your game.",
+      });
     } catch (error) {
       console.error('Error in handleSubmit:', error);
       setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
