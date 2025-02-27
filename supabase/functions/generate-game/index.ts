@@ -76,6 +76,7 @@ GAME STRUCTURE REQUIREMENTS:
 - Include restart functionality
 - Add hover/active states for interactive elements
 - Load sound effects only after user interaction
+- Ensure the game starts when the user presses start
 
 5. Mobile Support:
 - Implement responsive design that works on all screen sizes
@@ -89,6 +90,11 @@ GAME STRUCTURE REQUIREMENTS:
 - Use descriptive variable and function names
 - Document game states and transitions
 - Include performance considerations
+
+7. Sizing
+- Build a responsive canvas that uses 100% of the container width and at least 80% of the viewport height (80vh). 
+- Include the viewport meta tag with width=device-width and initial-scale=1, and use CSS to ensure the game container has no unnecessary margins or padding. 
+- Make sure all game elements scale proportionally using relative sizing, with a minimum rendering size of 800x600px that automatically adjusts for both desktop and mobile screens.
 
 The game MUST:
 - Work completely standalone with no external dependencies
