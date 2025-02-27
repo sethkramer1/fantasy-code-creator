@@ -41,26 +41,51 @@ serve(async (req) => {
     console.log('Received request with prompt:', prompt)
     console.log('Image URL:', imageUrl)
 
-    let messageContent;
-    
+    // Define the system message
+    const systemMessage = `You are an expert developer specializing in web technologies, particularly in creating interactive web content, SVG graphics, data visualizations, and infographics. 
+            
+Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
+
+Follow these structure requirements precisely and generate clean, semantic, and accessible code.`;
+
+    // Prepare the request body with the correct structure
+    let requestBody = {
+      model: "claude-3-7-sonnet-20250219",
+      max_tokens: 30000,
+      stream: true,
+      system: systemMessage,
+      messages: [],
+      thinking: {
+        type: "enabled",
+        budget_tokens: 7000
+      }
+    };
+
+    // Handle the message content differently based on whether there's an image
     if (imageUrl) {
       console.log('Converting image to base64...');
       try {
         const base64Image = await fetchImageAsBase64(imageUrl);
         console.log('Successfully converted image to base64');
         
-        messageContent = [
+        // Structure for image-with-text request
+        requestBody.messages = [
           {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: "image/jpeg",
-              data: base64Image
-            }
-          },
-          {
-            type: "text",
-            text: prompt
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: prompt
+              },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: "image/jpeg",
+                  data: base64Image
+                }
+              }
+            ]
           }
         ];
       } catch (imageError) {
@@ -68,31 +93,16 @@ serve(async (req) => {
         throw imageError;
       }
     } else {
-      messageContent = prompt;
+      // Structure for text-only request
+      requestBody.messages = [
+        {
+          role: "user",
+          content: prompt
+        }
+      ];
     }
 
-    console.log('Preparing request to Anthropic API');
-    
-    const requestBody = {
-      model: 'claude-3-sonnet-20240229',
-      max_tokens: 30000,
-      stream: true,
-      system: `You are an expert developer specializing in web technologies, particularly in creating interactive web content, SVG graphics, data visualizations, and infographics. 
-            
-Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
-
-Follow these structure requirements precisely and generate clean, semantic, and accessible code.`,
-      messages: [{
-        role: 'user',
-        content: messageContent
-      }],
-      thinking: {
-        type: "enabled",
-        budget_tokens: 7000
-      }
-    };
-
-    console.log('Sending request to Anthropic API:', JSON.stringify(requestBody, null, 2));
+    console.log('Sending request to Anthropic API');
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
