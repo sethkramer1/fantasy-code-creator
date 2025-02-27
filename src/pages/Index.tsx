@@ -270,6 +270,7 @@ const Index = () => {
               <GamePromptInput 
                 value={prompt}
                 onChange={setPrompt}
+                selectedType={gameType}
               />
             </div>
             
