@@ -63,15 +63,13 @@ serve(async (req) => {
         model: "claude-3-7-sonnet-20250219",
         max_tokens: 20000,
         stream: true,
-        messages: [
-          {
-            role: "system",
-            content: `You are an expert web developer. Modify the provided code according to user requests.
+        system: `You are an expert web developer. Modify the provided code according to user requests.
 
 Important: Return ONLY the complete HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). The code should be ready to be rendered in an iframe directly.
 
-Keep all features and code the same, except for the requested changes. Make modifications to update the content according to the request only.`
-          },
+Keep all features and code the same, except for the requested changes. Make modifications to update the content according to the request only.`,
+        messages: [
+         
           {
             role: "user",
             content: `Here is the current code:\n\n${currentCode}\n\nPlease modify according to this request: ${message}`,
