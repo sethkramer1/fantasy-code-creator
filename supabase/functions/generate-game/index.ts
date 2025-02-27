@@ -42,9 +42,17 @@ serve(async (req) => {
         },
         messages: [
           {
-            role: 'user',
-            content: `You are an expert web developer. Create this: ${prompt} using HTML, CSS, and JS only (unless it's a SVG, then just write an SVG). Return only the code, with nothing else.`,
+            role: 'system',
+            content: `You are an expert developer specializing in web technologies, particularly in creating interactive web content, SVG graphics, data visualizations, and infographics. 
+            
+Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
+
+Follow these structure requirements precisely and generate clean, semantic, and accessible code.`
           },
+          {
+            role: 'user',
+            content: prompt
+          }
         ]
       }),
     })

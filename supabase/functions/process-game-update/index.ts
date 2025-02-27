@@ -52,6 +52,39 @@ serve(async (req) => {
 
     console.log('Current game version:', currentVersion);
 
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "claude-3-7-sonnet-20250219",
+        max_tokens: 20000,
+        stream: true,
+        messages: [
+          {
+            role: "system",
+            content: `You are an expert web developer. Modify the provided code according to user requests.
+
+Important: Return ONLY the complete HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). The code should be ready to be rendered in an iframe directly.
+
+Keep all features and code the same, except for the requested changes. Make modifications to update the content according to the request only.`
+          },
+          {
+            role: "user",
+            content: `Here is the current code:\n\n${currentCode}\n\nPlease modify according to this request: ${message}`,
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      throw new Error(`Claude API error: ${error}`);
+    }
+
     // Create a new TransformStream for streaming the response
     const stream = new TransformStream();
     const writer = stream.writable.getWriter();
@@ -59,33 +92,6 @@ serve(async (req) => {
     // Start processing in the background
     (async () => {
       try {
-        const response = await fetch("https://api.anthropic.com/v1/messages", {
-          method: "POST",
-          headers: {
-            "x-api-key": ANTHROPIC_API_KEY,
-            "anthropic-version": "2023-06-01",
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            model: "claude-3-7-sonnet-20250219",
-            max_tokens: 20000,
-            stream: true,
-            messages: [
-              {
-                role: "user",
-                content: `Here is the current code:\n\n${currentCode}\n\nPlease modify the game according to this request: ${message}\n\n
-                         Keep all feature and code the same, except for the request. Make changes to update the game according to the request only. Return ONLY the complete code, nothing else. start with the code, do not include anything befor or after the code.
-`,
-              },
-            ],
-          }),
-        });
-
-        if (!response.ok) {
-          const error = await response.text();
-          throw new Error(`Claude API error: ${error}`);
-        }
-
         let gameContent = '';
         let currentChunk = '';
         let lineBuffer = '';
