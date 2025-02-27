@@ -132,7 +132,7 @@ const Play = () => {
       setSelectedVersion(newVersion.id);
       
       toast({
-        title: "Game updated successfully",
+        title: "Code updated successfully",
         description: `Version ${newVersionNumber} has been created and set as current.`
       });
       
