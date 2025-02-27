@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { GenerationTerminal } from "./game-creator/GenerationTerminal";
 
 interface Message {
   id: string;
@@ -22,6 +23,9 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [showTerminal, setShowTerminal] = useState(false);
+  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
+  const [thinkingTime, setThinkingTime] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -49,11 +53,27 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
     fetchMessages();
   }, [gameId, toast]);
 
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (loading) {
+      setThinkingTime(0);
+      timer = setInterval(() => {
+        setThinkingTime(prev => prev + 1);
+      }, 1000);
+    }
+    return () => {
+      if (timer) clearInterval(timer);
+    };
+  }, [loading]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || loading) return;
 
     setLoading(true);
+    setShowTerminal(true);
+    setTerminalOutput([`> Processing request: "${message}"`]);
+
     try {
       // First, save the message
       const { data: messageData, error: messageError } = await supabase
@@ -73,8 +93,8 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
       setMessages(prev => [...prev, messageData]);
       setMessage("");
 
-      // Call Edge Function to process the message
-      console.log('Calling process-game-update with:', { gameId, message: message.trim() });
+      // Call process-game-update function
+      setTerminalOutput(prev => [...prev, "> Calling process-game-update function"]);
       const { data: functionData, error: functionError } = await supabase.functions.invoke(
         'process-game-update',
         {
@@ -86,9 +106,11 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
       );
 
       if (functionError) throw functionError;
-      console.log('Received response from process-game-update:', functionData);
 
+      // Process the response
       if (functionData.code && functionData.instructions) {
+        setTerminalOutput(prev => [...prev, "> Received updated game code"]);
+        
         // Update the game in parent component
         onGameUpdate(functionData.code, functionData.instructions);
         
@@ -109,9 +131,23 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
             ? { ...msg, response: functionData.response, version_id: functionData.versionId }
             : msg
         ));
+
+        setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
+        
+        // Close terminal after a delay
+        setTimeout(() => {
+          setShowTerminal(false);
+        }, 2000);
+
+        toast({
+          title: "Game updated successfully",
+          description: "The changes have been applied to your game.",
+        });
       }
     } catch (error) {
       console.error('Error in handleSubmit:', error);
+      setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
+      
       toast({
         title: "Error processing message",
         description: error instanceof Error ? error.message : "Please try again",
@@ -186,6 +222,14 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
           </button>
         </div>
       </form>
+
+      <GenerationTerminal
+        open={showTerminal}
+        onOpenChange={setShowTerminal}
+        output={terminalOutput}
+        thinkingTime={thinkingTime}
+        loading={loading}
+      />
     </div>
   );
 };
