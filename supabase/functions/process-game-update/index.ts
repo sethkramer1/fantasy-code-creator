@@ -94,16 +94,12 @@ You'll be given the HTML/CSS/JS code of a web application and a request to modif
 6. Keep all original functionality working while adding the new features.
 7. Preserve the original style and aesthetic unless specifically asked to change it.`;
 
-    // Prepare the request body
+    // Prepare the request body (removed "thinking" configuration as requested)
     let requestBody: any = {
       model: "claude-3-7-sonnet-20250219",
       max_tokens: 30000,
       stream: true,
-      system: systemMessage,
-      thinking: {
-        type: "enabled",
-        budget_tokens: 7000  // Fixed syntax error: removed erroneous quote
-      }
+      system: systemMessage
     };
 
     // Handle the message content differently based on whether there's an image
