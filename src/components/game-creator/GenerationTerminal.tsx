@@ -20,11 +20,12 @@ export function GenerationTerminal({
 }: GenerationTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
 
+  // Auto-scroll to bottom whenever output changes
   useEffect(() => {
-    if (terminalRef.current) {
+    if (terminalRef.current && open) {
       terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
     }
-  }, [output]);
+  }, [output, open]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -42,12 +43,14 @@ export function GenerationTerminal({
           className="mt-4 space-y-1 h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 scroll-smooth"
         >
           {output.map((line, index) => (
-            <div key={index} className="whitespace-pre-wrap py-1">
+            <div key={`line-${index}`} className="whitespace-pre-wrap py-1">
               {line}
             </div>
           ))}
           {loading && (
-            <div className="animate-pulse mt-2">_</div>
+            <div className="animate-pulse mt-2 h-4">
+              <span className="inline-block w-2 h-4 bg-green-500">_</span>
+            </div>
           )}
         </div>
       </DialogContent>
