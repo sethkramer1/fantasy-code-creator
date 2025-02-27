@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -16,17 +17,13 @@ interface GameVersion {
 }
 
 const Play = () => {
-  const {
-    id
-  } = useParams();
+  const { id } = useParams();
   const [gameVersions, setGameVersions] = useState<GameVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showChat, setShowChat] = useState(true);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -37,23 +34,16 @@ const Play = () => {
         e.preventDefault();
       }
     };
-    window.addEventListener("keydown", handleKeyDown, {
-      capture: true
-    });
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
     return () => {
-      window.removeEventListener("keydown", handleKeyDown, {
-        capture: true
-      });
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
     };
   }, []);
 
   useEffect(() => {
     const fetchGame = async () => {
       try {
-        const {
-          data,
-          error
-        } = await supabase.from('games').select(`
+        const { data, error } = await supabase.from('games').select(`
             id,
             current_version,
             game_versions (
@@ -116,9 +106,7 @@ const Play = () => {
         instructions: version.instructions,
         created_at: new Date().toISOString()
       };
-      const {
-        error
-      } = await supabase.from('game_versions').insert({
+      const { error } = await supabase.from('game_versions').insert({
         id: newVersion.id,
         game_id: id,
         version_number: newVersion.version_number,
@@ -150,8 +138,6 @@ const Play = () => {
   const currentVersion = gameVersions.find(v => v.id === selectedVersion);
   const selectedVersionNumber = currentVersion?.version_number;
   const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
-
-  const iframePadding = currentVersion?.code?.includes('<svg') ? '0' : '75%';
 
   return (
     <div className="min-h-screen flex bg-[#F5F5F5]">
@@ -211,7 +197,7 @@ const Play = () => {
               <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 space-y-6 shadow-sm">
                 <div 
                   className="relative w-full rounded-lg overflow-hidden bg-white"
-                  style={{ paddingTop: iframePadding }}
+                  style={{ paddingTop: '75%' }}
                   onClick={() => iframeRef.current?.focus()}
                 >
                   <iframe
