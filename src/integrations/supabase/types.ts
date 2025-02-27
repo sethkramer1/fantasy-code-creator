@@ -14,6 +14,7 @@ export type Database = {
           created_at: string
           game_id: string
           id: string
+          image_url: string | null
           message: string
           response: string | null
           version_id: string | null
@@ -22,6 +23,7 @@ export type Database = {
           created_at?: string
           game_id: string
           id?: string
+          image_url?: string | null
           message: string
           response?: string | null
           version_id?: string | null
@@ -30,6 +32,7 @@ export type Database = {
           created_at?: string
           game_id?: string
           id?: string
+          image_url?: string | null
           message?: string
           response?: string | null
           version_id?: string | null

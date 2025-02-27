@@ -154,138 +154,157 @@ export const GameChat = ({
     }
     
     try {
-      // Add the message to database (simplify this step)
+      // Add the message to database
       console.log("Inserting message into database...");
-      const { error: messageError } = await supabase
+      const insertData: any = {
+        game_id: gameId,
+        message: currentMessage
+      };
+      
+      // Only include image_url if it exists
+      if (currentImageUrl) {
+        insertData.image_url = currentImageUrl;
+      }
+      
+      const { data: insertedMessage, error: messageError } = await supabase
         .from('game_messages')
-        .insert({
-          game_id: gameId,
-          message: currentMessage,
-          image_url: currentImageUrl
-        });
+        .insert(insertData)
+        .select()
+        .single();
       
       if (messageError) {
         console.error("Failed to save message:", messageError);
         throw new Error(`Database error: ${messageError.message}`);
       }
       
+      if (!insertedMessage) {
+        throw new Error("No data returned from message insert");
+      }
+      
+      console.log("Message inserted successfully:", insertedMessage);
       setTerminalOutput(prev => [...prev, "> Message saved successfully"]);
-      console.log("Message inserted successfully");
+      
+      // Update messages list with the actual saved message
+      setMessages(prev => 
+        prev.map(msg => msg.id === tempId ? insertedMessage : msg)
+      );
       
       // Call the edge function to process the request
       console.log("Calling process-game-update function...");
       setTerminalOutput(prev => [...prev, "> Sending request to AI..."]);
       
-      try {
-        const apiResponse = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
-          },
-          body: JSON.stringify({
-            gameId: gameId,
-            prompt: currentMessage,
-            imageUrl: currentImageUrl
-          })
-        });
+      // Build request payload
+      const payload: any = {
+        gameId: gameId,
+        prompt: currentMessage
+      };
+      
+      // Only include imageUrl if it exists
+      if (currentImageUrl) {
+        payload.imageUrl = currentImageUrl;
+      }
+      
+      console.log("Request payload:", payload);
+      
+      const apiResponse = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!apiResponse.ok) {
+        const errorText = await apiResponse.text();
+        console.error("Edge function returned an error:", errorText);
+        throw new Error(`API error: ${apiResponse.status} ${apiResponse.statusText} - ${errorText}`);
+      }
+      
+      console.log("Response received, processing stream...");
+      setTerminalOutput(prev => [...prev, "> Response received, generating content..."]);
+      
+      // Process the streamed response
+      const reader = apiResponse.body?.getReader();
+      if (!reader) throw new Error("Unable to read response stream");
+      
+      let gameContent = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
         
-        if (!apiResponse.ok) {
-          const errorText = await apiResponse.text();
-          console.error("Edge function returned an error:", errorText);
-          throw new Error(`API error: ${apiResponse.status} ${apiResponse.statusText}`);
-        }
+        const chunk = new TextDecoder().decode(value);
+        console.log("Received chunk of length:", chunk.length);
         
-        console.log("Response received, processing stream...");
-        setTerminalOutput(prev => [...prev, "> Response received, generating content..."]);
+        const lines = chunk.split('\n').filter(Boolean);
         
-        // Process the streamed response
-        const reader = apiResponse.body?.getReader();
-        if (!reader) throw new Error("Unable to read response stream");
-        
-        let gameContent = '';
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
           
-          const chunk = new TextDecoder().decode(value);
-          console.log("Received chunk of length:", chunk.length);
-          
-          const lines = chunk.split('\n').filter(Boolean);
-          
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
+          try {
+            const parsedData = JSON.parse(line.slice(5));
             
-            try {
-              const parsedData = JSON.parse(line.slice(5));
-              
-              if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
-                const content = parsedData.delta.text || '';
-                if (content) {
-                  gameContent += content;
-                  const lines = content.split('\n');
-                  for (const line of lines) {
-                    if (line.trim()) {
-                      setTerminalOutput(prev => [...prev, `> ${line}`]);
-                    }
+            if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
+              const content = parsedData.delta.text || '';
+              if (content) {
+                gameContent += content;
+                const contentLines = content.split('\n');
+                for (const contentLine of contentLines) {
+                  if (contentLine.trim()) {
+                    setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
                   }
                 }
               }
-            } catch (e) {
-              console.warn("Error parsing streaming data:", e);
             }
+          } catch (e) {
+            console.warn("Error parsing streaming data:", e);
           }
         }
-        
-        console.log("Stream complete, content length:", gameContent.length);
-        
-        if (!gameContent || !gameContent.includes('<html')) {
-          console.error("Invalid content received:", gameContent.substring(0, 100));
-          throw new Error("Invalid content received from AI");
-        }
-        
-        // Update the game with the new content
-        setTerminalOutput(prev => [...prev, "> Updating game..."]);
-        onGameUpdate(gameContent, "Game updated successfully");
-        
-        // Update the message response
-        const { error: updateError } = await supabase
-          .from('game_messages')
-          .update({ response: "Game updated successfully" })
-          .eq('game_id', gameId)
-          .eq('message', currentMessage);
-        
-        if (updateError) {
-          console.error("Error updating message response:", updateError);
-        }
-        
-        // Refresh the messages list
-        const { data: updatedMessages } = await supabase
-          .from('game_messages')
-          .select('*')
-          .eq('game_id', gameId)
-          .order('created_at', { ascending: true });
-          
-        if (updatedMessages) {
-          setMessages(updatedMessages);
-        }
-        
-        setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
-        
-        setTimeout(() => {
-          setShowTerminal(false);
-        }, 2000);
-        
-        toast({
-          title: "Game updated successfully",
-          description: "The changes have been applied to your game."
-        });
-        
-      } catch (apiError) {
-        console.error("API error:", apiError);
-        throw apiError;
       }
+      
+      console.log("Stream complete, content length:", gameContent.length);
+      
+      if (!gameContent || !gameContent.includes('<html')) {
+        console.error("Invalid content received:", gameContent.substring(0, 100));
+        throw new Error("Invalid content received from AI");
+      }
+      
+      // Update the game with the new content
+      setTerminalOutput(prev => [...prev, "> Updating game..."]);
+      onGameUpdate(gameContent, "Game updated successfully");
+      
+      // Update the message response
+      const { error: updateError } = await supabase
+        .from('game_messages')
+        .update({ response: "Game updated successfully" })
+        .eq('id', insertedMessage.id);
+      
+      if (updateError) {
+        console.error("Error updating message response:", updateError);
+      }
+      
+      // Refresh the messages list
+      const { data: updatedMessages } = await supabase
+        .from('game_messages')
+        .select('*')
+        .eq('game_id', gameId)
+        .order('created_at', { ascending: true });
+        
+      if (updatedMessages) {
+        setMessages(updatedMessages);
+      }
+      
+      setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
+      
+      setTimeout(() => {
+        setShowTerminal(false);
+      }, 2000);
+      
+      toast({
+        title: "Game updated successfully",
+        description: "The changes have been applied to your game."
+      });
       
     } catch (error) {
       console.error("Error in handleSubmit:", error);
