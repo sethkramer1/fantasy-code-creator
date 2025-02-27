@@ -48,54 +48,33 @@ export const useGameGeneration = () => {
       switch (selectedType.id) {
         case 'game':
           systemInstructions = `
-GAME STRUCTURE REQUIREMENTS:
-1. Game Logic:
-- Use a proper Game class/object to encapsulate all game logic
-- Implement clear game states: loading, playing, paused, game over
-- All variables must be properly scoped (no globals)
-- Use requestAnimationFrame for the game loop
-- Include proper event cleanup on game over/restart
+GAME REQUIREMENTS:
+1. Structure:
+   - Encapsulated Game class with proper states (loading, playing, paused, game over)
+   - No global variables, use requestAnimationFrame for game loop
+   - Proper event handling and cleanup
 
-2. Core Functionality:
-- Start button must initialize game state and assets properly
-- Event listeners must be added AND removed appropriately
-- Mobile touch events must have proper touch handling (min 44x44px touch areas)
-- Score/lives must persist correctly between game states
-- Pause functionality must properly freeze game state
-- Add console.logs for key game events (start, score changes, game over)
+2. Core Features:
+   - Functional start/pause/restart buttons
+   - Persistent score/lives tracking
+   - Mobile-friendly touch controls (44px+ touch areas)
+   - Simple asset loading with visual indicators that load correctly
 
-3. Error Prevention:
-- Check for undefined game objects before use
-- Implement bounds checking for all game entities
-- Add frame rate management
-- Include checks for browser compatibility features
-- Add try-catch blocks around critical game functions
+3. Quality & UX:
+   - Bounds checking and error prevention
+   - Clear instructions, feedback, and game states
+   - Visual feedback for all player actions
+   - Responsive design for all screen sizes
+   - NO music or external APIs
+   - Handle orientation changes on mobile
 
-4. User Experience:
-- Show clear loading states for assets
-- Display game instructions before starting
-- Provide visual feedback for ALL player actions
-- Show clear game over state with final score
-- Include restart functionality
-- Add hover/active states for interactive elements
-- Load sound effects only after user interaction
-- Ensure the game starts when the user presses start
-
-5. Mobile Support:
-- Implement responsive design that works on all screen sizes
-- Prevent touch events from interfering with page scroll when game is inactive
-- Position controls for comfortable thumb reach
-- Optimize performance for mobile devices
-- Handle device orientation changes gracefully
-
-6. Documentation:
-- Add clear comments for game initialization, update, and render functions
-- Use descriptive variable and function names
-- Document game states and transitions
-- Include performance considerations
-
-7. Sizing
-- Build a responsive canvas that fits within all iframes.`;
+4. Code Quality:
+   - Descriptive names and comments for key functions
+   - Try-catch blocks around critical functions
+   - Performance optimization for mobile
+   - Canvas that adjusts to iframe container size
+   - Self-contained code (no external dependencies)
+`;
           break;
         case 'svg':
           systemInstructions = `
