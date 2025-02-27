@@ -3,7 +3,6 @@ import { useState, useEffect } from "react";
 import { Loader2, MessageSquare } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { GenerationTerminal } from "./game-creator/GenerationTerminal";
 
 interface Message {
   id: string;
@@ -23,9 +22,6 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const [showTerminal, setShowTerminal] = useState(false);
-  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
-  const [thinkingTime, setThinkingTime] = useState(0);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -53,27 +49,11 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
     fetchMessages();
   }, [gameId, toast]);
 
-  useEffect(() => {
-    let timer: NodeJS.Timeout;
-    if (loading) {
-      setThinkingTime(0);
-      timer = setInterval(() => {
-        setThinkingTime(prev => prev + 1);
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [loading]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!message.trim() || loading) return;
 
     setLoading(true);
-    setShowTerminal(true);
-    setTerminalOutput([`> Processing request: "${message}"`]);
-
     try {
       // First, save the message
       const { data: messageData, error: messageError } = await supabase
@@ -94,87 +74,44 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
       setMessage("");
 
       // Call Edge Function to process the message
-      const response = await fetch(
-        'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
+      console.log('Calling process-game-update with:', { gameId, message: message.trim() });
+      const { data: functionData, error: functionError } = await supabase.functions.invoke(
+        'process-game-update',
         {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
-          },
-          body: JSON.stringify({ prompt: message.trim() })
+          body: { 
+            gameId, 
+            message: message.trim() 
+          }
         }
       );
 
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      if (functionError) throw functionError;
+      console.log('Received response from process-game-update:', functionData);
 
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No reader available");
-
-      let gameContent = '';
-      let fullResponse = '';
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        const text = new TextDecoder().decode(value);
-        fullResponse += text;
+      if (functionData.code && functionData.instructions) {
+        // Update the game in parent component
+        onGameUpdate(functionData.code, functionData.instructions);
         
-        const lines = text.split('\n').filter(Boolean);
+        // Update message with response
+        const { error: updateError } = await supabase
+          .from('game_messages')
+          .update({
+            response: functionData.response,
+            version_id: functionData.versionId
+          })
+          .eq('id', messageData.id);
 
-        for (const line of lines) {
-          if (!line.startsWith('data: ')) {
-            console.log('Skipping non-SSE line:', line);
-            continue;
-          }
-          
-          try {
-            const data = JSON.parse(line.slice(5));
+        if (updateError) throw updateError;
 
-            if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
-              const content = data.delta.text || '';
-              if (content) {
-                gameContent += content;
-                setTerminalOutput(prev => [...prev, `> Generated ${content.length} characters of game code`]);
-              }
-            } else if (data.type === 'content_block_start') {
-              setTerminalOutput(prev => [...prev, '> Starting game code generation...']);
-            } else if (data.type === 'content_block_stop') {
-              setTerminalOutput(prev => [...prev, '> Finished generating game code']);
-            }
-          } catch (e) {
-            console.error('Error parsing line:', e);
-            setTerminalOutput(prev => [...prev, `> Error parsing response: ${e instanceof Error ? e.message : 'Unknown error'}`]);
-          }
-        }
+        // Update local state
+        setMessages(prev => prev.map(msg => 
+          msg.id === messageData.id 
+            ? { ...msg, response: functionData.response, version_id: functionData.versionId }
+            : msg
+        ));
       }
-
-      if (!gameContent || !gameContent.includes('<html')) {
-        throw new Error("No valid game content received. Please try again.");
-      }
-
-      // Update the game in parent component
-      onGameUpdate(gameContent, "Game updated successfully");
-      
-      setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
-      
-      // Close terminal after a delay
-      setTimeout(() => {
-        setShowTerminal(false);
-      }, 2000);
-
-      toast({
-        title: "Game updated successfully",
-        description: "The changes have been applied to your game.",
-      });
-
     } catch (error) {
       console.error('Error in handleSubmit:', error);
-      setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : 'Unknown error'}`]);
-      
       toast({
         title: "Error processing message",
         description: error instanceof Error ? error.message : "Please try again",
@@ -249,14 +186,6 @@ export const GameChat = ({ gameId, onGameUpdate }: GameChatProps) => {
           </button>
         </div>
       </form>
-
-      <GenerationTerminal
-        open={showTerminal}
-        onOpenChange={setShowTerminal}
-        output={terminalOutput}
-        thinkingTime={thinkingTime}
-        loading={loading}
-      />
     </div>
   );
 };
