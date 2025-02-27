@@ -1,5 +1,13 @@
 
 import { contentTypes } from "@/types/game";
+import { 
+  GameController, 
+  Vector, 
+  Layout, 
+  BarChart, 
+  FlowChart, 
+  PieChart
+} from "lucide-react";
 
 interface GameTypeSelectorProps {
   selectedType: string;
@@ -7,28 +15,45 @@ interface GameTypeSelectorProps {
 }
 
 export function GameTypeSelector({ selectedType, onSelect }: GameTypeSelectorProps) {
+  // Map of icons for each content type
+  const typeIcons = {
+    'game': GameController,
+    'svg': Vector,
+    'webdesign': Layout,
+    'dataviz': BarChart,
+    'diagram': FlowChart,
+    'infographic': PieChart
+  };
+
   return (
     <div>
       <h2 className="text-lg font-medium text-gray-900 mb-3">Choose what you want to create</h2>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {contentTypes.map((type) => (
-          <button
-            key={type.id}
-            onClick={() => onSelect(type.id === selectedType ? "" : type.id)}
-            className={`p-4 rounded-lg border ${
-              type.id === selectedType 
-                ? 'border-black bg-black text-white' 
-                : 'border-gray-200 bg-white hover:border-gray-300'
-            } transition-all text-left h-full group`}
-          >
-            <h3 className="font-medium mb-2">{type.label}</h3>
-            <p className={`text-sm ${
-              type.id === selectedType ? 'text-gray-300' : 'text-gray-500'
-            }`}>
-              {type.example}
-            </p>
-          </button>
-        ))}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {contentTypes.map((type) => {
+          const IconComponent = typeIcons[type.id as keyof typeof typeIcons];
+          return (
+            <button
+              key={type.id}
+              onClick={() => onSelect(type.id === selectedType ? "" : type.id)}
+              className={`p-3 rounded-lg border ${
+                type.id === selectedType 
+                  ? 'border-black bg-black text-white' 
+                  : 'border-gray-200 bg-white hover:border-gray-300'
+              } transition-all text-left flex items-center gap-2 group`}
+            >
+              <div className={`p-1.5 rounded-md ${
+                type.id === selectedType 
+                  ? 'bg-white/20' 
+                  : 'bg-gray-100 group-hover:bg-gray-200'
+              } transition-colors`}>
+                <IconComponent size={18} className={
+                  type.id === selectedType ? 'text-white' : 'text-gray-700'
+                } />
+              </div>
+              <h3 className="font-medium">{type.label}</h3>
+            </button>
+          );
+        })}
       </div>
     </div>
   );
