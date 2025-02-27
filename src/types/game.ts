@@ -4,6 +4,7 @@ export interface Game {
   prompt: string;
   created_at: string;
   type?: string;
+  code?: string;
 }
 
 export const contentTypes = [
