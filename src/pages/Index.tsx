@@ -75,6 +75,15 @@ const Index = () => {
       return;
     }
 
+    if (!gameType) {
+      toast({
+        title: "Please select a content type",
+        description: "Choose what you want to create before proceeding",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
     setShowTerminal(true);
     setTerminalOutput([`> Starting generation with prompt: "${prompt}"`]);
@@ -84,9 +93,9 @@ const Index = () => {
 
     try {
       const selectedType = contentTypes.find(type => type.id === gameType);
-      const enhancedPrompt = selectedType 
-        ? `${selectedType.promptPrefix} ${prompt}`
-        : prompt;
+      if (!selectedType) throw new Error("Invalid content type selected");
+
+      const enhancedPrompt = selectedType.promptPrefix + " " + prompt;
 
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
@@ -206,7 +215,7 @@ const Index = () => {
           code: gameContent,
           instructions: "Content generated successfully",
           current_version: 1,
-          type: selectedType?.id || 'game'
+          type: selectedType.id
         }])
         .select()
         .single();
@@ -240,7 +249,7 @@ const Index = () => {
     } catch (error) {
       console.error('Generation error:', error);
       toast({
-        title: "Error generating game",
+        title: "Error generating content",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
