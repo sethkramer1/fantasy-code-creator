@@ -24,7 +24,8 @@ const Play = () => {
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showCode, setShowCode] = useState(false);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const previewContainerRef = useRef<HTMLDivElement>(null);
+  const shadowRootRef = useRef<ShadowRoot | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -81,11 +82,78 @@ const Play = () => {
     fetchGame();
   }, [id, toast]);
 
+  // Clean up Shadow DOM when component unmounts
   useEffect(() => {
-    if (!loading && iframeRef.current) {
-      iframeRef.current.focus();
+    return () => {
+      if (shadowRootRef.current) {
+        // Clear the shadow root content
+        while (shadowRootRef.current.firstChild) {
+          shadowRootRef.current.removeChild(shadowRootRef.current.firstChild);
+        }
+      }
+    };
+  }, []);
+
+  // Initialize and update Shadow DOM when selected version changes
+  useEffect(() => {
+    if (!loading && previewContainerRef.current && currentVersion) {
+      // Create shadow root if it doesn't exist
+      if (!shadowRootRef.current) {
+        shadowRootRef.current = previewContainerRef.current.attachShadow({ mode: 'open' });
+      }
+
+      // Clear previous content
+      while (shadowRootRef.current.firstChild) {
+        shadowRootRef.current.removeChild(shadowRootRef.current.firstChild);
+      }
+
+      // Parse HTML content
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(currentVersion.code, 'text/html');
+      
+      // Extract styles and scripts
+      const styles = Array.from(doc.getElementsByTagName('style'));
+      const links = Array.from(doc.getElementsByTagName('link'));
+      const scripts = Array.from(doc.getElementsByTagName('script'));
+      
+      // Create style element with combined CSS
+      if (styles.length > 0) {
+        const combinedStyle = document.createElement('style');
+        combinedStyle.textContent = styles.map(style => style.textContent).join('\n');
+        shadowRootRef.current.appendChild(combinedStyle);
+      }
+      
+      // Append link elements (for external stylesheets)
+      links.forEach(link => {
+        if (link.rel === 'stylesheet') {
+          const newLink = document.createElement('link');
+          newLink.rel = 'stylesheet';
+          newLink.href = link.href;
+          shadowRootRef.current?.appendChild(newLink);
+        }
+      });
+      
+      // Create container for HTML content
+      const contentContainer = document.createElement('div');
+      contentContainer.className = 'shadow-content';
+      contentContainer.innerHTML = doc.body.innerHTML;
+      shadowRootRef.current.appendChild(contentContainer);
+      
+      // Append scripts last to ensure DOM is ready
+      scripts.forEach(script => {
+        const newScript = document.createElement('script');
+        if (script.src) {
+          newScript.src = script.src;
+        } else {
+          newScript.textContent = script.textContent;
+        }
+        shadowRootRef.current?.appendChild(newScript);
+      });
+      
+      // Set focus to the container for keyboard events
+      previewContainerRef.current.focus();
     }
-  }, [loading]);
+  }, [loading, selectedVersion, currentVersion]);
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
@@ -262,8 +330,6 @@ const Play = () => {
     }
   };
 
-  // PDF download function is kept but button is removed
-
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
@@ -372,14 +438,11 @@ const Play = () => {
                   {!showCode ? (
                     <div 
                       className="h-full relative"
-                      onClick={() => iframeRef.current?.focus()}
+                      onClick={() => previewContainerRef.current?.focus()}
                     >
-                      <iframe
-                        ref={iframeRef}
-                        srcDoc={currentVersion.code}
-                        className="absolute inset-0 w-full h-full border border-gray-100"
-                        sandbox="allow-scripts"
-                        title="Generated Content"
+                      <div
+                        ref={previewContainerRef}
+                        className="absolute inset-0 w-full h-full border border-gray-100 overflow-auto"
                         tabIndex={0}
                       />
                     </div>
