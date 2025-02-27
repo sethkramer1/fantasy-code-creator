@@ -3,7 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, ArrowLeft, MessageSquare, X, History, RotateCcw, Download, FileText } from "lucide-react";
+import { Loader2, ArrowLeft, History, RotateCcw, Download, FileText } from "lucide-react";
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
@@ -23,7 +23,6 @@ const Play = () => {
   const [gameVersions, setGameVersions] = useState<GameVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
-  const [showChat, setShowChat] = useState(true);
   const [showCode, setShowCode] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
@@ -267,17 +266,40 @@ const Play = () => {
     if (!currentVersion || !iframeRef.current) return;
     
     try {
-      const iframe = iframeRef.current;
-      const iframeDocument = iframe.contentDocument || iframe.contentWindow?.document;
+      toast({
+        title: "Preparing PDF",
+        description: "This may take a moment...",
+      });
       
-      if (!iframeDocument) {
-        throw new Error("Cannot access iframe content");
+      // Create a hidden iframe to render the HTML
+      const tempIframe = document.createElement('iframe');
+      tempIframe.style.position = 'absolute';
+      tempIframe.style.top = '-9999px';
+      tempIframe.style.left = '-9999px';
+      tempIframe.style.width = '1200px';
+      tempIframe.style.height = '1600px'; // Approximate A4 proportions
+      document.body.appendChild(tempIframe);
+      
+      // Write the content to the iframe
+      const tempDocument = tempIframe.contentDocument || tempIframe.contentWindow?.document;
+      if (!tempDocument) {
+        throw new Error("Cannot access temporary iframe document");
       }
-
-      const content = iframeDocument.documentElement.cloneNode(true) as HTMLElement;
       
+      tempDocument.open();
+      tempDocument.write(currentVersion.code);
+      tempDocument.close();
+      
+      // Wait for the iframe content to load
+      await new Promise(resolve => {
+        tempIframe.onload = resolve;
+        // Fallback if onload doesn't trigger
+        setTimeout(resolve, 2000);
+      });
+      
+      // Define PDF options
       const opt = {
-        margin: 0,
+        margin: 10,
         filename: `version-${currentVersion.version_number}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { 
@@ -285,7 +307,8 @@ const Play = () => {
           useCORS: true,
           logging: true,
           allowTaint: true,
-          foreignObjectRendering: true
+          scrollX: 0,
+          scrollY: 0
         },
         jsPDF: { 
           unit: 'mm', 
@@ -293,37 +316,20 @@ const Play = () => {
           orientation: 'portrait' 
         }
       };
-
-      // Create a temporary container and apply the iframe's content
-      const container = document.createElement('div');
       
-      // Copy styles from iframe
-      const styles = Array.from(iframeDocument.getElementsByTagName('style'));
-      styles.forEach(style => {
-        container.appendChild(style.cloneNode(true));
+      // Generate the PDF from the iframe content
+      await html2pdf()
+        .from(tempDocument.body)
+        .set(opt)
+        .save();
+        
+      // Clean up
+      document.body.removeChild(tempIframe);
+        
+      toast({
+        title: "PDF downloaded",
+        description: "The content has been downloaded as a PDF file.",
       });
-      
-      // Copy body content
-      const bodyContent = iframeDocument.body.cloneNode(true);
-      container.appendChild(bodyContent);
-      
-      // Add container to document temporarily
-      document.body.appendChild(container);
-      
-      try {
-        await html2pdf()
-          .set(opt)
-          .from(container)
-          .save();
-          
-        toast({
-          title: "PDF downloaded",
-          description: "The content has been downloaded as a PDF file.",
-        });
-      } finally {
-        // Always clean up the temporary container
-        document.body.removeChild(container);
-      }
     } catch (error) {
       console.error('PDF generation error:', error);
       toast({
@@ -346,24 +352,16 @@ const Play = () => {
 
   return (
     <div className="min-h-screen flex bg-[#F5F5F5]">
-      {showChat && (
-        <div className="w-[400px] h-screen flex flex-col bg-white border-r border-gray-200">
-          <div className="p-4 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900">Modify Content</h2>
-              <button
-                onClick={() => setShowChat(false)}
-                className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <X size={18} className="text-gray-400" />
-              </button>
-            </div>
-          </div>
-          <div className="flex-1">
-            <GameChat gameId={id!} onGameUpdate={handleGameUpdate} />
+      <div className="w-[400px] h-screen flex flex-col bg-white border-r border-gray-200">
+        <div className="p-4 border-b border-gray-200">
+          <div className="flex items-center">
+            <h2 className="text-lg font-medium text-gray-900">Modify Content</h2>
           </div>
         </div>
-      )}
+        <div className="flex-1">
+          <GameChat gameId={id!} onGameUpdate={handleGameUpdate} />
+        </div>
+      </div>
 
       <div className="flex-1 p-4 md:p-8 flex flex-col">
         <div className="max-w-[1200px] mx-auto w-full space-y-6 flex-1 flex flex-col">
@@ -416,15 +414,6 @@ const Play = () => {
                   <FileText size={16} />
                   Download PDF
                 </Button>
-                {!showChat && (
-                  <button 
-                    onClick={() => setShowChat(true)} 
-                    className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors text-sm"
-                  >
-                    <MessageSquare size={18} />
-                    <span>Show Chat</span>
-                  </button>
-                )}
               </div>
             </div>
           </div>
