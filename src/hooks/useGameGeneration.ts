@@ -203,6 +203,7 @@ export const useGameGeneration = () => {
     setShowTerminal,
     terminalOutput,
     thinkingTime,
+    setThinkingTime,
     generateGame,
     timerRef
   };

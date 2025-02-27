@@ -22,6 +22,7 @@ const Index = () => {
     setShowTerminal,
     terminalOutput,
     thinkingTime,
+    setThinkingTime,
     generateGame,
     timerRef
   } = useGameGeneration();
