@@ -2,6 +2,7 @@
 import { Game } from "@/types/game";
 import { Loader2, ArrowUpRight } from "lucide-react";
 import { getTypeInfo, prepareIframeContent } from "./utils/gamesListUtils";
+import { useEffect, useState } from "react";
 
 interface GameCardProps {
   game: Game;
@@ -11,6 +12,14 @@ interface GameCardProps {
 
 export function GameCard({ game, gameCode, onClick }: GameCardProps) {
   const { label, badgeColor } = getTypeInfo(game.type);
+  const [iframeKey, setIframeKey] = useState<number>(0);
+  
+  // Reset iframe when gameCode changes to force reload
+  useEffect(() => {
+    if (gameCode) {
+      setIframeKey(prev => prev + 1);
+    }
+  }, [gameCode]);
   
   return (
     <div 
@@ -21,6 +30,7 @@ export function GameCard({ game, gameCode, onClick }: GameCardProps) {
       <div className="relative w-full h-40 bg-gray-50 border-b border-gray-100 overflow-hidden">
         {gameCode ? (
           <iframe 
+            key={iframeKey}
             srcDoc={prepareIframeContent(gameCode)}
             className="pointer-events-none"
             style={{ 

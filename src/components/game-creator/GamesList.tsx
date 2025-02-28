@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Game } from "@/types/game";
 import { GamesFilter } from "./GamesFilter";
 import { GameCard } from "./GameCard";
@@ -30,13 +30,15 @@ export function GamesList({
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 24; // Number of designs per page
   
-  // Filter games based on selected type and search query
-  const filteredGames = games.filter(game => {
-    const matchesType = !selectedType || game.type === selectedType;
-    const matchesSearch = !searchQuery || 
-      (game.prompt && game.prompt.toLowerCase().includes(searchQuery.toLowerCase()));
-    return matchesType && matchesSearch;
-  });
+  // Use useMemo to prevent unnecessary recalculations
+  const filteredGames = useMemo(() => {
+    return games.filter(game => {
+      const matchesType = !selectedType || game.type === selectedType;
+      const matchesSearch = !searchQuery || 
+        (game.prompt && game.prompt.toLowerCase().includes(searchQuery.toLowerCase()));
+      return matchesType && matchesSearch;
+    });
+  }, [games, selectedType, searchQuery]);
 
   // Reset to first page when filters change
   useEffect(() => {
@@ -47,7 +49,11 @@ export function GamesList({
   const totalPages = Math.max(1, Math.ceil(filteredGames.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const endIndex = Math.min(startIndex + pageSize, filteredGames.length);
-  const paginatedGames = filteredGames.slice(startIndex, endIndex);
+  
+  // Use useMemo for paginatedGames to prevent unnecessary recalculations
+  const paginatedGames = useMemo(() => {
+    return filteredGames.slice(startIndex, endIndex);
+  }, [filteredGames, startIndex, endIndex]);
 
   // Handle page navigation
   const goToNextPage = () => {
