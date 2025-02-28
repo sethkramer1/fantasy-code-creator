@@ -10,7 +10,7 @@ export function Header({ title, description }: HeaderProps) {
   return (
     <div className="text-center space-y-5">
       <div className="inline-flex items-center justify-center">
-        <div className="bg-blue-600 rounded-full p-4 mb-2 shadow-lg hover:shadow-blue-200 transition-shadow duration-300">
+        <div className="bg-black rounded-full p-4 mb-2 shadow-lg hover:shadow-gray-200 transition-shadow duration-300">
           <Wand2 size={36} className="text-white" />
         </div>
       </div>

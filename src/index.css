@@ -14,7 +14,7 @@
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 0%;
  
-    --primary: 221 83% 53%;
+    --primary: 0 0% 0%;
     --primary-foreground: 0 0% 100%;
  
     --secondary: 0 0% 96%;
@@ -23,7 +23,7 @@
     --muted: 0 0% 96%;
     --muted-foreground: 0 0% 45%;
  
-    --accent: 221 83% 53%;
+    --accent: 0 0% 0%;
     --accent-foreground: 0 0% 100%;
  
     --destructive: 0 84.2% 60.2%;
@@ -31,7 +31,7 @@
 
     --border: 0 0% 90%;
     --input: 0 0% 90%;
-    --ring: 221 83% 53%;
+    --ring: 0 0% 0%;
  
     --radius: 0.75rem;
   }
@@ -46,7 +46,7 @@
     --popover: 240 10% 3.9%;
     --popover-foreground: 0 0% 98%;
  
-    --primary: 217 91% 60%;
+    --primary: 0 0% 98%;
     --primary-foreground: 240 5.9% 10%;
  
     --secondary: 240 3.7% 15.9%;
@@ -55,8 +55,8 @@
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
  
-    --accent: 217 91% 60%;
-    --accent-foreground: 0 0% 98%;
+    --accent: 0 0% 98%;
+    --accent-foreground: 0 0% 0%;
  
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
@@ -81,7 +81,7 @@
   }
   
   .focus-ring {
-    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2;
+    @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2;
   }
 }
 
