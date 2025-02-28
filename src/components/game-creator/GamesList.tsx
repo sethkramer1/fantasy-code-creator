@@ -1,7 +1,7 @@
 
 import { Game, contentTypes } from "@/types/game";
 import { Loader2 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface GamesListProps {
@@ -113,6 +113,72 @@ export function GamesList({
 
 // Extract GameCard to a separate component to improve code organization
 function GameCard({ game, onGameClick }: { game: Game; onGameClick: (gameId: string) => void }) {
+  // State for generated thumbnail
+  const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
+
+  // Function to generate a thumbnail based on the game type
+  const generateThumbnail = () => {
+    // Default background colors for different game types
+    const bgColors: Record<string, string> = {
+      'game': '#3B82F6', // blue
+      'svg': '#10B981',  // green
+      'webdesign': '#8B5CF6', // purple
+      'dataviz': '#F59E0B', // amber
+      'diagram': '#EC4899', // pink
+      'infographic': '#06B6D4', // cyan
+    };
+    
+    // Get background color based on game type
+    const bgColor = bgColors[game.type || 'game'] || '#6B7280';
+    
+    // Create a canvas element
+    const canvas = document.createElement('canvas');
+    canvas.width = 300;
+    canvas.height = 200;
+    
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return '';
+    
+    // Draw background
+    ctx.fillStyle = bgColor;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Draw game type label
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText((game.type || 'content').toUpperCase(), canvas.width / 2, 50);
+    
+    // Draw a portion of the prompt as preview text
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+    ctx.font = '16px sans-serif';
+    
+    // Truncate and wrap prompt text
+    const maxPromptLength = 50;
+    const displayPrompt = game.prompt.length > maxPromptLength 
+      ? game.prompt.substring(0, maxPromptLength) + '...' 
+      : game.prompt;
+    
+    ctx.fillText(displayPrompt, canvas.width / 2, 100);
+    
+    // Draw date created
+    const date = new Date(game.created_at).toLocaleDateString();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(date, canvas.width / 2, 160);
+    
+    // Convert canvas to data URL
+    return canvas.toDataURL('image/png');
+  };
+  
+  // Generate thumbnail on component mount if not available from database
+  useEffect(() => {
+    if (!game.thumbnail_url) {
+      const thumbnail = generateThumbnail();
+      setGeneratedThumbnail(thumbnail);
+    }
+  }, [game.id]);
+
   // Function to get badge color based on content type
   const getTypeBadgeColor = (type?: string) => {
     switch(type) {
@@ -139,10 +205,11 @@ function GameCard({ game, onGameClick }: { game: Game; onGameClick: (gameId: str
         onClick={() => onGameClick(game.id)} 
         className="p-4 w-full text-left"
       >
-        {game.thumbnail_url && (
+        {/* Use thumbnail_url from database or generated thumbnail */}
+        {(game.thumbnail_url || generatedThumbnail) && (
           <div className="mb-3 border border-gray-100 rounded-md overflow-hidden bg-gray-50 aspect-video">
             <img 
-              src={game.thumbnail_url} 
+              src={game.thumbnail_url || generatedThumbnail || ''} 
               alt={`Preview of ${game.prompt}`}
               className="w-full h-full object-cover"
               loading="lazy"
