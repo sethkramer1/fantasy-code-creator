@@ -46,17 +46,25 @@ const Play = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Start timer for thinking time
+  // Start timer for thinking time for initial generation
   useEffect(() => {
+    console.log("Initial generation timer effect, in progress:", generationInProgress);
+    
     if (generationInProgress) {
+      console.log("Starting main thinking timer");
       if (thinkingTimerRef.current) {
         clearInterval(thinkingTimerRef.current);
       }
       
       thinkingTimerRef.current = setInterval(() => {
-        setThinkingTime(prev => prev + 1);
+        setThinkingTime(prev => {
+          const newTime = prev + 1;
+          console.log("Main thinking time incremented to:", newTime);
+          return newTime;
+        });
       }, 1000);
     } else {
+      console.log("Clearing main thinking timer");
       if (thinkingTimerRef.current) {
         clearInterval(thinkingTimerRef.current);
       }
@@ -466,6 +474,8 @@ const Play = () => {
 
   // Handle terminal status updates from GameChat
   const handleTerminalStatusChange = (showing: boolean, output: string[], thinking: number, isLoading: boolean) => {
+    console.log("Terminal status change:", { showing, thinking, isLoading });
+    
     if (showing) {
       setShowGenerating(true);
       setGenerationInProgress(isLoading);

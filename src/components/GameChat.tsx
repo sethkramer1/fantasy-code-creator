@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,27 +73,29 @@ export const GameChat = ({
 
   // Setup thinking time timer when loading
   useEffect(() => {
+    console.log("Timer effect triggered. Loading:", loading);
+    
     if (loading) {
+      console.log("Starting thinking timer");
       // Reset thinking time when starting
       setThinkingTime(0);
       
       // Clear any existing timer
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = null;
       }
       
       // Start new timer
       timerRef.current = setInterval(() => {
-        setThinkingTime(prevTime => {
-          const newTime = prevTime + 1;
-          // Notify parent of updated time
-          if (onTerminalStatusChange) {
-            onTerminalStatusChange(true, terminalOutput, newTime, true);
-          }
+        setThinkingTime(prev => {
+          const newTime = prev + 1;
+          console.log("Thinking time incremented to:", newTime);
           return newTime;
         });
       }, 1000);
     } else {
+      console.log("Clearing thinking timer");
       // Clean up timer when not loading
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -104,16 +107,18 @@ export const GameChat = ({
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = null;
       }
     };
-  }, [loading, onTerminalStatusChange]);
+  }, [loading]);
 
-  // Update parent component when terminal output changes
+  // Separate effect for notifying parent of timer updates
   useEffect(() => {
     if (onTerminalStatusChange && loading) {
+      console.log("Notifying parent of time update:", thinkingTime);
       onTerminalStatusChange(true, terminalOutput, thinkingTime, loading);
     }
-  }, [terminalOutput, loading, thinkingTime, onTerminalStatusChange]);
+  }, [thinkingTime, terminalOutput, loading, onTerminalStatusChange]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
