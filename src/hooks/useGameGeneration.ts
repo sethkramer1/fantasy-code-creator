@@ -135,6 +135,11 @@ WEB DESIGN REQUIREMENTS:
 
 5. Container:
 - If the user asks for a mobile UI, wrap the design in an iphone container
+
+6. Image Usage:
+- When using Unsplash images, ONLY use valid, real Unsplash URLs (https://source.unsplash.com/...)
+- Never make up or invent Unsplash image URLs
+- If you need a placeholder image, use a proper placeholder service instead of making up an Unsplash URL
 `;
           break;
         case 'dataviz':
@@ -213,6 +218,15 @@ INFOGRAPHIC REQUIREMENTS:
           systemInstructions = "Create content based on the user's requirements with clean, maintainable code.";
       }
 
+      // Image usage instructions for all content types
+      systemInstructions += `
+
+IMPORTANT IMAGE USAGE INSTRUCTIONS:
+- When using Unsplash images, ONLY use valid, real Unsplash URLs (https://source.unsplash.com/...)
+- Never make up or invent Unsplash image URLs
+- If you need a placeholder image, use a proper placeholder service instead of making up an Unsplash URL
+`;
+
       // Extra emphasis for mobile UI wrapping in iPhone container
       if (selectedType.id === 'webdesign' && 
           (prompt.toLowerCase().includes('mobile') || 
@@ -224,6 +238,15 @@ IMPORTANT MOBILE INSTRUCTION:
 This is a mobile UI design request. You MUST wrap the final design in an iPhone container showing 
 the status bar at the top and home indicator at the bottom. The design should appear as if it's 
 being displayed on an actual iPhone device to provide proper context for the mobile UI design.
+
+ENSURE INTERACTION CAPABILITIES:
+- The content inside the iPhone container MUST be fully functional
+- Users should be able to scroll the content if it extends beyond the viewport
+- All interactive elements (buttons, links, inputs) should be clickable and functional
+- Touch events should work properly on the content within the frame
+- Do not add any elements that block or prevent interaction with the content
+- Test that the scrolling works by adding sufficient content to require scrolling
+- Make sure to use proper overflow settings to enable scrolling
 `;
         systemInstructions = mobileEmphasis + systemInstructions;
       }
