@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -278,12 +279,12 @@ const Play = () => {
                 
               case 'message_delta':
                 if (data.delta?.stop_reason) {
-                  updateTerminalOutput(`> Generation ${data.delta.stop_reason}`, true);
+                  updateTerminalOutput(`> Code generation ${data.delta.stop_reason}`, true);
                 }
                 break;
                 
               case 'message_stop':
-                updateTerminalOutput("> Game generation completed!", true);
+                updateTerminalOutput("> Code generation completed!", true);
                 break;
                 
               case 'error':

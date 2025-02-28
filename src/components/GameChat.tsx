@@ -372,9 +372,9 @@ export const GameChat = ({
                 updateTerminalOutput(`> Thinking: ${thinking}`, true);
               }
             } else if (parsedData.type === 'message_delta' && parsedData.delta?.stop_reason) {
-              updateTerminalOutput(`> Generation ${parsedData.delta.stop_reason}`, true);
+              updateTerminalOutput(`> Code generation ${parsedData.delta.stop_reason}`, true);
             } else if (parsedData.type === 'message_stop') {
-              updateTerminalOutput("> Generation completed!", true);
+              updateTerminalOutput("> Code generation completed!", true);
             } else if (parsedData.type) {
               // Log other event types for debugging
               updateTerminalOutput(`> Event: ${parsedData.type}`, true);
@@ -393,7 +393,7 @@ export const GameChat = ({
       }
       
       // Update the game with the new content
-      updateTerminalOutput("> Updating game...", true);
+      updateTerminalOutput("> Updating code...", true);
       onGameUpdate(gameContent, "Code updated successfully");
       
       // Update the message response
@@ -417,7 +417,7 @@ export const GameChat = ({
         setMessages(updatedMessages);
       }
       
-      updateTerminalOutput("> Game updated successfully!", true);
+      updateTerminalOutput("> Code updated successfully!", true);
       
       // Notify parent that processing is complete but keep terminal visible
       if (onTerminalStatusChange) {
