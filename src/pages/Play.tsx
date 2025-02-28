@@ -612,7 +612,7 @@ const Play = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-[#F5F5F5]">
+    <div className="flex flex-col h-screen bg-white">
       {/* Navbar */}
       <PlayNavbar>
         <GameActions 
@@ -625,10 +625,10 @@ const Play = () => {
       
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-[400px] flex flex-col bg-white border-r border-gray-200">
-          <div className="p-4 border-b border-gray-200 flex-shrink-0">
+        <div className="w-[400px] flex flex-col bg-white border-r border-gray-100">
+          <div className="p-4 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center">
-              <h2 className="text-lg font-medium text-gray-900">Modify Content</h2>
+              <h2 className="text-lg font-medium text-black">Modify Content</h2>
             </div>
           </div>
           <div className="flex-1 overflow-hidden">
@@ -642,7 +642,7 @@ const Play = () => {
 
         <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
           <div className="max-w-[1200px] mx-auto w-full flex-1 flex flex-col">
-            <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
+            <div className="glass-panel bg-white border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
               <div className="flex items-center justify-between mb-4 flex-shrink-0">
                 <div className="flex items-center gap-4">
                   {!showGenerating && (

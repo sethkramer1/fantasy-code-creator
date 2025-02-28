@@ -14,10 +14,10 @@ export function Header({ title, description }: HeaderProps) {
           <Wand2 size={36} className="text-white" />
         </div>
       </div>
-      <h1 className="text-3xl md:text-4xl font-semibold bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 tracking-tight">
+      <h1 className="text-3xl md:text-4xl font-semibold text-black tracking-tight">
         {title}
       </h1>
-      <p className="text-lg md:text-xl text-gray-600 max-w-2xl mx-auto">
+      <p className="text-lg md:text-xl text-gray-700 max-w-2xl mx-auto">
         {description}
       </p>
     </div>

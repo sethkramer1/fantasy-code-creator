@@ -142,7 +142,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="min-h-screen bg-white">
       <div className="max-w-5xl mx-auto px-6 py-12 md:py-16">
         <div className="space-y-10">
           <Header 
@@ -167,7 +167,7 @@ const Index = () => {
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               <Sparkles size={18} className="text-blue-500" />
-              <h2 className="text-xl font-medium text-gray-900">Your Designs</h2>
+              <h2 className="text-xl font-medium text-black">Your Designs</h2>
             </div>
           </div>
 
