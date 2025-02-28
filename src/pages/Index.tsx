@@ -1,5 +1,4 @@
 
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/game-creator/Header";
@@ -9,6 +8,7 @@ import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal
 import { useGameGeneration } from "@/hooks/useGameGeneration";
 import { useGames } from "@/hooks/useGames";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
@@ -25,7 +25,6 @@ const Index = () => {
     terminalOutput,
     thinkingTime,
     setThinkingTime,
-    generateGame,
     timerRef
   } = useGameGeneration();
 
@@ -58,24 +57,83 @@ const Index = () => {
 
   const handleGenerate = async () => {
     try {
-      // Only pass imageUrl if it's a data URL (from FileReader)
-      const imageUrlToUse = imageUrl && imageUrl.startsWith('data:') ? imageUrl : undefined;
-      
-      const gameData = await generateGame(prompt, gameType, imageUrlToUse);
-      if (gameData) {
+      if (!prompt.trim()) {
         toast({
-          title: "Generated successfully!",
-          description: "Redirecting to view the content...",
+          title: "Please enter a description",
+          variant: "destructive",
         });
-        
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setShowTerminal(false);
-        navigate(`/play/${gameData.id}`);
+        return;
       }
-    } catch (error) {
-      console.error("Error generating game:", error);
+
+      if (!gameType) {
+        toast({
+          title: "Please select a content type",
+          description: "Choose what you want to create before proceeding",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create a placeholder game record
+      const { data: placeholderGame, error: placeholderError } = await supabase
+        .from('games')
+        .insert([{ 
+          prompt: prompt,
+          code: "Generating...",
+          instructions: "Content is being generated...",
+          current_version: 1,
+          type: gameType
+        }])
+        .select()
+        .single();
+
+      if (placeholderError) {
+        console.error("Error creating placeholder game:", placeholderError);
+        toast({
+          title: "Error starting generation",
+          description: placeholderError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create a placeholder version
+      const { error: versionError } = await supabase
+        .from('game_versions')
+        .insert([{
+          game_id: placeholderGame.id,
+          code: "Generating...",
+          instructions: "Content is being generated...",
+          version_number: 1
+        }]);
+
+      if (versionError) {
+        console.error("Error creating placeholder version:", versionError);
+      }
+
+      // Pass the image URL and game type in the URL parameters
+      let navigationParams = `?generating=true&type=${gameType}`;
+      
+      // Only include the image in the params if it exists
+      if (imageUrl) {
+        // Encode the image data to ensure it works in a URL
+        const encodedImageUrl = encodeURIComponent(imageUrl);
+        navigationParams += `&imageUrl=${encodedImageUrl}`;
+      }
+      
+      // Navigate to the play page with all the necessary parameters
+      console.log("Navigating to play page for generation:", placeholderGame.id);
+      navigate(`/play/${placeholderGame.id}${navigationParams}`);
+      
       toast({
-        title: "Generation failed",
+        title: "Starting generation",
+        description: "Your content is being created...",
+      });
+      
+    } catch (error) {
+      console.error("Error in handleGenerate:", error);
+      toast({
+        title: "Error starting generation",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       });
@@ -125,4 +183,3 @@ const Index = () => {
 };
 
 export default Index;
-

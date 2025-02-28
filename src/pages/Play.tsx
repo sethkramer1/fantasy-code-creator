@@ -1,12 +1,12 @@
-
 import { useState, useEffect, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ArrowLeft, History, RotateCcw, Download } from "lucide-react";
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal";
 import JSZip from 'jszip';
 import html2pdf from 'html2pdf.js';
 
@@ -20,18 +20,61 @@ interface GameVersion {
 
 const Play = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const isGenerating = searchParams.get('generating') === 'true';
+  const gameType = searchParams.get('type') || '';
+  const encodedImageUrl = searchParams.get('imageUrl') || '';
+  const imageUrl = encodedImageUrl ? decodeURIComponent(encodedImageUrl) : '';
+  
   const [gameVersions, setGameVersions] = useState<GameVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showCode, setShowCode] = useState(false);
+  const [showGenerating, setShowGenerating] = useState(isGenerating);
+  const [generationInProgress, setGenerationInProgress] = useState(isGenerating);
+  const [terminalOutput, setTerminalOutput] = useState<string[]>([
+    "> Starting generation process...", 
+    "> Creating your design based on your prompt..."
+  ]);
+  const [thinkingTime, setThinkingTime] = useState(0);
+  const thinkingTimerRef = useRef<NodeJS.Timeout>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const generationStartedRef = useRef(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
-  // Get current version early to prevent TS errors
-  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
-  const selectedVersionNumber = currentVersion?.version_number;
-  const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
+  // Start timer for thinking time
+  useEffect(() => {
+    if (generationInProgress) {
+      if (thinkingTimerRef.current) {
+        clearInterval(thinkingTimerRef.current);
+      }
+      
+      thinkingTimerRef.current = setInterval(() => {
+        setThinkingTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (thinkingTimerRef.current) {
+        clearInterval(thinkingTimerRef.current);
+      }
+    }
+    
+    return () => {
+      if (thinkingTimerRef.current) {
+        clearInterval(thinkingTimerRef.current);
+      }
+    };
+  }, [generationInProgress]);
 
+  // Start generation if we're in generating mode
+  useEffect(() => {
+    if (isGenerating && id && !generationStartedRef.current) {
+      generationStartedRef.current = true;
+      handleInitialGeneration();
+    }
+  }, [isGenerating, id]);
+
+  // Prevent keyboard events from being captured by the iframe
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -47,42 +90,300 @@ const Play = () => {
     };
   }, []);
 
-  useEffect(() => {
-    const fetchGame = async () => {
-      try {
-        const { data, error } = await supabase.from('games').select(`
-            id,
-            current_version,
-            game_versions (
-              id,
-              version_number,
-              code,
-              instructions,
-              created_at
-            )
-          `).eq('id', id).single();
-        if (error) throw error;
-        if (!data) throw new Error("Game not found");
+  const handleInitialGeneration = async () => {
+    try {
+      if (!id) return;
+      
+      // Get game details to get the prompt
+      const { data: gameData, error: gameError } = await supabase
+        .from('games')
+        .select('prompt, type')
+        .eq('id', id)
+        .single();
         
-        // Sort versions by version_number in descending order (latest first)
-        const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
-        setGameVersions(sortedVersions);
-        
-        // Always select the latest version (first in the sorted array)
-        if (sortedVersions.length > 0) {
-          setSelectedVersion(sortedVersions[0].id);
-          console.log("Selected latest version:", sortedVersions[0].version_number);
-        }
-      } catch (error) {
-        toast({
-          title: "Error loading game",
-          description: error instanceof Error ? error.message : "Please try again",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
+      if (gameError) throw gameError;
+      if (!gameData) throw new Error("Game not found");
+      
+      const prompt = gameData.prompt;
+      const contentType = gameData.type || gameType;
+      
+      // Update terminal with prompt info
+      setTerminalOutput(prev => [
+        ...prev, 
+        `> Generating content with prompt: "${prompt}"`,
+        `> Content type: ${contentType}`
+      ]);
+      
+      if (imageUrl) {
+        setTerminalOutput(prev => [...prev, "> Including image with request"]);
       }
-    };
+      
+      // Call the generation API directly
+      setTerminalOutput(prev => [...prev, "> Connecting to AI service..."]);
+      
+      const response = await fetch(
+        'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
+          },
+          body: JSON.stringify({ 
+            prompt: `Create a web design prototype with the following requirements. Include responsive design: ${prompt}`, 
+            imageUrl: imageUrl || undefined
+          }),
+        }
+      );
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
+        } catch (e) {
+          throw new Error(`HTTP error! status: ${response.status}, response: ${errorText.substring(0, 100)}...`);
+        }
+      }
+      
+      setTerminalOutput(prev => [...prev, `> Connected to generation service, receiving stream...`]);
+      
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No reader available");
+      
+      let gameContent = '';
+      let buffer = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        
+        // Decode the chunk and add it to our buffer
+        const text = new TextDecoder().decode(value);
+        buffer += text;
+        
+        // Process complete lines from the buffer
+        let lineEnd;
+        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, lineEnd);
+          buffer = buffer.slice(lineEnd + 1);
+          
+          if (!line.startsWith('data: ')) continue;
+          
+          try {
+            const data = JSON.parse(line.slice(5));
+            
+            switch (data.type) {
+              case 'message_start':
+                setTerminalOutput(prev => [...prev, "> AI is analyzing your request..."]);
+                break;
+                
+              case 'content_block_start':
+                if (data.content_block?.type === 'thinking') {
+                  setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
+                }
+                break;
+                
+              case 'content_block_delta':
+                if (data.delta?.type === 'thinking_delta') {
+                  const thinking = data.delta.thinking || '';
+                  if (thinking && thinking.trim()) {
+                    setTerminalOutput(prev => [...prev, `> ${thinking}`]);
+                  }
+                } else if (data.delta?.type === 'text_delta') {
+                  const content = data.delta.text || '';
+                  if (content) {
+                    gameContent += content;
+                    
+                    // Display the content in smaller chunks for better visibility
+                    if (content.includes('\n')) {
+                      // If it contains newlines, split it and display each line
+                      const contentLines = content.split('\n');
+                      for (const contentLine of contentLines) {
+                        if (contentLine.trim()) {
+                          setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                        }
+                      }
+                    } else {
+                      // Otherwise display the chunk directly
+                      setTerminalOutput(prev => [...prev, `> ${content}`]);
+                    }
+                  }
+                }
+                break;
+                
+              case 'content_block_stop':
+                if (data.content_block?.type === 'thinking') {
+                  setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
+                }
+                break;
+                
+              case 'message_delta':
+                if (data.delta?.stop_reason) {
+                  setTerminalOutput(prev => [...prev, `> Generation ${data.delta.stop_reason}`]);
+                }
+                break;
+                
+              case 'message_stop':
+                setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
+                break;
+                
+              case 'error':
+                throw new Error(data.error?.message || 'Unknown error in stream');
+            }
+          } catch (e) {
+            console.error('Error parsing SSE line:', e);
+            setTerminalOutput(prev => [...prev, `> Error: ${e instanceof Error ? e.message : 'Unknown error'}`]);
+          }
+        }
+      }
+      
+      if (!gameContent) {
+        throw new Error("No content received");
+      }
+
+      setTerminalOutput(prev => [...prev, "> Saving to database..."]);
+      
+      // For SVG content type, wrap the SVG in basic HTML if it's just raw SVG
+      if (contentType === 'svg' && !gameContent.includes('<!DOCTYPE html>')) {
+        gameContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <style>
+    body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+    svg { max-width: 100%; max-height: 100vh; }
+  </style>
+</head>
+<body>
+  ${gameContent}
+</body>
+</html>`;
+      }
+      
+      // Update the game with generated content
+      const { error: updateGameError } = await supabase
+        .from('games')
+        .update({ 
+          code: gameContent,
+          instructions: "Content generated successfully"
+        })
+        .eq('id', id);
+        
+      if (updateGameError) throw updateGameError;
+      
+      // Update the game version with the generated content
+      const { error: updateVersionError } = await supabase
+        .from('game_versions')
+        .update({
+          code: gameContent,
+          instructions: "Content generated successfully"
+        })
+        .eq('game_id', id)
+        .eq('version_number', 1);
+        
+      if (updateVersionError) throw updateVersionError;
+      
+      // Add initial message to game_messages if it doesn't exist
+      const { data: existingMessages } = await supabase
+        .from('game_messages')
+        .select('id')
+        .eq('game_id', id)
+        .limit(1);
+        
+      if (!existingMessages || existingMessages.length === 0) {
+        const { error: messageError } = await supabase
+          .from('game_messages')
+          .insert([{
+            game_id: id,
+            message: prompt,
+            response: "Content generated successfully",
+            image_url: imageUrl || null
+          }]);
+          
+        if (messageError) {
+          console.error("Error saving initial message:", messageError);
+        } else {
+          setTerminalOutput(prev => [...prev, "> Initial message saved to chat"]);
+        }
+      }
+      
+      setTerminalOutput(prev => [...prev, "> Generation complete! Displaying result..."]);
+      
+      // Set generation as complete and load the result
+      setGenerationInProgress(false);
+      
+      // Refresh game data to show the generated content
+      fetchGame();
+      
+      // Remove the generating parameter from URL
+      navigate(`/play/${id}`, { replace: true });
+      
+      toast({
+        title: "Generation complete!",
+        description: "Your content has been generated successfully."
+      });
+      
+    } catch (error) {
+      console.error('Generation error:', error);
+      
+      setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : "Generation failed"}`]);
+      setTerminalOutput(prev => [...prev, "> Attempting to recover..."]);
+      
+      // Even if there's an error, try to load the game
+      fetchGame();
+      
+      toast({
+        title: "Error generating content",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const fetchGame = async () => {
+    try {
+      const { data, error } = await supabase.from('games').select(`
+          id,
+          current_version,
+          game_versions (
+            id,
+            version_number,
+            code,
+            instructions,
+            created_at
+          )
+        `).eq('id', id).single();
+      if (error) throw error;
+      if (!data) throw new Error("Game not found");
+      
+      // Sort versions by version_number in descending order (latest first)
+      const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
+      setGameVersions(sortedVersions);
+      
+      // Always select the latest version (first in the sorted array)
+      if (sortedVersions.length > 0) {
+        setSelectedVersion(sortedVersions[0].id);
+        console.log("Selected latest version:", sortedVersions[0].version_number);
+        
+        // If the code is no longer "Generating...", hide the generation UI
+        if (sortedVersions[0].code !== "Generating...") {
+          setShowGenerating(false);
+          setGenerationInProgress(false);
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "Error loading game",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchGame();
   }, [id, toast]);
 
@@ -322,6 +623,9 @@ const Play = () => {
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
+      // Show generation UI
+      setShowGenerating(true);
+      
       // Create a new version with incremented version number
       const newVersionNumber = gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1;
       
@@ -363,6 +667,7 @@ const Play = () => {
       
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
+      setShowGenerating(false);
       
       toast({
         title: "Code updated successfully",
@@ -371,6 +676,7 @@ const Play = () => {
       
     } catch (error) {
       console.error("Error saving new version:", error);
+      setShowGenerating(false);
       toast({
         title: "Error saving version",
         description: error instanceof Error ? error.message : "Please try again",
@@ -437,6 +743,7 @@ const Play = () => {
   };
 
   const handleDownload = async () => {
+    const currentVersion = gameVersions.find(v => v.id === selectedVersion);
     if (!currentVersion) return;
     
     try {
@@ -495,11 +802,15 @@ const Play = () => {
     }
   };
 
-  if (loading) {
+  if (loading && !showGenerating) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
       </div>;
   }
+
+  // Compute currentVersion and isLatestVersion here to make them available throughout the component
+  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
+  const isLatestVersion = currentVersion?.version_number === gameVersions[0]?.version_number;
 
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
@@ -512,7 +823,7 @@ const Play = () => {
         
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            {!isLatestVersion && currentVersion && (
+            {!showGenerating && !isLatestVersion && currentVersion && (
               <button 
                 onClick={() => handleRevertToVersion(currentVersion)} 
                 className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
@@ -521,15 +832,17 @@ const Play = () => {
                 <span>Revert to this version</span>
               </button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1 text-sm"
-              onClick={handleDownload}
-            >
-              <Download size={14} />
-              Download
-            </Button>
+            {!showGenerating && currentVersion && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1 text-sm"
+                onClick={handleDownload}
+              >
+                <Download size={14} />
+                Download
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -549,10 +862,10 @@ const Play = () => {
 
         <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
           <div className="max-w-[1200px] mx-auto w-full flex-1 flex flex-col">
-            {currentVersion && (
-              <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
-                <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                  <div className="flex items-center gap-4">
+            <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                <div className="flex items-center gap-4">
+                  {!showGenerating && (
                     <div className="bg-zinc-900 p-0.5 rounded-full">
                       <Button
                         variant="ghost"
@@ -579,8 +892,10 @@ const Play = () => {
                         Code
                       </Button>
                     </div>
-                  </div>
-                  
+                  )}
+                </div>
+                
+                {!showGenerating && gameVersions.length > 0 && (
                   <div className="flex items-center gap-2">
                     <History size={16} className="text-gray-500" />
                     <Select value={selectedVersion} onValueChange={handleVersionChange}>
@@ -596,35 +911,45 @@ const Play = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                <div className="flex-1 bg-white rounded-lg overflow-hidden">
-                  {!showCode ? (
-                    <div 
-                      className="h-full relative"
-                      onClick={() => iframeRef.current?.focus()}
-                    >
-                      <iframe
-                        ref={iframeRef}
-                        srcDoc={currentVersion ? prepareIframeContent(currentVersion.code) : ""}
-                        className="absolute inset-0 w-full h-full border border-gray-100"
-                        sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
-                        title="Generated Content"
-                        tabIndex={0}
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-full relative">
-                      <div className="absolute inset-0 overflow-auto">
-                        <pre className="p-4 bg-gray-50 rounded-lg h-full">
-                          <code className="text-sm whitespace-pre-wrap break-words">{currentVersion.code}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
-            )}
+
+              <div className="flex-1 bg-white rounded-lg overflow-hidden">
+                {/* Show generation terminal when generating */}
+                {showGenerating ? (
+                  <GenerationTerminal
+                    open={true}
+                    onOpenChange={() => {}}
+                    output={terminalOutput}
+                    thinkingTime={thinkingTime}
+                    loading={generationInProgress}
+                    asModal={false}
+                  />
+                ) : !showCode ? (
+                  <div 
+                    className="h-full relative"
+                    onClick={() => iframeRef.current?.focus()}
+                  >
+                    <iframe
+                      ref={iframeRef}
+                      srcDoc={currentVersion ? prepareIframeContent(currentVersion.code) : ""}
+                      className="absolute inset-0 w-full h-full border border-gray-100"
+                      sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+                      title="Generated Content"
+                      tabIndex={0}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-full relative">
+                    <div className="absolute inset-0 overflow-auto">
+                      <pre className="p-4 bg-gray-50 rounded-lg h-full">
+                        <code className="text-sm whitespace-pre-wrap break-words">{currentVersion?.code}</code>
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

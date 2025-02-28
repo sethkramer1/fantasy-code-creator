@@ -9,10 +9,11 @@ export const useGameGeneration = () => {
   const [showTerminal, setShowTerminal] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [thinkingTime, setThinkingTime] = useState(0);
+  const [gameId, setGameId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
-  const generateGame = async (prompt: string, gameType: string, imageUrl?: string) => {
+  const generateGame = async (prompt: string, gameType: string, imageUrl?: string, existingGameId?: string) => {
     if (!prompt.trim()) {
       toast({
         title: "Please enter a description",
@@ -404,31 +405,74 @@ ENSURE INTERACTION CAPABILITIES:
 
       setTerminalOutput(prev => [...prev, "> Saving to database..."]);
 
-      const { data: gameData, error: gameError } = await supabase
-        .from('games')
-        .insert([{ 
-          prompt: prompt,
-          code: gameContent,
-          instructions: "Content generated successfully",
-          current_version: 1,
-          type: selectedType.id
-        }])
-        .select()
-        .single();
+      // Use existingGameId if provided, otherwise create a new game
+      let gameData;
+      
+      if (existingGameId) {
+        // Update existing game
+        const { error: updateError } = await supabase
+          .from('games')
+          .update({ 
+            code: gameContent,
+            instructions: "Content generated successfully"
+          })
+          .eq('id', existingGameId);
+        
+        if (updateError) throw updateError;
+        
+        // Update the game version with the generated content
+        const { error: versionError } = await supabase
+          .from('game_versions')
+          .update({
+            code: gameContent,
+            instructions: "Content generated successfully"
+          })
+          .eq('game_id', existingGameId)
+          .eq('version_number', 1);
+        
+        if (versionError) throw versionError;
+        
+        // Get the updated game data
+        const { data, error } = await supabase
+          .from('games')
+          .select('*')
+          .eq('id', existingGameId)
+          .single();
+        
+        if (error) throw error;
+        if (!data) throw new Error("Failed to retrieve updated game");
+        
+        gameData = data;
+      } else {
+        // Create a new game
+        const { data: newGameData, error: gameError } = await supabase
+          .from('games')
+          .insert([{ 
+            prompt: prompt,
+            code: gameContent,
+            instructions: "Content generated successfully",
+            current_version: 1,
+            type: selectedType.id
+          }])
+          .select()
+          .single();
 
-      if (gameError) throw gameError;
-      if (!gameData) throw new Error("Failed to save content");
+        if (gameError) throw gameError;
+        if (!newGameData) throw new Error("Failed to save content");
 
-      const { error: versionError } = await supabase
-        .from('game_versions')
-        .insert([{
-          game_id: gameData.id,
-          code: gameContent,
-          instructions: "Content generated successfully",
-          version_number: 1
-        }]);
+        const { error: versionError } = await supabase
+          .from('game_versions')
+          .insert([{
+            game_id: newGameData.id,
+            code: gameContent,
+            instructions: "Content generated successfully",
+            version_number: 1
+          }]);
 
-      if (versionError) throw versionError;
+        if (versionError) throw versionError;
+        
+        gameData = newGameData;
+      }
       
       // Add initial message to game_messages
       const { error: messageError } = await supabase
@@ -446,7 +490,7 @@ ENSURE INTERACTION CAPABILITIES:
         setTerminalOutput(prev => [...prev, "> Initial message saved to chat"]);
       }
       
-      setTerminalOutput(prev => [...prev, "> Saved successfully! Redirecting..."]);
+      setTerminalOutput(prev => [...prev, "> Saved successfully!"]);
       
       return gameData;
 
@@ -472,6 +516,8 @@ ENSURE INTERACTION CAPABILITIES:
     thinkingTime,
     setThinkingTime,
     generateGame,
-    timerRef
+    timerRef,
+    gameId,
+    setGameId
   };
 };
