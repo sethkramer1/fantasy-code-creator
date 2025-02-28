@@ -4,7 +4,6 @@ import { Game, contentTypes } from "@/types/game";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { GameTypeSelector } from "@/components/game-creator/GameTypeSelector";
 
 interface GamesListProps {
   games: Game[];
@@ -31,7 +30,8 @@ function GamePreview({ gameId }: GamePreviewProps) {
           .select(`
             current_version,
             game_versions (
-              code
+              code,
+              version_number
             )
           `)
           .eq('id', gameId)
@@ -41,12 +41,17 @@ function GamePreview({ gameId }: GamePreviewProps) {
         
         // Find the latest version's code
         if (data && data.game_versions && data.game_versions.length > 0) {
-          // Get the latest version
+          // Get the latest version based on current_version
           const latestVersion = data.game_versions.find(
             (v: any) => v.version_number === data.current_version
-          ) || data.game_versions[0];
+          );
           
-          setCode(latestVersion.code);
+          if (latestVersion) {
+            setCode(latestVersion.code);
+          } else {
+            // Fallback to the first version if current_version isn't found
+            setCode(data.game_versions[0].code);
+          }
         } else {
           setError("No code found for this game");
         }
@@ -66,18 +71,24 @@ function GamePreview({ gameId }: GamePreviewProps) {
     // Add a base tag to handle relative paths
     const baseTag = `<base target="_blank">`;
 
-    // Add styles to make iframe content fit small container
+    // Add styles to make iframe content fit container properly
     const styleTag = `
       <style>
         html, body { 
           margin: 0; 
           padding: 0; 
           height: 100%; 
+          width: 100%;
           overflow: hidden;
-          transform: scale(0.5);
-          transform-origin: 0 0;
-          width: 200%;
-          height: 200%;
+        }
+        body {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+        body > * {
+          max-width: 100%;
+          max-height: 100%;
         }
       </style>
     `;
@@ -189,10 +200,10 @@ export function GamesList({
       ) : filteredGames.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
           {filteredGames.map(game => (
-            <button 
+            <div 
               key={game.id}
+              className="rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group overflow-hidden flex flex-col w-full cursor-pointer"
               onClick={() => onGameClick(game.id)}
-              className="rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group overflow-hidden flex flex-col w-full"
             >
               {/* Preview iframe */}
               <div className="overflow-hidden flex-shrink-0">
@@ -217,7 +228,7 @@ export function GamesList({
                   {new Date(game.created_at).toLocaleDateString()}
                 </p>
               </div>
-            </button>
+            </div>
           ))}
         </div>
       ) : (
