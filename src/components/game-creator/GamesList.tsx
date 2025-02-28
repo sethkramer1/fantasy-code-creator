@@ -1,8 +1,6 @@
 
-import { Game, contentTypes } from "@/types/game";
-import { Loader2 } from "lucide-react";
-import { useState, useMemo, useEffect } from "react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Game } from "@/types/game";
+import { Loader2, Code } from "lucide-react";
 
 interface GamesListProps {
   games: Game[];
@@ -10,226 +8,90 @@ interface GamesListProps {
   onGameClick: (gameId: string) => void;
 }
 
+// Helper function to get a representative color for the game
+const getColorForCode = (code: string | undefined): string => {
+  if (!code) return "bg-gray-100";
+  
+  // Get dominant colors based on common patterns
+  if (code.includes('bg-blue') || code.includes('color: blue') || code.includes('#0000') || code.includes('rgb(0, 0, 2')) {
+    return "bg-blue-50 border-blue-200";
+  } else if (code.includes('bg-green') || code.includes('color: green') || code.includes('#00') || code.includes('rgb(0, 2')) {
+    return "bg-green-50 border-green-200";
+  } else if (code.includes('bg-red') || code.includes('color: red') || code.includes('#f00') || code.includes('rgb(2')) {
+    return "bg-red-50 border-red-200";
+  } else if (code.includes('bg-purple') || code.includes('color: purple') || code.includes('#800080')) {
+    return "bg-purple-50 border-purple-200";
+  } else if (code.includes('bg-yellow') || code.includes('color: yellow') || code.includes('#ff0') || code.includes('rgb(255, 255, 0)')) {
+    return "bg-yellow-50 border-yellow-200";
+  }
+  
+  return "bg-gray-50 border-gray-200";
+};
+
+// Extract a small snippet of meaningful HTML from the code
+const getCodeSnippet = (code: string | undefined): string => {
+  if (!code) return "";
+  
+  // Extract the body content or a div with class/id
+  let bodyContent = code.match(/<body[^>]*>([\s\S]*?)<\/body>/i)?.[1] || "";
+  if (!bodyContent) {
+    // Try to find a meaningful div or section
+    bodyContent = code.match(/<div[^>]*class="[^"]*main[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1] || 
+                 code.match(/<section[^>]*>([\s\S]*?)<\/section>/i)?.[1] || 
+                 code.match(/<div[^>]*id="[^"]*content[^"]*"[^>]*>([\s\S]*?)<\/div>/i)?.[1] || 
+                 "";
+  }
+  
+  // Clean up the snippet
+  return bodyContent
+    .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "") // Remove scripts
+    .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, "")    // Remove styles
+    .replace(/<[^>]+>/g, "")                                             // Remove all HTML tags
+    .replace(/\s+/g, " ")                                                // Normalize whitespace
+    .trim()
+    .substring(0, 150) + (bodyContent.length > 150 ? "..." : "");        // Limit length
+};
+
 export function GamesList({
   games,
   isLoading,
   onGameClick
 }: GamesListProps) {
-  const [selectedType, setSelectedType] = useState<string>("all");
-
-  // Filter games based on selected type
-  const filteredGames = useMemo(() => {
-    if (selectedType === "all") {
-      return games;
-    }
-    return games.filter(game => game.type === selectedType);
-  }, [games, selectedType]);
-
-  // Count games by type for tab labels
-  const gameCounts = useMemo(() => {
-    const counts: Record<string, number> = { all: games.length };
-    
-    contentTypes.forEach(type => {
-      counts[type.id] = games.filter(game => game.type === type.id).length;
-    });
-    
-    return counts;
-  }, [games]);
-
-  // Function to get display name for tab
-  const getTabDisplayName = (typeId: string) => {
-    if (typeId === 'game') return 'Game';
-    
-    const contentType = contentTypes.find(t => t.id === typeId);
-    return contentType ? contentType.label.split(' ')[0] : typeId;
-  };
-
-  return (
-    <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm">
-      <h2 className="text-xl font-medium text-gray-900 mb-4">My History</h2>
-      
-      {isLoading ? (
-        <div className="flex justify-center py-8">
+  return <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm">
+      <h2 className="text-xl font-medium text-gray-900 mb-6">My History</h2>
+      {isLoading ? <div className="flex justify-center py-8">
           <Loader2 className="animate-spin text-gray-400" size={32} />
-        </div>
-      ) : games.length > 0 ? (
-        <Tabs defaultValue="all" value={selectedType} onValueChange={setSelectedType}>
-          <TabsList className="grid grid-cols-3 md:grid-cols-7 mb-6">
-            <TabsTrigger value="all" className="text-xs">
-              All ({gameCounts.all})
-            </TabsTrigger>
-            {contentTypes.map(type => (
-              <TabsTrigger 
-                key={type.id} 
-                value={type.id} 
-                className="text-xs"
-                disabled={gameCounts[type.id] === 0}
-              >
-                {getTabDisplayName(type.id)} ({gameCounts[type.id]})
-              </TabsTrigger>
-            ))}
-          </TabsList>
-
-          <TabsContent value="all" className="mt-0">
-            <div className="grid gap-4 md:grid-cols-2">
-              {games.map(game => (
-                <GameCard 
-                  key={game.id} 
-                  game={game} 
-                  onGameClick={onGameClick} 
-                />
-              ))}
-            </div>
-          </TabsContent>
-
-          {contentTypes.map(type => (
-            <TabsContent key={type.id} value={type.id} className="mt-0">
-              {filteredGames.length > 0 ? (
-                <div className="grid gap-4 md:grid-cols-2">
-                  {filteredGames.map(game => (
-                    <GameCard 
-                      key={game.id} 
-                      game={game} 
-                      onGameClick={onGameClick} 
-                    />
-                  ))}
-                </div>
-              ) : (
-                <p className="text-center text-gray-500 py-8">
-                  No {type.label.toLowerCase()} content has been created yet.
+        </div> : games.length > 0 ? <div className="grid gap-4 md:grid-cols-2">
+          {games.map(game => (
+            <button 
+              key={game.id} 
+              onClick={() => onGameClick(game.id)} 
+              className="rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group overflow-hidden"
+            >
+              <div className="p-4">
+                <p className="font-medium text-gray-700 group-hover:text-black transition-colors line-clamp-2">
+                  {game.prompt}
                 </p>
+                <p className="text-xs text-gray-400 mt-2">
+                  {new Date(game.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              
+              {game.code && (
+                <div className="flex flex-col">
+                  <div className={`px-4 py-3 border-t text-xs font-mono truncate text-gray-600 ${getColorForCode(game.code)}`}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <Code size={14} className="text-gray-500" />
+                      <span className="text-gray-500 font-medium">Preview</span>
+                    </div>
+                    <p className="line-clamp-2 text-xs opacity-80">{getCodeSnippet(game.code)}</p>
+                  </div>
+                </div>
               )}
-            </TabsContent>
+            </button>
           ))}
-        </Tabs>
-      ) : (
-        <p className="text-center text-gray-500 py-8">
+        </div> : <p className="text-center text-gray-500 py-8">
           No games have been created yet. Be the first to create one!
-        </p>
-      )}
-    </div>
-  );
-}
-
-// Extract GameCard to a separate component to improve code organization
-function GameCard({ game, onGameClick }: { game: Game; onGameClick: (gameId: string) => void }) {
-  // State for generated thumbnail
-  const [generatedThumbnail, setGeneratedThumbnail] = useState<string | null>(null);
-
-  // Function to generate a thumbnail based on the game type
-  const generateThumbnail = () => {
-    // Default background colors for different game types
-    const bgColors: Record<string, string> = {
-      'game': '#3B82F6', // blue
-      'svg': '#10B981',  // green
-      'webdesign': '#8B5CF6', // purple
-      'dataviz': '#F59E0B', // amber
-      'diagram': '#EC4899', // pink
-      'infographic': '#06B6D4', // cyan
-    };
-    
-    // Get background color based on game type
-    const bgColor = bgColors[game.type || 'game'] || '#6B7280';
-    
-    // Create a canvas element
-    const canvas = document.createElement('canvas');
-    canvas.width = 300;
-    canvas.height = 200;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-    
-    // Draw background
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw game type label
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.font = 'bold 24px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText((game.type || 'content').toUpperCase(), canvas.width / 2, 50);
-    
-    // Draw a portion of the prompt as preview text
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = '16px sans-serif';
-    
-    // Truncate and wrap prompt text
-    const maxPromptLength = 50;
-    const displayPrompt = game.prompt.length > maxPromptLength 
-      ? game.prompt.substring(0, maxPromptLength) + '...' 
-      : game.prompt;
-    
-    ctx.fillText(displayPrompt, canvas.width / 2, 100);
-    
-    // Draw date created
-    const date = new Date(game.created_at).toLocaleDateString();
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = '14px sans-serif';
-    ctx.fillText(date, canvas.width / 2, 160);
-    
-    // Convert canvas to data URL
-    return canvas.toDataURL('image/png');
-  };
-  
-  // Generate thumbnail on component mount if not available from database
-  useEffect(() => {
-    if (!game.thumbnail_url) {
-      const thumbnail = generateThumbnail();
-      setGeneratedThumbnail(thumbnail);
-    }
-  }, [game.id]);
-
-  // Function to get badge color based on content type
-  const getTypeBadgeColor = (type?: string) => {
-    switch(type) {
-      case 'game': return 'bg-blue-100 text-blue-800';
-      case 'svg': return 'bg-pink-100 text-pink-800';
-      case 'webdesign': return 'bg-purple-100 text-purple-800';
-      case 'dataviz': return 'bg-green-100 text-green-800';
-      case 'diagram': return 'bg-orange-100 text-orange-800';
-      case 'infographic': return 'bg-yellow-100 text-yellow-800';
-      default: return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  // Function to get type label
-  const getTypeLabel = (type?: string) => {
-    if (!type) return 'Unknown';
-    const contentType = contentTypes.find(t => t.id === type);
-    return contentType ? contentType.label : 'Unknown';
-  };
-
-  return (
-    <div className="rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group relative overflow-hidden">
-      <button 
-        onClick={() => onGameClick(game.id)} 
-        className="p-4 w-full text-left"
-      >
-        {/* Use thumbnail_url from database or generated thumbnail */}
-        {(game.thumbnail_url || generatedThumbnail) && (
-          <div className="mb-3 border border-gray-100 rounded-md overflow-hidden bg-gray-50 aspect-video">
-            <img 
-              src={game.thumbnail_url || generatedThumbnail || ''} 
-              alt={`Preview of ${game.prompt}`}
-              className="w-full h-full object-cover"
-              loading="lazy"
-            />
-          </div>
-        )}
-        <div className="flex justify-between items-start">
-          <p className="font-medium text-gray-700 group-hover:text-black transition-colors line-clamp-2">
-            {game.prompt}
-          </p>
-          {game.type && (
-            <span className={`text-xs px-2 py-1 rounded-full ${getTypeBadgeColor(game.type)} ml-2 whitespace-nowrap flex-shrink-0`}>
-              {getTypeLabel(game.type).split(' ')[0]}
-            </span>
-          )}
-        </div>
-        <p className="text-sm text-gray-400 mt-2">
-          {new Date(game.created_at).toLocaleDateString()}
-        </p>
-      </button>
-    </div>
-  );
+        </p>}
+    </div>;
 }

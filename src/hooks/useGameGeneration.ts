@@ -12,60 +12,6 @@ export const useGameGeneration = () => {
   const timerRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
-  // Generate a simple thumbnail data URL based on the game type
-  const generateThumbnailUrl = (gameType: string, prompt: string): string => {
-    // Default background colors for different game types
-    const bgColors: Record<string, string> = {
-      'game': '#3B82F6', // blue
-      'svg': '#10B981',  // green
-      'webdesign': '#8B5CF6', // purple
-      'dataviz': '#F59E0B', // amber
-      'diagram': '#EC4899', // pink
-      'infographic': '#06B6D4', // cyan
-    };
-    
-    // Default background color if type not found
-    const bgColor = bgColors[gameType] || '#6B7280';
-    
-    // Create a canvas element
-    const canvas = document.createElement('canvas');
-    canvas.width = 300;
-    canvas.height = 200;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
-    
-    // Draw background
-    ctx.fillStyle = bgColor;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Draw game type label
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-    ctx.font = 'bold 24px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(gameType.toUpperCase(), canvas.width / 2, 50);
-    
-    // Draw a portion of the prompt as preview text
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
-    ctx.font = '16px sans-serif';
-    
-    // Truncate and wrap prompt text
-    const maxPromptLength = 50;
-    const displayPrompt = prompt.length > maxPromptLength 
-      ? prompt.substring(0, maxPromptLength) + '...' 
-      : prompt;
-    
-    ctx.fillText(displayPrompt, canvas.width / 2, 100);
-    
-    // Draw "Preview" text
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-    ctx.font = 'italic 14px sans-serif';
-    ctx.fillText('Preview Image', canvas.width / 2, 160);
-    
-    // Convert canvas to data URL
-    return canvas.toDataURL('image/png');
-  };
-
   const generateGame = async (prompt: string, gameType: string, imageUrl?: string) => {
     if (!prompt.trim()) {
       toast({
@@ -405,11 +351,6 @@ INFOGRAPHIC REQUIREMENTS:
 </html>`;
       }
 
-      setTerminalOutput(prev => [...prev, "> Generating thumbnail..."]);
-
-      // Generate a thumbnail for the game
-      const thumbnailUrl = generateThumbnailUrl(selectedType.id, prompt);
-
       setTerminalOutput(prev => [...prev, "> Saving to database..."]);
 
       const { data: gameData, error: gameError } = await supabase
@@ -419,8 +360,7 @@ INFOGRAPHIC REQUIREMENTS:
           code: gameContent,
           instructions: "Content generated successfully",
           current_version: 1,
-          type: selectedType.id,
-          thumbnail_url: thumbnailUrl
+          type: selectedType.id
         }])
         .select()
         .single();

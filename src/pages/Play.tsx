@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/components/ui/button";
 import JSZip from 'jszip';
 import html2pdf from 'html2pdf.js';
-import html2canvas from 'html2canvas';
 
 interface GameVersion {
   id: string;
@@ -17,7 +16,6 @@ interface GameVersion {
   code: string;
   instructions: string | null;
   created_at: string;
-  image_url?: string | null;
 }
 
 const Play = () => {
@@ -26,11 +24,10 @@ const Play = () => {
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showCode, setShowCode] = useState(false);
-  const [downloadingPng, setDownloadingPng] = useState(false);
-  const [capturingImage, setCapturingImage] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
+  // Get current version early to prevent TS errors
   const currentVersion = gameVersions.find(v => v.id === selectedVersion);
   const selectedVersionNumber = currentVersion?.version_number;
   const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
@@ -53,92 +50,30 @@ const Play = () => {
   useEffect(() => {
     const fetchGame = async () => {
       try {
-        // First try to get all fields including the new fields
-        let result;
-        try {
-          result = await supabase.from('games').select(`
+        const { data, error } = await supabase.from('games').select(`
+            id,
+            current_version,
+            game_versions (
               id,
-              current_version,
-              game_versions (
-                id,
-                version_number,
-                code,
-                instructions,
-                created_at,
-                image_url
-              )
-            `).eq('id', id).single();
-        } catch (e) {
-          // If there's any error, we'll try the fallback query
-          result = { error: e };
-        }
+              version_number,
+              code,
+              instructions,
+              created_at
+            )
+          `).eq('id', id).single();
+        if (error) throw error;
+        if (!data) throw new Error("Game not found");
         
-        if (result.error) {
-          // Try with a fallback query without image_url
-          console.warn("Using fallback query without image_url:", result.error);
-          const fallbackResult = await supabase.from('games').select(`
-              id,
-              current_version,
-              game_versions (
-                id,
-                version_number,
-                code,
-                instructions,
-                created_at
-              )
-            `).eq('id', id).single();
-          
-          if (fallbackResult.error) throw fallbackResult.error;
-          if (!fallbackResult.data) throw new Error("Game not found");
-          
-          // Process the game versions - ensure each item is valid and add image_url: null
-          const validVersions = Array.isArray(fallbackResult.data.game_versions) 
-            ? fallbackResult.data.game_versions
-                .filter(v => v !== null && typeof v === 'object') 
-                .map(v => ({
-                  id: v?.id || crypto.randomUUID(),
-                  version_number: v?.version_number || 1,
-                  code: v?.code || '',
-                  instructions: v?.instructions || null,
-                  created_at: v?.created_at || new Date().toISOString(),
-                  image_url: null
-                }))
-            : [];
-          
-          const sortedVersions = validVersions.sort((a, b) => b.version_number - a.version_number);
-          setGameVersions(sortedVersions);
-          
-          if (sortedVersions.length > 0) {
-            setSelectedVersion(sortedVersions[0].id);
-            console.log("Selected latest version:", sortedVersions[0].version_number);
-          }
-        } else {
-          if (!result.data) throw new Error("Game not found");
-          
-          // Process the game versions
-          const validVersions = Array.isArray(result.data.game_versions) 
-            ? result.data.game_versions
-                .filter(v => v !== null && typeof v === 'object')
-                .map(v => ({
-                  id: v?.id || crypto.randomUUID(),
-                  version_number: v?.version_number || 1,
-                  code: v?.code || '',
-                  instructions: v?.instructions || null,
-                  created_at: v?.created_at || new Date().toISOString(),
-                  image_url: v?.image_url || null
-                }))
-            : [];
-          
-          const sortedVersions = validVersions.sort((a, b) => b.version_number - a.version_number);
-          setGameVersions(sortedVersions);
-          
-          if (sortedVersions.length > 0) {
-            setSelectedVersion(sortedVersions[0].id);
-            console.log("Selected latest version:", sortedVersions[0].version_number);
-          }
+        // Sort versions by version_number in descending order (latest first)
+        const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
+        setGameVersions(sortedVersions);
+        
+        // Always select the latest version (first in the sorted array)
+        if (sortedVersions.length > 0) {
+          setSelectedVersion(sortedVersions[0].id);
+          console.log("Selected latest version:", sortedVersions[0].version_number);
         }
       } catch (error) {
-        console.error("Error loading game:", error);
         toast({
           title: "Error loading game",
           description: error instanceof Error ? error.message : "Please try again",
@@ -148,20 +83,19 @@ const Play = () => {
         setLoading(false);
       }
     };
-    
-    if (id) {
-      fetchGame();
-    } else {
-      setLoading(false);
-    }
+    fetchGame();
   }, [id, toast]);
 
+  // Helper function to inject scripts and fix common iframe issues
   const prepareIframeContent = (html: string) => {
+    // Helper script to ensure tabs and anchor links work correctly
     const helperScript = `
       <script>
+        // Wait for document to be fully loaded
         document.addEventListener('DOMContentLoaded', function() {
           console.log('DOM fully loaded, setting up UI enhancements');
           
+          // Fix for anchor tag scrolling
           document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
               e.preventDefault();
@@ -177,6 +111,10 @@ const Play = () => {
             });
           });
           
+          // Generic tab functionality fix
+          // This handles multiple common tab patterns
+          
+          // Type 1: data-tab based tabs
           const setupDataTabs = function() {
             const tabs = document.querySelectorAll('[data-tab]');
             if (tabs.length > 0) {
@@ -185,10 +123,12 @@ const Play = () => {
                 tab.addEventListener('click', function() {
                   const target = this.getAttribute('data-tab');
                   
+                  // Hide all tab content
                   document.querySelectorAll('[data-tab-content]').forEach(content => {
                     content.style.display = 'none';
                   });
                   
+                  // Show selected tab content
                   if (target) {
                     const targetContent = document.querySelector('[data-tab-content="' + target + '"]');
                     if (targetContent) {
@@ -196,11 +136,13 @@ const Play = () => {
                     }
                   }
                   
+                  // Update active state
                   tabs.forEach(t => t.classList.remove('active'));
                   this.classList.add('active');
                 });
               });
               
+              // Activate first tab by default if none is active
               if (!document.querySelector('[data-tab].active')) {
                 const firstTab = document.querySelector('[data-tab]');
                 if (firstTab) {
@@ -210,6 +152,7 @@ const Play = () => {
             }
           };
           
+          // Type 2: aria-based tabs
           const setupAriaTabs = function() {
             const tabButtons = document.querySelectorAll('[role="tab"]');
             if (tabButtons.length > 0) {
@@ -220,19 +163,23 @@ const Play = () => {
                   const tablist = this.closest('[role="tablist"]');
                   
                   if (tablist) {
+                    // Deactivate all tabs
                     tablist.querySelectorAll('[role="tab"]').forEach(tab => {
                       tab.setAttribute('aria-selected', 'false');
                       tab.classList.remove('active');
                     });
                     
+                    // Activate this tab
                     this.setAttribute('aria-selected', 'true');
                     this.classList.add('active');
                     
+                    // Hide all tab panels
                     document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
                       panel.setAttribute('hidden', '');
                       panel.style.display = 'none';
                     });
                     
+                    // Show the selected panel
                     if (controls) {
                       const panel = document.getElementById(controls);
                       if (panel) {
@@ -244,8 +191,10 @@ const Play = () => {
                 });
               });
               
-              if (!document.querySelector('[role="tablist"][aria-selected="true"]')) {
-                const firstTab = document.querySelector('[role="tab"]');
+              // Activate first tab by default if none is selected
+              const tablist = document.querySelector('[role="tablist"]');
+              if (tablist && !tablist.querySelector('[aria-selected="true"]')) {
+                const firstTab = tablist.querySelector('[role="tab"]');
                 if (firstTab) {
                   firstTab.click();
                 }
@@ -253,6 +202,7 @@ const Play = () => {
             }
           };
           
+          // Type 3: Class-based tabs (common pattern)
           const setupClassTabs = function() {
             const tabButtons = document.querySelectorAll('.tabs .tab, .tab-list .tab, .tabs-nav .tab-link');
             if (tabButtons.length > 0) {
@@ -261,27 +211,33 @@ const Play = () => {
                 button.addEventListener('click', function(e) {
                   e.preventDefault();
                   
+                  // Try to get target from href or data attribute
                   let target = this.getAttribute('href');
                   if (!target || !target.startsWith('#')) {
                     target = this.dataset.target || this.dataset.href;
                   } else {
-                    target = target.substring(1);
+                    target = target.substring(1); // Remove the # from href
                   }
                   
+                  // Find tab container (parent or grandparent)
                   const tabContainer = this.closest('.tabs, .tab-container, .tabs-wrapper');
                   
                   if (tabContainer) {
+                    // Deactivate all tabs
                     tabContainer.querySelectorAll('.tab, .tab-link').forEach(tab => {
                       tab.classList.remove('active');
                     });
                     
+                    // Activate this tab
                     this.classList.add('active');
                     
+                    // Hide all content panels in this container
                     tabContainer.querySelectorAll('.tab-content, .tab-pane, .tabs-content > div').forEach(panel => {
                       panel.style.display = 'none';
                       panel.classList.remove('active');
                     });
                     
+                    // Show the selected panel
                     if (target) {
                       const panel = document.getElementById(target) || 
                                     tabContainer.querySelector('[data-tab="' + target + '"]') ||
@@ -296,8 +252,10 @@ const Play = () => {
                 });
               });
               
-              if (!document.querySelector('.tabs, .tab-container, .tabs-wrapper .tab.active, .tabs, .tab-container, .tabs-wrapper .tab-link.active')) {
-                const firstTab = document.querySelector('.tabs, .tab-container, .tabs-wrapper .tab, .tabs, .tab-container, .tabs-wrapper .tab-link');
+              // Activate first tab by default if none is active
+              const tabContainer = document.querySelector('.tabs, .tab-container, .tabs-wrapper');
+              if (tabContainer && !tabContainer.querySelector('.tab.active, .tab-link.active')) {
+                const firstTab = tabContainer.querySelector('.tab, .tab-link');
                 if (firstTab) {
                   firstTab.click();
                 }
@@ -305,10 +263,12 @@ const Play = () => {
             }
           };
           
+          // Run all tab setup functions
           setupDataTabs();
           setupAriaTabs();
           setupClassTabs();
           
+          // Final catch-all for any click events that might need to be triggered
           setTimeout(() => {
             document.querySelectorAll('.tabs .active, [role="tab"][aria-selected="true"], [data-tab].active')
               .forEach(activeTab => {
@@ -316,46 +276,28 @@ const Play = () => {
                 activeTab.click();
               });
             
+            // Dispatch resize event to fix any responsive elements
             window.dispatchEvent(new Event('resize'));
           }, 300);
         });
 
+        // Also run setup on load for any dynamically loaded content
         window.addEventListener('load', function() {
           console.log('Window loaded, re-running tab initialization');
+          // Force a resize event in case any responsive elements need to adjust
           window.dispatchEvent(new Event('resize'));
         });
-
-        (function() {
-          if (window.CanvasGradient) {
-            const originalAddColorStop = CanvasGradient.prototype.addColorStop;
-            
-            CanvasGradient.prototype.addColorStop = function(offset, color) {
-              if (typeof offset !== 'number' || !isFinite(offset) || offset < 0 || offset > 1) {
-                console.warn('Invalid gradient offset:', offset, '- Using 0 instead');
-                offset = 0;
-              }
-              
-              try {
-                originalAddColorStop.call(this, offset, color);
-              } catch (e) {
-                console.warn('Error in addColorStop:', e.message);
-                try {
-                  originalAddColorStop.call(this, 0, 'rgba(0,0,0,0)');
-                } catch (fallbackError) {
-                  // Silent fail - we tried our best
-                }
-              }
-            };
-          }
-        })();
       </script>
     `;
 
+    // Check if the document has a <head> tag
     if (html.includes('<head>')) {
       return html.replace('<head>', '<head>' + helperScript);
     } else if (html.includes('<html')) {
+      // If it has <html> but no <head>, insert head after html opening tag
       return html.replace(/<html[^>]*>/, '$&<head>' + helperScript + '</head>');
     } else {
+      // If neither, just prepend the script
       return helperScript + html;
     }
   };
@@ -364,6 +306,7 @@ const Play = () => {
     if (!loading && iframeRef.current) {
       iframeRef.current.focus();
       
+      // Set up message event listener for communication with iframe
       const handleIframeMessage = (event: MessageEvent) => {
         if (event.source === iframeRef.current?.contentWindow) {
           console.log('Message from iframe:', event.data);
@@ -377,331 +320,54 @@ const Play = () => {
     }
   }, [loading, selectedVersion]);
 
-  // Capture a screenshot of the iframe content and upload it to Supabase
-  const captureAndSaveImage = async (): Promise<string | null> => {
-    if (!iframeRef.current) return null;
-    
-    setCapturingImage(true);
-    try {
-      // Use a similar approach to downloadGameAsImage but with storage upload
-      const safetyScript = `
-        <script>
-          if (window.CanvasGradient) {
-            const originalAddColorStop = CanvasGradient.prototype.addColorStop;
-            CanvasGradient.prototype.addColorStop = function(offset, color) {
-              if (typeof offset === 'number' && !isFinite(offset)) {
-                offset = offset < 0 ? 0 : (offset > 0 ? 1 : 0);
-                console.warn("Fixed non-finite gradient offset");
-              }
-              try {
-                return originalAddColorStop.call(this, offset, color);
-              } catch (e) {
-                console.warn("Handled gradient error:", e.message);
-                try {
-                  let safeOffset = typeof offset === 'number' ? Math.max(0, Math.min(1, offset)) : 0;
-                  return originalAddColorStop.call(this, safeOffset, color || 'rgba(0,0,0,0.01)');
-                } catch (fallbackError) {
-                  console.warn("Using last resort gradient fallback");
-                }
-              }
-            };
-          }
-        </script>
-      `;
-
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.style.width = '800px';
-      iframe.style.height = '600px';
-      iframe.style.border = 'none';
-      iframe.style.zIndex = '-1000';
-      iframe.style.opacity = '0';
-      
-      document.body.appendChild(iframe);
-      
-      // Load iframe content
-      await new Promise<void>((resolve) => {
-        iframe.onload = () => resolve();
-        
-        const contentWithSafety = currentVersion?.code || '';
-        const enhancedContent = contentWithSafety.includes('<head>') 
-          ? contentWithSafety.replace('<head>', '<head>' + safetyScript)
-          : (contentWithSafety.includes('<html') 
-              ? contentWithSafety.replace(/<html[^>]*>/, '$&<head>' + safetyScript + '</head>')
-              : safetyScript + contentWithSafety);
-        
-        const doc = iframe.contentDocument;
-        if (doc) {
-          doc.open();
-          doc.write(enhancedContent);
-          doc.close();
-        }
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      // Apply fixes to iframe content
-      if (iframe.contentDocument && iframe.contentWindow) {
-        try {
-          const script = iframe.contentDocument.createElement('script');
-          script.textContent = `
-            const findAndFixGradientIssues = () => {
-              const canvases = document.querySelectorAll('canvas');
-              canvases.forEach(canvas => {
-                try {
-                  const ctx = canvas.getContext('2d');
-                  if (ctx && ctx.createLinearGradient) {
-                    const originalCreateLinearGradient = ctx.createLinearGradient;
-                    ctx.createLinearGradient = function(x0, y0, x1, y1) {
-                      if (!isFinite(x0) || !isFinite(y0) || !isFinite(x1) || !isFinite(y1)) {
-                        x0 = isFinite(x0) ? x0 : 0;
-                        y0 = isFinite(y0) ? y0 : 0;
-                        x1 = isFinite(x1) ? x1 : canvas.width || 100;
-                        y1 = isFinite(y1) ? y1 : canvas.height || 100;
-                      }
-                      return originalCreateLinearGradient.call(this, x0, y0, x1, y1);
-                    };
-                  }
-                } catch (e) {
-                  console.warn('Canvas prep error:', e);
-                }
-              });
-            };
-            
-            findAndFixGradientIssues();
-          `;
-          iframe.contentDocument.head.appendChild(script);
-        } catch (e) {
-          console.warn('Error applying pre-capture fixes:', e);
-        }
-      }
-
-      // Capture the content as an image
-      if (iframe.contentDocument?.body) {
-        const contentHeight = Math.max(
-          iframe.contentDocument.body.scrollHeight || 0,
-          iframe.contentDocument.documentElement.scrollHeight || 0,
-          iframe.contentDocument.body.offsetHeight || 0,
-          iframe.contentDocument.documentElement.offsetHeight || 0,
-          600
-        );
-        
-        iframe.style.height = `${contentHeight}px`;
-        
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        try {
-          const canvas = await html2canvas(iframe.contentDocument.body, {
-            width: 800,
-            height: Math.min(contentHeight, 600),
-            windowWidth: 800,
-            windowHeight: Math.min(contentHeight, 600),
-            scale: 1,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: null,
-            logging: false,
-            imageTimeout: 15000,
-          });
-          
-          // Convert canvas to blob
-          const blob = await new Promise<Blob | null>((resolve) => {
-            canvas.toBlob(resolve, 'image/png', 0.85);
-          });
-          
-          if (!blob) throw new Error("Failed to create image blob");
-          
-          // Create a file object from the blob
-          const file = new File([blob], `game-${id}-v${selectedVersionNumber}.png`, { type: 'image/png' });
-          
-          // Upload to Supabase storage - handle the case where the bucket might not exist yet
-          try {
-            const { data, error } = await supabase.storage
-              .from('game-thumbnails')
-              .upload(`games/${id}/${Date.now()}-v${selectedVersionNumber}.png`, file, {
-                cacheControl: '3600',
-                upsert: false
-              });
-              
-            if (error) {
-              if (error.message.includes('The resource already exists')) {
-                const uniquePath = `games/${id}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}-v${selectedVersionNumber}.png`;
-                const { data: retryData, error: retryError } = await supabase.storage
-                  .from('game-thumbnails')
-                  .upload(uniquePath, file, {
-                    cacheControl: '3600',
-                    upsert: false
-                  });
-                  
-                if (retryError) throw retryError;
-                
-                // Get public URL
-                const { data: urlData } = supabase.storage
-                  .from('game-thumbnails')
-                  .getPublicUrl(retryData?.path || uniquePath);
-                  
-                document.body.removeChild(iframe);
-                return urlData.publicUrl;
-              }
-              
-              // If the bucket doesn't exist, just return null
-              if (error.message.includes('bucket') || error.message.includes('does not exist')) {
-                console.error('Storage bucket issue:', error.message);
-                document.body.removeChild(iframe);
-                return null;
-              }
-              
-              throw error;
-            }
-            
-            // Get public URL
-            const { data: urlData } = supabase.storage
-              .from('game-thumbnails')
-              .getPublicUrl(data?.path || `games/${id}/${Date.now()}-v${selectedVersionNumber}.png`);
-              
-            document.body.removeChild(iframe);
-            return urlData.publicUrl;
-          } catch (storageError) {
-            console.error('Storage error:', storageError);
-            // If there's a storage error, we'll just return null
-            document.body.removeChild(iframe);
-            return null;
-          }
-          
-        } catch (canvasError) {
-          console.error('Image capture error:', canvasError);
-          document.body.removeChild(iframe);
-          throw canvasError;
-        }
-      }
-      
-      document.body.removeChild(iframe);
-      return null;
-      
-    } catch (error) {
-      console.error('Error capturing image:', error);
-      toast({
-        title: "Image capture failed",
-        description: "Could not generate a thumbnail for this version",
-        variant: "destructive"
-      });
-      return null;
-    } finally {
-      setCapturingImage(false);
-    }
-  };
-
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
-      setLoading(true);
+      // Create a new version with incremented version number
       const newVersionNumber = gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1;
       
-      // First create the new version, handle the case where image_url column might not exist
-      try {
-        const versionData = {
+      // Insert the new version into database
+      const { data: versionData, error: versionError } = await supabase
+        .from('game_versions')
+        .insert({
           game_id: id,
           version_number: newVersionNumber,
           code: newCode,
           instructions: newInstructions
-        };
+        })
+        .select()
+        .single();
         
-        const { data: newVersionData, error: versionError } = await supabase
-          .from('game_versions')
-          .insert(versionData)
-          .select()
-          .single();
-          
-        if (versionError) throw versionError;
-        if (!newVersionData) throw new Error("Failed to save new version");
+      if (versionError) throw versionError;
+      if (!versionData) throw new Error("Failed to save new version");
+      
+      // Update the game's current version
+      const { error: gameError } = await supabase
+        .from('games')
+        .update({ 
+          current_version: newVersionNumber,
+          code: newCode,
+          instructions: newInstructions
+        })
+        .eq('id', id);
         
-        // Update the games table, handle the case where thumbnail_url column might not exist
-        try {
-          const { error: gameError } = await supabase
-            .from('games')
-            .update({ 
-              current_version: newVersionNumber,
-              code: newCode,
-              instructions: newInstructions
-            })
-            .eq('id', id);
-            
-          if (gameError) throw gameError;
-        } catch (updateError) {
-          console.error("Error updating game:", updateError);
-          // If there's an error updating, we'll continue anyway
-        }
-        
-        // Set the new version as the selected one
-        const newVersion: GameVersion = {
-          id: newVersionData.id,
-          version_number: newVersionData.version_number,
-          code: newVersionData.code,
-          instructions: newVersionData.instructions,
-          created_at: newVersionData.created_at,
-          image_url: null
-        };
-        
-        setGameVersions(prev => [newVersion, ...prev]);
-        setSelectedVersion(newVersion.id);
-        setShowCode(false);
-        
-        // After we have a new version and it's selected, wait a bit for the iframe to render
-        // before capturing the image
-        setTimeout(async () => {
-          try {
-            // Capture and save an image of the new version
-            const imageUrl = await captureAndSaveImage();
-            
-            if (imageUrl) {
-              try {
-                // Try to update with image_url - will fail silently if column doesn't exist
-                try {
-                  await supabase
-                    .from('game_versions')
-                    .update({
-                      image_url: imageUrl
-                    } as any)
-                    .eq('id', newVersion.id);
-                } catch (updateImageError) {
-                  console.warn("Could not update image_url on game_versions", updateImageError);
-                }
-                
-                // Try to update with thumbnail_url - will fail silently if column doesn't exist
-                try {
-                  await supabase
-                    .from('games')
-                    .update({
-                      thumbnail_url: imageUrl
-                    } as any)
-                    .eq('id', id);
-                } catch (updateThumbnailError) {
-                  console.warn("Could not update thumbnail_url on games", updateThumbnailError);
-                }
-                
-                // Update the local state regardless of DB updates
-                setGameVersions(prev => prev.map(v => 
-                  v.id === newVersion.id ? { ...v, image_url: imageUrl } : v
-                ));
-              } catch (updateImageError) {
-                console.error("Error updating image URLs:", updateImageError);
-                // If there's an error updating image URLs, we'll continue anyway
-              }
-            }
-          } catch (error) {
-            console.error("Error capturing version image:", error);
-          }
-        }, 1500);
-        
-        toast({
-          title: "Code updated successfully",
-          description: `Version ${newVersionNumber} has been created and set as current.`
-        });
-      } catch (insertError) {
-        console.error("Error creating version:", insertError);
-        throw insertError;
-      }
+      if (gameError) throw gameError;
+      
+      // Add the new version to state and select it
+      const newVersion: GameVersion = {
+        id: versionData.id,
+        version_number: versionData.version_number,
+        code: versionData.code,
+        instructions: versionData.instructions,
+        created_at: versionData.created_at
+      };
+      
+      setGameVersions(prev => [newVersion, ...prev]);
+      setSelectedVersion(newVersion.id);
+      
+      toast({
+        title: "Code updated successfully",
+        description: `Version ${newVersionNumber} has been created and set as current.`
+      });
       
     } catch (error) {
       console.error("Error saving new version:", error);
@@ -710,8 +376,6 @@ const Play = () => {
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -723,76 +387,31 @@ const Play = () => {
     try {
       const newVersion: GameVersion = {
         id: crypto.randomUUID(),
-        version_number: gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1,
+        version_number: gameVersions[0].version_number + 1,
         code: version.code,
         instructions: version.instructions,
-        created_at: new Date().toISOString(),
-        image_url: version.image_url
+        created_at: new Date().toISOString()
       };
-      
-      // Insert the new version with proper types
-      const versionData = {
+      const { error } = await supabase.from('game_versions').insert({
         id: newVersion.id,
         game_id: id,
         version_number: newVersion.version_number,
         code: newVersion.code,
         instructions: newVersion.instructions
-      };
+      });
+      if (error) throw error;
       
-      // Only add image_url if it exists
-      if (version.image_url) {
-        // Use as any to bypass TypeScript error
-        try {
-          await supabase
-            .from('game_versions')
-            .insert({
-              ...versionData,
-              image_url: version.image_url
-            } as any);
-        } catch (e) {
-          // If that fails, try without image_url
-          console.warn("Error inserting with image_url, trying without:", e);
-          await supabase
-            .from('game_versions')
-            .insert(versionData);
-        }
-      } else {
-        await supabase
-          .from('game_versions')
-          .insert(versionData);
-      }
-      
-      // Update the games table
-      const updateData = {
-        current_version: newVersion.version_number,
-        code: newVersion.code,
-        instructions: newVersion.instructions
-      };
-      
-      // Only add thumbnail_url if image_url exists
-      if (version.image_url) {
-        try {
-          await supabase
-            .from('games')
-            .update({
-              ...updateData,
-              thumbnail_url: version.image_url
-            } as any)
-            .eq('id', id);
-        } catch (e) {
-          // If that fails, try without thumbnail_url
-          console.warn("Error updating with thumbnail_url, trying without:", e);
-          await supabase
-            .from('games')
-            .update(updateData)
-            .eq('id', id);
-        }
-      } else {
-        await supabase
-          .from('games')
-          .update(updateData)
-          .eq('id', id);
-      }
+      // Update the game's current version
+      const { error: gameError } = await supabase
+        .from('games')
+        .update({ 
+          current_version: newVersion.version_number,
+          code: newVersion.code,
+          instructions: newVersion.instructions
+        })
+        .eq('id', id);
+        
+      if (gameError) throw gameError;
       
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
@@ -876,250 +495,6 @@ const Play = () => {
     }
   };
 
-  const downloadGameAsImage = async () => {
-    if (!currentVersion || !currentVersion.code) {
-      toast({
-        title: "Cannot download",
-        description: "This game doesn't have any code to render",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    try {
-      setDownloadingPng(true);
-
-      const safetyScript = `
-        <script>
-          if (window.CanvasGradient) {
-            const originalAddColorStop = CanvasGradient.prototype.addColorStop;
-            CanvasGradient.prototype.addColorStop = function(offset, color) {
-              if (typeof offset === 'number' && !isFinite(offset)) {
-                offset = offset < 0 ? 0 : (offset > 0 ? 1 : 0);
-                console.warn("Fixed non-finite gradient offset");
-              }
-              try {
-                return originalAddColorStop.call(this, offset, color);
-              } catch (e) {
-                console.warn("Handled gradient error:", e.message);
-                try {
-                  let safeOffset = typeof offset === 'number' ? Math.max(0, Math.min(1, offset)) : 0;
-                  return originalAddColorStop.call(this, safeOffset, color || 'rgba(0,0,0,0.01)');
-                } catch (fallbackError) {
-                  console.warn("Using last resort gradient fallback");
-                }
-              }
-            };
-          }
-        </script>
-      `;
-
-      const iframe = document.createElement('iframe');
-      iframe.style.position = 'fixed';
-      iframe.style.top = '0';
-      iframe.style.left = '0';
-      iframe.style.width = '1200px';
-      iframe.style.height = '100vh';
-      iframe.style.border = 'none';
-      iframe.style.zIndex = '-1000';
-      iframe.style.opacity = '0';
-      
-      document.body.appendChild(iframe);
-      
-      await new Promise<void>((resolve) => {
-        iframe.onload = () => resolve();
-        
-        let contentWithSafety = currentVersion.code;
-        if (contentWithSafety.includes('<head>')) {
-          contentWithSafety = contentWithSafety.replace('<head>', '<head>' + safetyScript);
-        } else if (contentWithSafety.includes('<html')) {
-          contentWithSafety = contentWithSafety.replace(/<html[^>]*>/, '$&<head>' + safetyScript + '</head>');
-        } else {
-          contentWithSafety = safetyScript + contentWithSafety;
-        }
-        
-        const doc = iframe.contentDocument;
-        if (doc) {
-          doc.open();
-          doc.write(contentWithSafety);
-          doc.close();
-        }
-      });
-
-      await new Promise(resolve => setTimeout(resolve, 800));
-
-      if (iframe.contentDocument && iframe.contentWindow) {
-        try {
-          const script = iframe.contentDocument.createElement('script');
-          script.textContent = `
-            const findAndFixGradientIssues = () => {
-              const canvases = document.querySelectorAll('canvas');
-              canvases.forEach(canvas => {
-                try {
-                  const ctx = canvas.getContext('2d');
-                  if (ctx && ctx.createLinearGradient) {
-                    const originalCreateLinearGradient = ctx.createLinearGradient;
-                    ctx.createLinearGradient = function(x0, y0, x1, y1) {
-                      if (!isFinite(x0) || !isFinite(y0) || !isFinite(x1) || !isFinite(y1)) {
-                        x0 = isFinite(x0) ? x0 : 0;
-                        y0 = isFinite(y0) ? y0 : 0;
-                        x1 = isFinite(x1) ? x1 : canvas.width || 100;
-                        y1 = isFinite(y1) ? y1 : canvas.height || 100;
-                      }
-                      return originalCreateLinearGradient.call(this, x0, y0, x1, y1);
-                    };
-                  }
-                } catch (e) {
-                  console.warn('Canvas prep error:', e);
-                }
-              });
-            };
-            
-            findAndFixGradientIssues();
-          `;
-          iframe.contentDocument.head.appendChild(script);
-        } catch (e) {
-          console.warn('Error applying pre-capture fixes:', e);
-        }
-      }
-      
-      if (iframe.contentDocument?.body) {
-        try {
-          const contentHeight = Math.max(
-            iframe.contentDocument.body.scrollHeight || 0,
-            iframe.contentDocument.documentElement.scrollHeight || 0,
-            iframe.contentDocument.body.offsetHeight || 0,
-            iframe.contentDocument.documentElement.offsetHeight || 0,
-            600
-          );
-          
-          iframe.style.height = `${contentHeight}px`;
-          
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          const canvas = await html2canvas(iframe.contentDocument.body, {
-            width: 1200,
-            height: contentHeight,
-            windowWidth: 1200,
-            windowHeight: contentHeight,
-            scale: 2,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: null,
-            logging: false,
-            imageTimeout: 15000,
-            onclone: (clonedDoc) => {
-              try {
-                Array.from(document.styleSheets).forEach(styleSheet => {
-                  try {
-                    if (styleSheet.href) {
-                      const link = clonedDoc.createElement('link');
-                      link.rel = 'stylesheet';
-                      link.href = styleSheet.href;
-                      clonedDoc.head.appendChild(link);
-                    } else if (styleSheet.cssRules) {
-                      const style = clonedDoc.createElement('style');
-                      Array.from(styleSheet.cssRules).forEach(rule => {
-                        try {
-                          style.appendChild(document.createTextNode(rule.cssText));
-                        } catch (e) {
-                          // Skip problematic rules
-                        }
-                      });
-                      clonedDoc.head.appendChild(style);
-                    }
-                  } catch (e) {
-                    // CORS issues with some stylesheets can be ignored
-                  }
-                });
-              } catch (e) {
-                console.warn('Style copying error:', e);
-              }
-            }
-          });
-          
-          const imageUrl = canvas.toDataURL('image/png', 1.0);
-          
-          const link = document.createElement('a');
-          link.download = `game-version-${currentVersion.version_number}.png`;
-          link.href = imageUrl;
-          link.click();
-          
-          toast({
-            title: "Image downloaded",
-            description: "Your game screenshot has been downloaded as PNG"
-          });
-        } catch (canvasError) {
-          console.error('Primary capture method failed:', canvasError);
-          toast({
-            title: "Error with high-quality capture",
-            description: "Trying a simpler approach for the download"
-          });
-          
-          try {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            
-            if (ctx) {
-              const rect = iframe.getBoundingClientRect();
-              canvas.width = rect.width;
-              canvas.height = rect.height;
-              
-              ctx.fillStyle = '#ffffff';
-              ctx.fillRect(0, 0, canvas.width, canvas.height);
-              
-              const image = new Image();
-              image.crossOrigin = 'anonymous';
-              
-              const contentCanvas = await html2canvas(iframe.contentDocument.body, {
-                width: rect.width,
-                height: rect.height,
-                scale: 1,
-                useCORS: true,
-                allowTaint: true,
-                backgroundColor: '#ffffff',
-                logging: false,
-                imageTimeout: 5000,
-                onclone: (doc) => {
-                  const script = doc.createElement('script');
-                  script.textContent = 'console.log("Fallback capture");';
-                  doc.head.appendChild(script);
-                }
-              });
-              
-              ctx.drawImage(contentCanvas, 0, 0);
-              
-              const imageUrl = canvas.toDataURL('image/png');
-              const link = document.createElement('a');
-              link.download = `game-version-${currentVersion.version_number}.png`;
-              link.href = imageUrl;
-              link.click();
-              
-              toast({
-                title: "Image downloaded (simple version)",
-                description: "A simplified version of your game was downloaded as PNG"
-              });
-            }
-          } catch (fallbackError) {
-            console.error('Fallback capture method failed:', fallbackError);
-            throw new Error('Unable to capture game image: ' + canvasError.message);
-          }
-        }
-      }
-      
-      document.body.removeChild(iframe);
-    } catch (error) {
-      console.error('Error generating image:', error);
-      toast({
-        title: "Download failed",
-        description: "Could not generate image due to canvas rendering issues. Try exporting as ZIP instead.",
-        variant: "destructive"
-      });
-    } finally {
-      setDownloadingPng(false);
-    }
-  };
-
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
@@ -1128,6 +503,7 @@ const Play = () => {
 
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
+      {/* Navbar */}
       <div className="w-full h-12 bg-white border-b border-gray-200 px-4 flex items-center justify-between z-10 shadow-sm flex-shrink-0">
         <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
           <ArrowLeft size={18} />
@@ -1160,35 +536,20 @@ const Play = () => {
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1 text-sm"
-                onClick={handleDownload}
-              >
-                <Download size={14} />
-                ZIP
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 gap-1 text-sm"
-                onClick={downloadGameAsImage}
-                disabled={downloadingPng}
-              >
-                {downloadingPng ? (
-                  <Loader2 size={14} className="animate-spin mr-1" />
-                ) : (
-                  <Download size={14} />
-                )}
-                PNG
-              </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1 text-sm"
+              onClick={handleDownload}
+            >
+              <Download size={14} />
+              Download
+            </Button>
           </div>
         </div>
       </div>
       
+      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         <div className="w-[400px] flex flex-col bg-white border-r border-gray-200">
           <div className="p-4 border-b border-gray-200 flex-shrink-0">

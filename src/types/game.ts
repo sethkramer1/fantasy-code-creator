@@ -2,68 +2,46 @@
 export interface Game {
   id: string;
   prompt: string;
-  code: string;
-  instructions: string | null;
   created_at: string;
-  current_version: number | null;
-  type: string;
-  thumbnail_url?: string | null;
-}
-
-export interface GameVersion {
-  id: string;
-  game_id: string;
-  version_number: number;
-  code: string;
-  instructions: string | null;
-  created_at: string;
-  image_url?: string | null;
-}
-
-export interface GameMessage {
-  id: string;
-  game_id: string;
-  message: string;
-  response: string | null;
-  created_at: string;
-  image_url?: string | null;
+  type?: string;
+  code?: string;
 }
 
 export const contentTypes = [
-  {
-    id: 'game',
-    label: 'Interactive Game',
-    promptPrefix: 'Create an interactive JavaScript game using HTML Canvas with the following concept:',
-    description: 'Create playable games like Snake, Tetris, or simple platformers'
+  { 
+    id: 'game', 
+    label: 'Interactive Game', 
+    example: 'Create an interactive browser game with engaging gameplay mechanics',
+    promptPrefix: 'Create an interactive game with the following requirements:'
   },
-  {
-    id: 'svg',
-    label: 'SVG Graphic',
-    promptPrefix: 'Create an SVG graphic with the following description:',
-    description: 'Generate vector graphics, illustrations or icons'
+  { 
+    id: 'svg', 
+    label: 'SVG Graphic', 
+    example: 'Create vector graphics, logos, or illustrations',
+    promptPrefix: 'Create an SVG graphic with the following requirements. Return ONLY the SVG code:'
   },
-  {
-    id: 'webdesign',
-    label: 'Web Design Prototype',
-    promptPrefix: 'Create a responsive web design prototype for:',
-    description: 'Design website layouts or interface prototypes'
+  { 
+    id: 'webdesign', 
+    label: 'Web Design Prototype', 
+    example: 'Create responsive webpage layouts and UI components',
+    promptPrefix: 'Create a web design prototype with the following requirements. Include responsive design:'
   },
-  {
-    id: 'dataviz',
-    label: 'Data Visualization',
-    promptPrefix: 'Create a data visualization for the following data:',
-    description: 'Visualize data with charts, graphs or interactive displays'
+  { 
+    id: 'dataviz', 
+    label: 'Data Visualization', 
+    example: 'Create charts, graphs, and interactive data visualizations',
+    promptPrefix: 'Create a data visualization with the following requirements. Use D3.js or Chart.js:'
   },
-  {
-    id: 'diagram',
-    label: 'Diagram',
-    promptPrefix: 'Create a diagram illustrating:',
-    description: 'Create flowcharts, mind maps, UML or technical diagrams'
+  { 
+    id: 'diagram', 
+    label: 'Diagram', 
+    example: 'Create flowcharts, sequence diagrams, or architecture diagrams',
+    promptPrefix: 'Create a diagram with the following requirements. Use SVG or HTML/CSS:'
   },
-  {
-    id: 'infographic',
-    label: 'Infographic',
-    promptPrefix: 'Create an infographic about:',
-    description: 'Design visual representations of information or data'
+  { 
+    id: 'infographic', 
+    label: 'Infographic', 
+    example: 'Create visual representations of information and data',
+    promptPrefix: 'Create an infographic with the following requirements. Use HTML and CSS:'
   }
-];
+] as const;
