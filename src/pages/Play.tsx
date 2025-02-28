@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -42,6 +41,7 @@ const Play = () => {
   const thinkingTimerRef = useRef<NodeJS.Timeout>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const generationStartedRef = useRef(false);
+  const lastOutputRef = useRef<string>('');
   const { toast } = useToast();
   const navigate = useNavigate();
 
@@ -92,9 +92,47 @@ const Play = () => {
     };
   }, []);
 
+  // Helper function to update terminal output without always creating new lines
+  const updateTerminalOutput = (newContent: string, isNewMessage = false) => {
+    setTerminalOutput(prev => {
+      // Handle special case content that should always be on a new line
+      if (isNewMessage || 
+          newContent.startsWith("> Thinking:") || 
+          newContent.startsWith("> Generation") || 
+          newContent.includes("completed") || 
+          newContent.includes("Error:")) {
+        lastOutputRef.current = newContent;
+        return [...prev, newContent];
+      }
+      
+      // Otherwise, try to append to the last line if it's code content
+      if (prev.length > 0) {
+        const lastLine = prev[prev.length - 1];
+        
+        // If both are code content (indicated by ">"), combine them
+        if (lastLine.startsWith("> ") && !lastLine.startsWith("> Thinking:") && 
+            newContent.startsWith("> ") && !newContent.startsWith("> Thinking:")) {
+          
+          // Strip the ">" prefix from the new content when combining
+          const updatedLastLine = lastLine + newContent.slice(1);
+          lastOutputRef.current = updatedLastLine;
+          return [...prev.slice(0, -1), updatedLastLine];
+        }
+      }
+      
+      // Default: add as new line
+      lastOutputRef.current = newContent;
+      return [...prev, newContent];
+    });
+  };
+
   const handleInitialGeneration = async () => {
     try {
       if (!id) return;
+      
+      // Reset thinking time when starting generation
+      setThinkingTime(0);
+      setGenerationInProgress(true);
       
       // Get game details to get the prompt
       const { data: gameData, error: gameError } = await supabase
@@ -110,18 +148,15 @@ const Play = () => {
       const contentType = gameData.type || gameType;
       
       // Update terminal with prompt info
-      setTerminalOutput(prev => [
-        ...prev, 
-        `> Generating content with prompt: "${prompt}"`,
-        `> Content type: ${contentType}`
-      ]);
+      updateTerminalOutput(`> Generating content with prompt: "${prompt}"`, true);
+      updateTerminalOutput(`> Content type: ${contentType}`, true);
       
       if (imageUrl) {
-        setTerminalOutput(prev => [...prev, "> Including image with request"]);
+        updateTerminalOutput("> Including image with request", true);
       }
       
       // Call the generation API directly
-      setTerminalOutput(prev => [...prev, "> Connecting to AI service..."]);
+      updateTerminalOutput("> Connecting to AI service...", true);
       
       const response = await fetch(
         'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
@@ -148,13 +183,14 @@ const Play = () => {
         }
       }
       
-      setTerminalOutput(prev => [...prev, `> Connected to generation service, receiving stream...`]);
+      updateTerminalOutput(`> Connected to generation service, receiving stream...`, true);
       
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No reader available");
       
       let gameContent = '';
       let buffer = '';
+      let currentLineContent = '';
       
       while (true) {
         const { done, value } = await reader.read();
@@ -177,12 +213,12 @@ const Play = () => {
             
             switch (data.type) {
               case 'message_start':
-                setTerminalOutput(prev => [...prev, "> AI is analyzing your request..."]);
+                updateTerminalOutput("> AI is analyzing your request...", true);
                 break;
                 
               case 'content_block_start':
                 if (data.content_block?.type === 'thinking') {
-                  setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
+                  updateTerminalOutput("\n> Thinking phase started...", true);
                 }
                 break;
                 
@@ -190,25 +226,45 @@ const Play = () => {
                 if (data.delta?.type === 'thinking_delta') {
                   const thinking = data.delta.thinking || '';
                   if (thinking && thinking.trim()) {
-                    setTerminalOutput(prev => [...prev, `> ${thinking}`]);
+                    updateTerminalOutput(`> ${thinking}`, true);
                   }
                 } else if (data.delta?.type === 'text_delta') {
                   const content = data.delta.text || '';
                   if (content) {
                     gameContent += content;
                     
-                    // Display the content in smaller chunks for better visibility
+                    // Handle newlines in content specially
                     if (content.includes('\n')) {
-                      // If it contains newlines, split it and display each line
-                      const contentLines = content.split('\n');
-                      for (const contentLine of contentLines) {
-                        if (contentLine.trim()) {
-                          setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                      // Split by newlines and process each part
+                      const lines = content.split('\n');
+                      
+                      // Add first part to current line
+                      if (lines[0]) {
+                        currentLineContent += lines[0];
+                        updateTerminalOutput(`> ${currentLineContent}`, false);
+                      }
+                      
+                      // Handle middle parts - each gets its own line
+                      for (let i = 1; i < lines.length - 1; i++) {
+                        if (lines[i].trim()) {
+                          currentLineContent = lines[i];
+                          updateTerminalOutput(`> ${currentLineContent}`, true);
+                        }
+                      }
+                      
+                      // Start a new current line with the last part
+                      if (lines.length > 1) {
+                        currentLineContent = lines[lines.length - 1];
+                        if (currentLineContent) {
+                          updateTerminalOutput(`> ${currentLineContent}`, true);
+                        } else {
+                          currentLineContent = '';
                         }
                       }
                     } else {
-                      // Otherwise display the chunk directly
-                      setTerminalOutput(prev => [...prev, `> ${content}`]);
+                      // No newlines, append to current line
+                      currentLineContent += content;
+                      updateTerminalOutput(`> ${currentLineContent}`, false);
                     }
                   }
                 }
@@ -216,18 +272,18 @@ const Play = () => {
                 
               case 'content_block_stop':
                 if (data.content_block?.type === 'thinking') {
-                  setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
+                  updateTerminalOutput("> Thinking phase completed", true);
                 }
                 break;
                 
               case 'message_delta':
                 if (data.delta?.stop_reason) {
-                  setTerminalOutput(prev => [...prev, `> Generation ${data.delta.stop_reason}`]);
+                  updateTerminalOutput(`> Generation ${data.delta.stop_reason}`, true);
                 }
                 break;
                 
               case 'message_stop':
-                setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
+                updateTerminalOutput("> Game generation completed!", true);
                 break;
                 
               case 'error':
@@ -235,7 +291,7 @@ const Play = () => {
             }
           } catch (e) {
             console.error('Error parsing SSE line:', e);
-            setTerminalOutput(prev => [...prev, `> Error: ${e instanceof Error ? e.message : 'Unknown error'}`]);
+            updateTerminalOutput(`> Error: ${e instanceof Error ? e.message : 'Unknown error'}`, true);
           }
         }
       }
@@ -244,7 +300,7 @@ const Play = () => {
         throw new Error("No content received");
       }
 
-      setTerminalOutput(prev => [...prev, "> Saving to database..."]);
+      updateTerminalOutput("> Saving to database...", true);
       
       // For SVG content type, wrap the SVG in basic HTML if it's just raw SVG
       if (contentType === 'svg' && !gameContent.includes('<!DOCTYPE html>')) {
@@ -306,11 +362,11 @@ const Play = () => {
         if (messageError) {
           console.error("Error saving initial message:", messageError);
         } else {
-          setTerminalOutput(prev => [...prev, "> Initial message saved to chat"]);
+          updateTerminalOutput("> Initial message saved to chat", true);
         }
       }
       
-      setTerminalOutput(prev => [...prev, "> Generation complete! Displaying result..."]);
+      updateTerminalOutput("> Generation complete! Displaying result...", true);
       
       // Set generation as complete and load the result
       setGenerationInProgress(false);
@@ -329,8 +385,8 @@ const Play = () => {
     } catch (error) {
       console.error('Generation error:', error);
       
-      setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : "Generation failed"}`]);
-      setTerminalOutput(prev => [...prev, "> Attempting to recover..."]);
+      updateTerminalOutput(`> Error: ${error instanceof Error ? error.message : "Generation failed"}`, true);
+      updateTerminalOutput("> Attempting to recover...", true);
       
       // Even if there's an error, try to load the game
       fetchGame();

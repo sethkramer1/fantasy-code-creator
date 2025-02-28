@@ -33,6 +33,7 @@ export const GameChat = ({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
   // Auto-resize textarea
@@ -69,25 +70,43 @@ export const GameChat = ({
     fetchMessages();
   }, [gameId, toast]);
 
+  // Setup thinking time timer when loading
   useEffect(() => {
-    let timer: NodeJS.Timeout;
     if (loading) {
+      // Reset thinking time when starting
       setThinkingTime(0);
-      timer = setInterval(() => {
-        setThinkingTime(prev => {
-          const newValue = prev + 1;
-          // Notify parent component about thinking time update
+      
+      // Clear any existing timer
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      
+      // Start new timer
+      timerRef.current = setInterval(() => {
+        setThinkingTime(prevTime => {
+          const newTime = prevTime + 1;
+          // Notify parent of updated time
           if (onTerminalStatusChange) {
-            onTerminalStatusChange(true, terminalOutput, newValue, loading);
+            onTerminalStatusChange(true, terminalOutput, newTime, true);
           }
-          return newValue;
+          return newTime;
         });
       }, 1000);
+    } else {
+      // Clean up timer when not loading
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
     }
+    
+    // Clean up on unmount
     return () => {
-      if (timer) clearInterval(timer);
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
-  }, [loading, terminalOutput, onTerminalStatusChange]);
+  }, [loading, onTerminalStatusChange]);
 
   // Update parent component when terminal output changes
   useEffect(() => {
@@ -136,17 +155,51 @@ export const GameChat = ({
     }
   };
 
+  // Helper function to update terminal output without always creating new lines
+  const updateTerminalOutput = (newContent: string, isNewMessage = false) => {
+    setTerminalOutput(prev => {
+      // Handle special case content that should always be on a new line
+      if (isNewMessage || 
+          newContent.startsWith("> Thinking:") || 
+          newContent.startsWith("> Generation") || 
+          newContent.includes("completed") || 
+          newContent.includes("Error:")) {
+        return [...prev, newContent];
+      }
+      
+      // Otherwise, try to append to the last line if it's code content
+      if (prev.length > 0) {
+        const lastLine = prev[prev.length - 1];
+        
+        // If both are code content (indicated by ">"), combine them
+        if (lastLine.startsWith("> ") && !lastLine.startsWith("> Thinking:") && 
+            newContent.startsWith("> ") && !newContent.startsWith("> Thinking:")) {
+          
+          // Strip the ">" prefix from the new content when combining
+          const updatedLastLine = lastLine + newContent.slice(1);
+          return [...prev.slice(0, -1), updatedLastLine];
+        }
+      }
+      
+      // Default: add as new line
+      return [...prev, newContent];
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && !imageUrl) || loading) return;
     
     setLoading(true);
-    const initialOutput = [`> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`];
-    setTerminalOutput(initialOutput);
+    setThinkingTime(0); // Reset thinking time
+    
+    // Initialize terminal with request info
+    const initialMessage = `> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`;
+    setTerminalOutput([initialMessage]);
     
     // Notify parent component to show terminal
     if (onTerminalStatusChange) {
-      onTerminalStatusChange(true, initialOutput, 0, true);
+      onTerminalStatusChange(true, [initialMessage], 0, true);
     }
     
     // Create temp message to show in UI
@@ -200,7 +253,7 @@ export const GameChat = ({
       }
       
       console.log("Message inserted successfully:", insertedMessage);
-      setTerminalOutput(prev => [...prev, "> Message saved successfully"]);
+      updateTerminalOutput("> Message saved successfully", true);
       
       // Update messages list with the actual saved message
       setMessages(prev => 
@@ -209,7 +262,7 @@ export const GameChat = ({
       
       // Call the edge function to process the request
       console.log("Calling process-game-update function...");
-      setTerminalOutput(prev => [...prev, "> Sending request to AI..."]);
+      updateTerminalOutput("> Sending request to AI...", true);
       
       // Build request payload
       const payload: any = {
@@ -240,7 +293,7 @@ export const GameChat = ({
       }
       
       console.log("Response received, processing stream...");
-      setTerminalOutput(prev => [...prev, "> Response received, generating content..."]);
+      updateTerminalOutput("> Response received, generating content...", true);
       
       // Process the streamed response
       const reader = apiResponse.body?.getReader();
@@ -248,6 +301,7 @@ export const GameChat = ({
       
       let gameContent = '';
       let buffer = '';
+      let currentLineContent = '';
       
       while (true) {
         const { done, value } = await reader.read();
@@ -273,37 +327,57 @@ export const GameChat = ({
               if (content) {
                 gameContent += content;
                 
-                // Display the actual content in the terminal
+                // Handle newlines in content specially
                 if (content.includes('\n')) {
-                  // If it contains newlines, split it and display each line
-                  const contentLines = content.split('\n');
-                  for (const contentLine of contentLines) {
-                    if (contentLine.trim()) {
-                      setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                  // Split by newlines and process each part
+                  const lines = content.split('\n');
+                  
+                  // Add first part to current line
+                  if (lines[0]) {
+                    currentLineContent += lines[0];
+                    updateTerminalOutput(`> ${currentLineContent}`, false);
+                  }
+                  
+                  // Handle middle parts - each gets its own line
+                  for (let i = 1; i < lines.length - 1; i++) {
+                    if (lines[i].trim()) {
+                      currentLineContent = lines[i];
+                      updateTerminalOutput(`> ${currentLineContent}`, true);
+                    }
+                  }
+                  
+                  // Start a new current line with the last part
+                  if (lines.length > 1) {
+                    currentLineContent = lines[lines.length - 1];
+                    if (currentLineContent) {
+                      updateTerminalOutput(`> ${currentLineContent}`, true);
+                    } else {
+                      currentLineContent = '';
                     }
                   }
                 } else {
-                  // Otherwise display the chunk directly
-                  setTerminalOutput(prev => [...prev, `> ${content}`]);
+                  // No newlines, append to current line
+                  currentLineContent += content;
+                  updateTerminalOutput(`> ${currentLineContent}`, false);
                 }
               }
             } else if (parsedData.type === 'thinking') {
               const thinking = parsedData.thinking || '';
               if (thinking && thinking.trim()) {
-                setTerminalOutput(prev => [...prev, `> Thinking: ${thinking}`]);
+                updateTerminalOutput(`> Thinking: ${thinking}`, true);
               }
             } else if (parsedData.delta?.type === 'thinking_delta') {
               const thinking = parsedData.delta.thinking || '';
               if (thinking && thinking.trim()) {
-                setTerminalOutput(prev => [...prev, `> Thinking: ${thinking}`]);
+                updateTerminalOutput(`> Thinking: ${thinking}`, true);
               }
             } else if (parsedData.type === 'message_delta' && parsedData.delta?.stop_reason) {
-              setTerminalOutput(prev => [...prev, `> Generation ${parsedData.delta.stop_reason}`]);
+              updateTerminalOutput(`> Generation ${parsedData.delta.stop_reason}`, true);
             } else if (parsedData.type === 'message_stop') {
-              setTerminalOutput(prev => [...prev, "> Generation completed!"]);
+              updateTerminalOutput("> Generation completed!", true);
             } else if (parsedData.type) {
               // Log other event types for debugging
-              setTerminalOutput(prev => [...prev, `> Event: ${parsedData.type}`]);
+              updateTerminalOutput(`> Event: ${parsedData.type}`, true);
             }
           } catch (e) {
             console.warn("Error parsing streaming data:", e);
@@ -319,7 +393,7 @@ export const GameChat = ({
       }
       
       // Update the game with the new content
-      setTerminalOutput(prev => [...prev, "> Updating game..."]);
+      updateTerminalOutput("> Updating game...", true);
       onGameUpdate(gameContent, "Code updated successfully");
       
       // Update the message response
@@ -343,7 +417,7 @@ export const GameChat = ({
         setMessages(updatedMessages);
       }
       
-      setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
+      updateTerminalOutput("> Game updated successfully!", true);
       
       // Notify parent that processing is complete but keep terminal visible
       if (onTerminalStatusChange) {
@@ -361,9 +435,10 @@ export const GameChat = ({
     } catch (error) {
       console.error("Error in handleSubmit:", error);
       
-      setTerminalOutput(prev => [...prev, 
-        `> Error: ${error instanceof Error ? error.message : 'Unknown error'}`
-      ]);
+      updateTerminalOutput(
+        `> Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        true
+      );
       
       toast({
         title: "Error processing message",
