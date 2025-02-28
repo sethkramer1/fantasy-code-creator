@@ -16,6 +16,7 @@ export type Database = {
           id: string
           image_url: string | null
           message: string
+          model_type: string | null
           response: string | null
           version_id: string | null
         }
@@ -25,6 +26,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           message: string
+          model_type?: string | null
           response?: string | null
           version_id?: string | null
         }
@@ -34,6 +36,7 @@ export type Database = {
           id?: string
           image_url?: string | null
           message?: string
+          model_type?: string | null
           response?: string | null
           version_id?: string | null
         }
@@ -96,6 +99,7 @@ export type Database = {
           current_version: number | null
           id: string
           instructions: string | null
+          model_type: string | null
           prompt: string
           type: string | null
         }
@@ -105,6 +109,7 @@ export type Database = {
           current_version?: number | null
           id?: string
           instructions?: string | null
+          model_type?: string | null
           prompt: string
           type?: string | null
         }
@@ -114,6 +119,7 @@ export type Database = {
           current_version?: number | null
           id?: string
           instructions?: string | null
+          model_type?: string | null
           prompt?: string
           type?: string | null
         }
