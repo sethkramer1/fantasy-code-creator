@@ -264,7 +264,12 @@ export const GameChat = ({
       console.log("Calling process-game-update function...");
       updateTerminalOutput("> Sending request to AI...", true);
       
-      const payload = {
+      const payload: {
+        gameId: string;
+        message: string;
+        modelType: string;
+        imageUrl?: string;
+      } = {
         gameId: gameId,
         message: currentMessage,
         modelType: currentModelType
