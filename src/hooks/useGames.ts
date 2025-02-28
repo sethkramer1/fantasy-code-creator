@@ -19,8 +19,8 @@ export const useGames = () => {
           .order('created_at', { ascending: false });
         
         if (response.error) {
-          // If the error is specifically about thumbnail_url column not existing
-          if (response.error.message.includes("column 'thumbnail_url' does not exist")) {
+          // Check for any variation of "thumbnail_url does not exist" error message
+          if (response.error.message.includes("thumbnail_url") && response.error.message.includes("does not exist")) {
             console.warn("thumbnail_url column not found, fetching without it");
             
             // Second attempt: Try without thumbnail_url
