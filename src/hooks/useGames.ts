@@ -14,7 +14,7 @@ export const useGames = () => {
       try {
         const { data, error } = await supabase
           .from('games')
-          .select('id, prompt, created_at')
+          .select('id, prompt, created_at, type, thumbnail_url')
           .order('created_at', { ascending: false });
         
         if (error) throw error;
