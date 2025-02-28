@@ -1,11 +1,8 @@
 
-import { Loader2, Terminal, Wand2, Image as ImageIcon } from "lucide-react";
+import { Loader2, Terminal, Wand2 } from "lucide-react";
 import { GameTypeSelector } from "./GameTypeSelector";
 import { GamePromptInput } from "./GamePromptInput";
-import { ImageUpload } from "./ImageUpload";
 import { useState } from "react";
-import { useToast } from "@/components/ui/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 
 interface GenerationFormProps {
   gameType: string;
@@ -34,53 +31,6 @@ export function GenerationForm({
   onImageUploaded,
   onImageRemoved
 }: GenerationFormProps) {
-  const [isEnhancing, setIsEnhancing] = useState(false);
-  const { toast } = useToast();
-
-  const handleEnhancePrompt = async () => {
-    if (!prompt.trim()) return;
-    
-    setIsEnhancing(true);
-    
-    try {
-      // Log the request for debugging
-      console.log('Enhancing prompt:', { prompt, contentType: gameType });
-      
-      const { data, error } = await supabase.functions.invoke('enhance-prompt', {
-        body: { 
-          prompt: prompt,
-          contentType: gameType 
-        },
-      });
-      
-      if (error) {
-        console.error('Supabase function error:', error);
-        throw new Error(`Failed to enhance prompt: ${error.message}`);
-      }
-      
-      console.log('Enhanced prompt response:', data);
-      
-      if (data?.enhancedPrompt) {
-        setPrompt(data.enhancedPrompt);
-        toast({
-          title: "Prompt enhanced",
-          description: "Your prompt has been improved with AI"
-        });
-      } else {
-        throw new Error('Invalid response from enhance prompt function');
-      }
-    } catch (error) {
-      console.error('Error enhancing prompt:', error);
-      toast({
-        title: "Couldn't enhance prompt",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive"
-      });
-    } finally {
-      setIsEnhancing(false);
-    }
-  };
-  
   return (
     <div className="glass-panel p-8 space-y-6 card-shadow">
       <div className="space-y-6">
@@ -92,35 +42,14 @@ export function GenerationForm({
           value={prompt}
           onChange={setPrompt}
           selectedType={gameType}
+          onImageUploaded={onImageUploaded}
+          onImageRemoved={onImageRemoved}
+          imageUrl={imageUrl}
         />
       </div>
       
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <ImageUpload
-              onImageUploaded={onImageUploaded}
-              onImageRemoved={onImageRemoved}
-              imageUrl={imageUrl}
-            />
-          </div>
-          
-          <div>
-            {prompt.trim().length > 0 && (
-              <button 
-                onClick={handleEnhancePrompt}
-                disabled={isEnhancing}
-                className="flex items-center gap-2 py-2 px-4 rounded-lg text-black bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-ring"
-                title="Enhance your prompt with AI"
-              >
-                <Wand2 size={16} className={isEnhancing ? "animate-spin" : ""} />
-                <span className="font-medium">{isEnhancing ? "Enhancing..." : "Enhance prompt"}</span>
-              </button>
-            )}
-          </div>
-        </div>
-        
-        <div className="flex items-center gap-3 pt-2">
+      <div className="pt-2">
+        <div className="flex items-center gap-3">
           <button
             onClick={onGenerate}
             disabled={loading}
