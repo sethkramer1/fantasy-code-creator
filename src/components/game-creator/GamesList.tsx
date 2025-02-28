@@ -142,26 +142,41 @@ export function GamesList({
             return (
               <div 
                 key={game.id}
-                className="rounded-xl bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group p-4 cursor-pointer hover-scale card-shadow"
+                className="rounded-xl bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group overflow-hidden cursor-pointer hover-scale card-shadow"
                 onClick={() => onGameClick(game.id)}
               >
-                <div className="flex justify-between items-start gap-2">
-                  <div className="space-y-2 flex-1">
-                    <p className="font-medium text-gray-900 group-hover:text-black transition-colors line-clamp-2">
-                      {game.prompt}
-                    </p>
-                    
-                    <div className="flex items-center gap-2">
-                      {game.type && (
-                        <span className={`text-xs px-2.5 py-1 rounded-full ${badgeColor} whitespace-nowrap flex-shrink-0 font-medium`}>
-                          {label.split(' ')[0]}
-                        </span>
-                      )}
+                {/* Preview iframe */}
+                <div className="relative w-full h-40 bg-gray-50 border-b border-gray-100 overflow-hidden">
+                  <iframe 
+                    src={`/play/${game.id}`}
+                    className="w-full h-[800px] transform scale-[0.33] origin-top-left pointer-events-none"
+                    style={{ overflow: 'hidden' }}
+                    title={`Preview of ${game.prompt || 'design'}`}
+                    loading="lazy"
+                    sandbox="allow-same-origin"
+                  />
+                  <div className="absolute inset-0 z-10" aria-hidden="true"></div>
+                </div>
+                
+                <div className="p-4">
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="space-y-2 flex-1">
+                      <p className="font-medium text-gray-900 group-hover:text-black transition-colors line-clamp-2">
+                        {game.prompt}
+                      </p>
+                      
+                      <div className="flex items-center gap-2">
+                        {game.type && (
+                          <span className={`text-xs px-2.5 py-1 rounded-full ${badgeColor} whitespace-nowrap flex-shrink-0 font-medium`}>
+                            {label.split(' ')[0]}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                  
-                  <div className="p-1.5 rounded-full bg-gray-50 group-hover:bg-gray-100 transition-colors">
-                    <ArrowUpRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                    
+                    <div className="p-1.5 rounded-full bg-gray-50 group-hover:bg-gray-100 transition-colors">
+                      <ArrowUpRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
+                    </div>
                   </div>
                 </div>
               </div>
