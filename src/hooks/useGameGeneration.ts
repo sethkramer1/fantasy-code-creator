@@ -228,12 +228,15 @@ IMPORTANT IMAGE USAGE INSTRUCTIONS:
 - If you need a placeholder image, use a proper placeholder service instead of making up an Unsplash URL
 `;
 
-      // Extra emphasis for mobile UI wrapping in iPhone container
+      // Enhanced emphasis for mobile UI wrapping in iPhone container
       if (selectedType.id === 'webdesign' && 
           (prompt.toLowerCase().includes('mobile') || 
            prompt.toLowerCase().includes('phone') || 
            prompt.toLowerCase().includes('iphone') || 
-           prompt.toLowerCase().includes('smartphone'))) {
+           prompt.toLowerCase().includes('smartphone') ||
+           prompt.toLowerCase().includes('ios') ||
+           prompt.toLowerCase().includes('android') ||
+           prompt.toLowerCase().includes('app'))) {
         const mobileEmphasis = `
 IMPORTANT MOBILE INSTRUCTION:
 This is a mobile UI design request. You MUST wrap the final design in an iPhone container showing 
@@ -278,7 +281,8 @@ ENSURE INTERACTION CAPABILITIES:
           },
           body: JSON.stringify({ 
             prompt: finalPrompt,
-            imageUrl: imageUrl 
+            imageUrl: imageUrl,
+            contentType: gameType  // Explicitly pass the content type to the edge function
           }),
         }
       );
