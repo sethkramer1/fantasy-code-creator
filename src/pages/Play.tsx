@@ -87,14 +87,16 @@ const Play = () => {
             if (!fallbackResult.data) throw new Error("Game not found");
             
             // Add the missing image_url field as null
-            const versionsWithImageUrl = fallbackResult.data.game_versions.map((version: any) => ({
-              ...version,
-              image_url: null
-            }));
+            const versionsWithImageUrl = fallbackResult.data.game_versions
+              // Ensure we only work with valid objects that have the expected properties
+              .filter((v): v is any => v !== null && typeof v === 'object' && 'id' in v)
+              .map(version => ({
+                ...version,
+                image_url: null
+              }));
             
             const sortedVersions = versionsWithImageUrl
-              .filter((v: any) => v && typeof v === 'object' && 'id' in v && 'version_number' in v)
-              .sort((a: any, b: any) => b.version_number - a.version_number);
+              .sort((a, b) => b.version_number - a.version_number);
             
             setGameVersions(sortedVersions);
             
@@ -112,7 +114,7 @@ const Play = () => {
           // Ensure we have valid game versions with all required properties
           const versionsWithRequiredFields = result.data.game_versions
             // Filter out any null or invalid entries
-            .filter(v => v !== null && typeof v === 'object' && 'id' in v && 'version_number' in v)
+            .filter((v): v is any => v !== null && typeof v === 'object' && 'id' in v)
             // Map to ensure consistent shape
             .map(v => ({
               id: v.id,
@@ -588,19 +590,21 @@ const Play = () => {
       
       // First create the new version, handle the case where image_url column might not exist
       try {
-        const { data: versionData, error: versionError } = await supabase
+        const versionData = {
+          game_id: id,
+          version_number: newVersionNumber,
+          code: newCode,
+          instructions: newInstructions
+        };
+        
+        const { data: newVersionData, error: versionError } = await supabase
           .from('game_versions')
-          .insert({
-            game_id: id,
-            version_number: newVersionNumber,
-            code: newCode,
-            instructions: newInstructions
-          })
+          .insert(versionData)
           .select()
           .single();
           
         if (versionError) throw versionError;
-        if (!versionData) throw new Error("Failed to save new version");
+        if (!newVersionData) throw new Error("Failed to save new version");
         
         // Update the games table, handle the case where thumbnail_url column might not exist
         try {
@@ -621,11 +625,11 @@ const Play = () => {
         
         // Set the new version as the selected one
         const newVersion: GameVersion = {
-          id: versionData.id,
-          version_number: versionData.version_number,
-          code: versionData.code,
-          instructions: versionData.instructions,
-          created_at: versionData.created_at,
+          id: newVersionData.id,
+          version_number: newVersionData.version_number,
+          code: newVersionData.code,
+          instructions: newVersionData.instructions,
+          created_at: newVersionData.created_at,
           image_url: null
         };
         
@@ -646,18 +650,16 @@ const Play = () => {
                 await supabase
                   .from('game_versions')
                   .update({
-                    // Use any to bypass TypeScript checking for potentially missing columns
-                    ...({ image_url: imageUrl } as any)
-                  })
+                    image_url: imageUrl
+                  } as any)
                   .eq('id', newVersion.id);
                 
                 // Also update the game with the latest thumbnail
                 await supabase
                   .from('games')
                   .update({
-                    // Use any to bypass TypeScript checking for potentially missing columns
-                    ...({ thumbnail_url: imageUrl } as any)
-                  })
+                    thumbnail_url: imageUrl
+                  } as any)
                   .eq('id', id);
                 
                 // Update the local state
@@ -703,64 +705,60 @@ const Play = () => {
     try {
       const newVersion: GameVersion = {
         id: crypto.randomUUID(),
-        version_number: gameVersions[0].version_number + 1,
+        version_number: gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1,
         code: version.code,
         instructions: version.instructions,
         created_at: new Date().toISOString(),
         image_url: version.image_url
       };
       
-      // Insert the new version
-      try {
-        // Use a data object that we can modify based on whether image_url exists
-        const insertData: Record<string, any> = {
-          id: newVersion.id,
-          game_id: id,
-          version_number: newVersion.version_number,
-          code: newVersion.code,
-          instructions: newVersion.instructions
-        };
-        
-        // Only add image_url if it exists
-        if (version.image_url) {
-          insertData.image_url = version.image_url;
-        }
-        
-        const { error } = await supabase
-          .from('game_versions')
-          .insert(insertData);
-        
-        if (error) throw error;
-        
-        // Update the games table
-        const updateData: Record<string, any> = {
-          current_version: newVersion.version_number,
-          code: newVersion.code,
-          instructions: newVersion.instructions
-        };
-        
-        // Only add thumbnail_url if image_url exists
-        if (version.image_url) {
-          updateData.thumbnail_url = version.image_url;
-        }
-        
-        const { error: gameError } = await supabase
-          .from('games')
-          .update(updateData)
-          .eq('id', id);
-          
-        if (gameError) throw gameError;
-        
-        setGameVersions(prev => [newVersion, ...prev]);
-        setSelectedVersion(newVersion.id);
-        toast({
-          title: "Version reverted",
-          description: `Created new version ${newVersion.version_number} based on version ${version.version_number}`
-        });
-      } catch (insertError) {
-        console.error("Error reverting to version:", insertError);
-        throw insertError;
+      // Insert the new version with proper types
+      const versionData = {
+        id: newVersion.id,
+        game_id: id,
+        version_number: newVersion.version_number,
+        code: newVersion.code,
+        instructions: newVersion.instructions
+      };
+      
+      // Only add image_url if it exists
+      if (version.image_url) {
+        // Add it as any type to bypass TypeScript error
+        (versionData as any).image_url = version.image_url;
       }
+      
+      const { error } = await supabase
+        .from('game_versions')
+        .insert(versionData);
+      
+      if (error) throw error;
+      
+      // Update the games table
+      const updateData = {
+        current_version: newVersion.version_number,
+        code: newVersion.code,
+        instructions: newVersion.instructions
+      };
+      
+      // Only add thumbnail_url if image_url exists
+      if (version.image_url) {
+        // Add it as any type to bypass TypeScript error
+        (updateData as any).thumbnail_url = version.image_url;
+      }
+      
+      const { error: gameError } = await supabase
+        .from('games')
+        .update(updateData)
+        .eq('id', id);
+        
+      if (gameError) throw gameError;
+      
+      setGameVersions(prev => [newVersion, ...prev]);
+      setSelectedVersion(newVersion.id);
+      toast({
+        title: "Version reverted",
+        description: `Created new version ${newVersion.version_number} based on version ${version.version_number}`
+      });
     } catch (error) {
       toast({
         title: "Error reverting version",
