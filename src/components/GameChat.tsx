@@ -34,7 +34,6 @@ export const GameChat = ({
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const thinkingTimerRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
   // Auto-resize textarea
@@ -72,20 +71,15 @@ export const GameChat = ({
   }, [gameId, toast]);
 
   useEffect(() => {
+    let timer: NodeJS.Timeout;
     if (loading) {
       setThinkingTime(0);
-      thinkingTimerRef.current = setInterval(() => {
+      timer = setInterval(() => {
         setThinkingTime(prev => prev + 1);
       }, 1000);
-    } else {
-      if (thinkingTimerRef.current) {
-        clearInterval(thinkingTimerRef.current);
-      }
     }
     return () => {
-      if (thinkingTimerRef.current) {
-        clearInterval(thinkingTimerRef.current);
-      }
+      if (timer) clearInterval(timer);
     };
   }, [loading]);
 
@@ -467,12 +461,6 @@ export const GameChat = ({
         </div>
       </form>
 
-      <GenerationTerminal 
-        open={showTerminal} 
-        onOpenChange={setShowTerminal} 
-        output={terminalOutput} 
-        thinkingTime={thinkingTime} 
-        loading={loading} 
-      />
+      <GenerationTerminal open={showTerminal} onOpenChange={setShowTerminal} output={terminalOutput} thinkingTime={thinkingTime} loading={loading} />
     </div>;
 };

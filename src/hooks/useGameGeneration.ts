@@ -9,11 +9,10 @@ export const useGameGeneration = () => {
   const [showTerminal, setShowTerminal] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [thinkingTime, setThinkingTime] = useState(0);
-  const [gameId, setGameId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
-  const generateGame = async (prompt: string, gameType: string, imageUrl?: string, existingGameId?: string) => {
+  const generateGame = async (prompt: string, gameType: string, imageUrl?: string) => {
     if (!prompt.trim()) {
       toast({
         title: "Please enter a description",
@@ -405,68 +404,31 @@ ENSURE INTERACTION CAPABILITIES:
 
       setTerminalOutput(prev => [...prev, "> Saving to database..."]);
 
-      let gameData;
-      
-      if (existingGameId) {
-        // Update the existing game record with the actual content
-        const { data, error: updateError } = await supabase
-          .from('games')
-          .update({ 
-            code: gameContent,
-            instructions: "Content generated successfully",
-            current_version: 1,
-            type: selectedType.id
-          })
-          .eq('id', existingGameId)
-          .select()
-          .single();
-          
-        if (updateError) throw updateError;
-        if (!data) throw new Error("Failed to update game content");
-        
-        gameData = data;
-        
-        // Update the version with the actual content
-        const { error: versionUpdateError } = await supabase
-          .from('game_versions')
-          .update({
-            code: gameContent,
-            instructions: "Content generated successfully"
-          })
-          .eq('game_id', existingGameId)
-          .eq('version_number', 1);
-          
-        if (versionUpdateError) throw versionUpdateError;
-      } else {
-        // Create a new game record
-        const { data, error: gameError } = await supabase
-          .from('games')
-          .insert([{ 
-            prompt: prompt,
-            code: gameContent,
-            instructions: "Content generated successfully",
-            current_version: 1,
-            type: selectedType.id
-          }])
-          .select()
-          .single();
+      const { data: gameData, error: gameError } = await supabase
+        .from('games')
+        .insert([{ 
+          prompt: prompt,
+          code: gameContent,
+          instructions: "Content generated successfully",
+          current_version: 1,
+          type: selectedType.id
+        }])
+        .select()
+        .single();
 
-        if (gameError) throw gameError;
-        if (!data) throw new Error("Failed to save content");
-        
-        gameData = data;
+      if (gameError) throw gameError;
+      if (!gameData) throw new Error("Failed to save content");
 
-        const { error: versionError } = await supabase
-          .from('game_versions')
-          .insert([{
-            game_id: gameData.id,
-            code: gameContent,
-            instructions: "Content generated successfully",
-            version_number: 1
-          }]);
+      const { error: versionError } = await supabase
+        .from('game_versions')
+        .insert([{
+          game_id: gameData.id,
+          code: gameContent,
+          instructions: "Content generated successfully",
+          version_number: 1
+        }]);
 
-        if (versionError) throw versionError;
-      }
+      if (versionError) throw versionError;
       
       // Add initial message to game_messages
       const { error: messageError } = await supabase
@@ -484,7 +446,7 @@ ENSURE INTERACTION CAPABILITIES:
         setTerminalOutput(prev => [...prev, "> Initial message saved to chat"]);
       }
       
-      setTerminalOutput(prev => [...prev, "> Saved successfully!"]);
+      setTerminalOutput(prev => [...prev, "> Saved successfully! Redirecting..."]);
       
       return gameData;
 
@@ -510,8 +472,6 @@ ENSURE INTERACTION CAPABILITIES:
     thinkingTime,
     setThinkingTime,
     generateGame,
-    timerRef,
-    gameId,
-    setGameId
+    timerRef
   };
 };
