@@ -139,6 +139,16 @@ function GameCard({ game, onGameClick }: { game: Game; onGameClick: (gameId: str
         onClick={() => onGameClick(game.id)} 
         className="p-4 w-full text-left"
       >
+        {game.thumbnail_url && (
+          <div className="mb-3 border border-gray-100 rounded-md overflow-hidden bg-gray-50 aspect-video">
+            <img 
+              src={game.thumbnail_url} 
+              alt={`Preview of ${game.prompt}`}
+              className="w-full h-full object-cover"
+              loading="lazy"
+            />
+          </div>
+        )}
         <div className="flex justify-between items-start">
           <p className="font-medium text-gray-700 group-hover:text-black transition-colors line-clamp-2">
             {game.prompt}

@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -16,6 +17,7 @@ interface GameVersion {
   code: string;
   instructions: string | null;
   created_at: string;
+  image_url?: string | null;
 }
 
 const Play = () => {
@@ -25,6 +27,7 @@ const Play = () => {
   const [loading, setLoading] = useState(true);
   const [showCode, setShowCode] = useState(false);
   const [downloadingPng, setDownloadingPng] = useState(false);
+  const [capturingImage, setCapturingImage] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
@@ -58,7 +61,8 @@ const Play = () => {
               version_number,
               code,
               instructions,
-              created_at
+              created_at,
+              image_url
             )
           `).eq('id', id).single();
         if (error) throw error;
@@ -305,10 +309,213 @@ const Play = () => {
     }
   }, [loading, selectedVersion]);
 
+  // Capture a screenshot of the iframe content and upload it to Supabase
+  const captureAndSaveImage = async (): Promise<string | null> => {
+    if (!iframeRef.current) return null;
+    
+    setCapturingImage(true);
+    try {
+      // Use a similar approach to downloadGameAsImage but with storage upload
+      const safetyScript = `
+        <script>
+          if (window.CanvasGradient) {
+            const originalAddColorStop = CanvasGradient.prototype.addColorStop;
+            CanvasGradient.prototype.addColorStop = function(offset, color) {
+              if (typeof offset === 'number' && !isFinite(offset)) {
+                offset = offset < 0 ? 0 : (offset > 0 ? 1 : 0);
+                console.warn("Fixed non-finite gradient offset");
+              }
+              try {
+                return originalAddColorStop.call(this, offset, color);
+              } catch (e) {
+                console.warn("Handled gradient error:", e.message);
+                try {
+                  let safeOffset = typeof offset === 'number' ? Math.max(0, Math.min(1, offset)) : 0;
+                  return originalAddColorStop.call(this, safeOffset, color || 'rgba(0,0,0,0.01)');
+                } catch (fallbackError) {
+                  console.warn("Using last resort gradient fallback");
+                }
+              }
+            };
+          }
+        </script>
+      `;
+
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.top = '0';
+      iframe.style.left = '0';
+      iframe.style.width = '800px';
+      iframe.style.height = '600px';
+      iframe.style.border = 'none';
+      iframe.style.zIndex = '-1000';
+      iframe.style.opacity = '0';
+      
+      document.body.appendChild(iframe);
+      
+      // Load iframe content
+      await new Promise<void>((resolve) => {
+        iframe.onload = () => resolve();
+        
+        const contentWithSafety = currentVersion?.code || '';
+        const enhancedContent = contentWithSafety.includes('<head>') 
+          ? contentWithSafety.replace('<head>', '<head>' + safetyScript)
+          : (contentWithSafety.includes('<html') 
+              ? contentWithSafety.replace(/<html[^>]*>/, '$&<head>' + safetyScript + '</head>')
+              : safetyScript + contentWithSafety);
+        
+        const doc = iframe.contentDocument;
+        if (doc) {
+          doc.open();
+          doc.write(enhancedContent);
+          doc.close();
+        }
+      });
+
+      await new Promise(resolve => setTimeout(resolve, 800));
+
+      // Apply fixes to iframe content
+      if (iframe.contentDocument && iframe.contentWindow) {
+        try {
+          const script = iframe.contentDocument.createElement('script');
+          script.textContent = `
+            const findAndFixGradientIssues = () => {
+              const canvases = document.querySelectorAll('canvas');
+              canvases.forEach(canvas => {
+                try {
+                  const ctx = canvas.getContext('2d');
+                  if (ctx && ctx.createLinearGradient) {
+                    const originalCreateLinearGradient = ctx.createLinearGradient;
+                    ctx.createLinearGradient = function(x0, y0, x1, y1) {
+                      if (!isFinite(x0) || !isFinite(y0) || !isFinite(x1) || !isFinite(y1)) {
+                        x0 = isFinite(x0) ? x0 : 0;
+                        y0 = isFinite(y0) ? y0 : 0;
+                        x1 = isFinite(x1) ? x1 : canvas.width || 100;
+                        y1 = isFinite(y1) ? y1 : canvas.height || 100;
+                      }
+                      return originalCreateLinearGradient.call(this, x0, y0, x1, y1);
+                    };
+                  }
+                } catch (e) {
+                  console.warn('Canvas prep error:', e);
+                }
+              });
+            };
+            
+            findAndFixGradientIssues();
+          `;
+          iframe.contentDocument.head.appendChild(script);
+        } catch (e) {
+          console.warn('Error applying pre-capture fixes:', e);
+        }
+      }
+
+      // Capture the content as an image
+      if (iframe.contentDocument?.body) {
+        const contentHeight = Math.max(
+          iframe.contentDocument.body.scrollHeight || 0,
+          iframe.contentDocument.documentElement.scrollHeight || 0,
+          iframe.contentDocument.body.offsetHeight || 0,
+          iframe.contentDocument.documentElement.offsetHeight || 0,
+          600
+        );
+        
+        iframe.style.height = `${contentHeight}px`;
+        
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        try {
+          const canvas = await html2canvas(iframe.contentDocument.body, {
+            width: 800,
+            height: Math.min(contentHeight, 600),
+            windowWidth: 800,
+            windowHeight: Math.min(contentHeight, 600),
+            scale: 1,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: null,
+            logging: false,
+            imageTimeout: 15000,
+          });
+          
+          // Convert canvas to blob
+          const blob = await new Promise<Blob | null>((resolve) => {
+            canvas.toBlob(resolve, 'image/png', 0.85);
+          });
+          
+          if (!blob) throw new Error("Failed to create image blob");
+          
+          // Create a file object from the blob
+          const file = new File([blob], `game-${id}-v${selectedVersionNumber}.png`, { type: 'image/png' });
+          
+          // Upload to Supabase storage
+          const { data, error } = await supabase.storage
+            .from('game-thumbnails')
+            .upload(`games/${id}/${Date.now()}-v${selectedVersionNumber}.png`, file, {
+              cacheControl: '3600',
+              upsert: false
+            });
+            
+          if (error) {
+            if (error.message.includes('The resource already exists')) {
+              const uniquePath = `games/${id}/${Date.now()}-${Math.random().toString(36).substring(2, 7)}-v${selectedVersionNumber}.png`;
+              const { data: retryData, error: retryError } = await supabase.storage
+                .from('game-thumbnails')
+                .upload(uniquePath, file, {
+                  cacheControl: '3600',
+                  upsert: false
+                });
+                
+              if (retryError) throw retryError;
+              
+              // Get public URL
+              const { data: urlData } = supabase.storage
+                .from('game-thumbnails')
+                .getPublicUrl(retryData?.path || uniquePath);
+                
+              document.body.removeChild(iframe);
+              return urlData.publicUrl;
+            }
+            throw error;
+          }
+          
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from('game-thumbnails')
+            .getPublicUrl(data?.path || `games/${id}/${Date.now()}-v${selectedVersionNumber}.png`);
+            
+          document.body.removeChild(iframe);
+          return urlData.publicUrl;
+          
+        } catch (canvasError) {
+          console.error('Image capture error:', canvasError);
+          document.body.removeChild(iframe);
+          throw canvasError;
+        }
+      }
+      
+      document.body.removeChild(iframe);
+      return null;
+      
+    } catch (error) {
+      console.error('Error capturing image:', error);
+      toast({
+        title: "Image capture failed",
+        description: "Could not generate a thumbnail for this version",
+        variant: "destructive"
+      });
+      return null;
+    } finally {
+      setCapturingImage(false);
+    }
+  };
+
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
+      setLoading(true);
       const newVersionNumber = gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1;
       
+      // First create the new version
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .insert({
@@ -323,6 +530,7 @@ const Play = () => {
       if (versionError) throw versionError;
       if (!versionData) throw new Error("Failed to save new version");
       
+      // Update the games table
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -334,6 +542,7 @@ const Play = () => {
         
       if (gameError) throw gameError;
       
+      // Set the new version as the selected one
       const newVersion: GameVersion = {
         id: versionData.id,
         version_number: versionData.version_number,
@@ -344,6 +553,45 @@ const Play = () => {
       
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
+      setShowCode(false);
+      
+      // After we have a new version and it's selected, wait a bit for the iframe to render
+      // before capturing the image
+      setTimeout(async () => {
+        try {
+          // Capture and save an image of the new version
+          const imageUrl = await captureAndSaveImage();
+          
+          if (imageUrl) {
+            // Update the version with the image URL
+            const { error: updateVersionError } = await supabase
+              .from('game_versions')
+              .update({ image_url: imageUrl })
+              .eq('id', newVersion.id);
+              
+            if (updateVersionError) {
+              console.error("Error updating version with image URL:", updateVersionError);
+            }
+            
+            // Also update the game with the latest thumbnail
+            const { error: updateGameError } = await supabase
+              .from('games')
+              .update({ thumbnail_url: imageUrl })
+              .eq('id', id);
+              
+            if (updateGameError) {
+              console.error("Error updating game with thumbnail URL:", updateGameError);
+            }
+            
+            // Update the local state
+            setGameVersions(prev => prev.map(v => 
+              v.id === newVersion.id ? { ...v, image_url: imageUrl } : v
+            ));
+          }
+        } catch (error) {
+          console.error("Error capturing version image:", error);
+        }
+      }, 1500);
       
       toast({
         title: "Code updated successfully",
@@ -357,6 +605,8 @@ const Play = () => {
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -371,14 +621,16 @@ const Play = () => {
         version_number: gameVersions[0].version_number + 1,
         code: version.code,
         instructions: version.instructions,
-        created_at: new Date().toISOString()
+        created_at: new Date().toISOString(),
+        image_url: version.image_url
       };
       const { error } = await supabase.from('game_versions').insert({
         id: newVersion.id,
         game_id: id,
         version_number: newVersion.version_number,
         code: newVersion.code,
-        instructions: newVersion.instructions
+        instructions: newVersion.instructions,
+        image_url: newVersion.image_url
       });
       if (error) throw error;
       
@@ -387,7 +639,8 @@ const Play = () => {
         .update({ 
           current_version: newVersion.version_number,
           code: newVersion.code,
-          instructions: newVersion.instructions
+          instructions: newVersion.instructions,
+          thumbnail_url: newVersion.image_url
         })
         .eq('id', id);
         
