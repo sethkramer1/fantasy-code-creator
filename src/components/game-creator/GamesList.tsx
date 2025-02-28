@@ -36,6 +36,14 @@ export function GamesList({
     return counts;
   }, [games]);
 
+  // Function to get display name for tab
+  const getTabDisplayName = (typeId: string) => {
+    if (typeId === 'game') return 'Game';
+    
+    const contentType = contentTypes.find(t => t.id === typeId);
+    return contentType ? contentType.label.split(' ')[0] : typeId;
+  };
+
   return (
     <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm">
       <h2 className="text-xl font-medium text-gray-900 mb-4">My History</h2>
@@ -57,7 +65,7 @@ export function GamesList({
                 className="text-xs"
                 disabled={gameCounts[type.id] === 0}
               >
-                {type.label.split(' ')[0]} ({gameCounts[type.id]})
+                {getTabDisplayName(type.id)} ({gameCounts[type.id]})
               </TabsTrigger>
             ))}
           </TabsList>
