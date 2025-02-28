@@ -24,7 +24,7 @@ export function GenerationTerminal({
 
   // Auto-scroll to bottom whenever output changes
   useEffect(() => {
-    if (terminalRef.current && open) {
+    if (terminalRef.current) {
       // Use requestAnimationFrame to ensure DOM has updated before scrolling
       requestAnimationFrame(() => {
         if (terminalRef.current) {
@@ -32,7 +32,7 @@ export function GenerationTerminal({
         }
       });
     }
-  }, [output, open]);
+  }, [output]); // React to output changes, regardless of open state
 
   // If asModal is false, render the terminal directly
   if (!asModal) {
