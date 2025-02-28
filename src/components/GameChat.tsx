@@ -1,9 +1,7 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { GenerationTerminal } from "./game-creator/GenerationTerminal";
 
 interface Message {
   id: string;
@@ -17,17 +15,18 @@ interface Message {
 interface GameChatProps {
   gameId: string;
   onGameUpdate: (newCode: string, newInstructions: string) => void;
+  onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
 }
 
 export const GameChat = ({
   gameId,
-  onGameUpdate
+  onGameUpdate,
+  onTerminalStatusChange
 }: GameChatProps) => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
-  const [showTerminal, setShowTerminal] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [thinkingTime, setThinkingTime] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -75,13 +74,27 @@ export const GameChat = ({
     if (loading) {
       setThinkingTime(0);
       timer = setInterval(() => {
-        setThinkingTime(prev => prev + 1);
+        setThinkingTime(prev => {
+          const newValue = prev + 1;
+          // Notify parent component about thinking time update
+          if (onTerminalStatusChange) {
+            onTerminalStatusChange(true, terminalOutput, newValue, loading);
+          }
+          return newValue;
+        });
       }, 1000);
     }
     return () => {
       if (timer) clearInterval(timer);
     };
-  }, [loading]);
+  }, [loading, terminalOutput, onTerminalStatusChange]);
+
+  // Update parent component when terminal output changes
+  useEffect(() => {
+    if (onTerminalStatusChange && loading) {
+      onTerminalStatusChange(true, terminalOutput, thinkingTime, loading);
+    }
+  }, [terminalOutput, loading, thinkingTime, onTerminalStatusChange]);
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -128,8 +141,13 @@ export const GameChat = ({
     if ((!message.trim() && !imageUrl) || loading) return;
     
     setLoading(true);
-    setShowTerminal(true);
-    setTerminalOutput([`> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`]);
+    const initialOutput = [`> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`];
+    setTerminalOutput(initialOutput);
+    
+    // Notify parent component to show terminal
+    if (onTerminalStatusChange) {
+      onTerminalStatusChange(true, initialOutput, 0, true);
+    }
     
     // Create temp message to show in UI
     const tempId = crypto.randomUUID();
@@ -327,10 +345,13 @@ export const GameChat = ({
       
       setTerminalOutput(prev => [...prev, "> Game updated successfully!"]);
       
-      // Allow terminal to remain visible for a moment after completion
-      setTimeout(() => {
-        setShowTerminal(false);
-      }, 3000);
+      // Notify parent that processing is complete but keep terminal visible
+      if (onTerminalStatusChange) {
+        // Keep terminal visible for a moment after completion
+        setTimeout(() => {
+          onTerminalStatusChange(false, [], 0, false);
+        }, 3000);
+      }
       
       toast({
         title: "Code updated successfully",
@@ -352,6 +373,13 @@ export const GameChat = ({
       
       // Remove the temporary message since it failed
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
+      
+      // Notify parent that processing failed
+      if (onTerminalStatusChange) {
+        setTimeout(() => {
+          onTerminalStatusChange(false, [], 0, false);
+        }, 3000);
+      }
       
     } finally {
       setLoading(false);
@@ -460,7 +488,5 @@ export const GameChat = ({
           )}
         </div>
       </form>
-
-      <GenerationTerminal open={showTerminal} onOpenChange={setShowTerminal} output={terminalOutput} thinkingTime={thinkingTime} loading={loading} />
     </div>;
 };

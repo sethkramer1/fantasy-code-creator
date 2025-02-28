@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -406,6 +407,19 @@ const Play = () => {
     }
   }, [loading, selectedVersion]);
 
+  // Handle terminal status updates from GameChat
+  const handleTerminalStatusChange = (showing: boolean, output: string[], thinking: number, isLoading: boolean) => {
+    if (showing) {
+      setShowGenerating(true);
+      setGenerationInProgress(isLoading);
+      setTerminalOutput(output);
+      setThinkingTime(thinking);
+    } else {
+      setShowGenerating(false);
+      setGenerationInProgress(false);
+    }
+  };
+
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
       // Show generation UI
@@ -452,7 +466,6 @@ const Play = () => {
       
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
-      setShowGenerating(false);
       
       toast({
         title: "Code updated successfully",
@@ -552,7 +565,11 @@ const Play = () => {
             </div>
           </div>
           <div className="flex-1 overflow-hidden">
-            <GameChat gameId={id!} onGameUpdate={handleGameUpdate} />
+            <GameChat 
+              gameId={id!} 
+              onGameUpdate={handleGameUpdate} 
+              onTerminalStatusChange={handleTerminalStatusChange}
+            />
           </div>
         </div>
 
