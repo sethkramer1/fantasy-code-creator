@@ -100,7 +100,7 @@ export function GamePromptInput({
         body: { 
           prompt: value,
           contentType: selectedType,
-          note: "The resulting code will be written in HTML, JavaScript, and CSS, so keep the enhanced prompt realistic and implementable within these technologies."
+          note: "The resulting code will be written in one single HTML, JavaScript, and CSS file, so keep the enhanced prompt realistic and implementable within that constraint."
         },
       });
       
