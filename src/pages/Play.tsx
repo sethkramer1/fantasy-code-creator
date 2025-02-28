@@ -521,21 +521,6 @@ const Play = () => {
                 <span>Revert to this version</span>
               </button>
             )}
-            <div className="flex items-center gap-2">
-              <History size={16} className="text-gray-500" />
-              <Select value={selectedVersion} onValueChange={handleVersionChange}>
-                <SelectTrigger className="w-[140px] h-8 bg-white border-gray-200 text-sm">
-                  <SelectValue placeholder="Select version" />
-                </SelectTrigger>
-                <SelectContent>
-                  {gameVersions.map(version => (
-                    <SelectItem key={version.id} value={version.id} className="flex items-center justify-between">
-                      <span>Version {version.version_number}</span>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
             <Button
               variant="outline"
               size="sm"
@@ -566,32 +551,50 @@ const Play = () => {
           <div className="max-w-[1200px] mx-auto w-full flex-1 flex flex-col">
             {currentVersion && (
               <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
-                <div className="flex items-center gap-2 mb-4 flex-shrink-0">
-                  <div className="bg-zinc-900 p-0.5 rounded-full">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-                        !showCode 
-                          ? 'bg-white text-black' 
-                          : 'text-white hover:bg-white/20'
-                      }`}
-                      onClick={() => setShowCode(false)}
-                    >
-                      Preview
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
-                        showCode 
-                          ? 'bg-white text-black' 
-                          : 'text-white hover:bg-white/20'
-                      }`}
-                      onClick={() => setShowCode(true)}
-                    >
-                      Code
-                    </Button>
+                <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-zinc-900 p-0.5 rounded-full">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                          !showCode 
+                            ? 'bg-white text-black' 
+                            : 'text-white hover:bg-white/20'
+                        }`}
+                        onClick={() => setShowCode(false)}
+                      >
+                        Preview
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+                          showCode 
+                            ? 'bg-white text-black' 
+                            : 'text-white hover:bg-white/20'
+                        }`}
+                        onClick={() => setShowCode(true)}
+                      >
+                        Code
+                      </Button>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <History size={16} className="text-gray-500" />
+                    <Select value={selectedVersion} onValueChange={handleVersionChange}>
+                      <SelectTrigger className="w-[140px] h-8 bg-white border-gray-200 text-sm">
+                        <SelectValue placeholder="Select version" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {gameVersions.map(version => (
+                          <SelectItem key={version.id} value={version.id} className="flex items-center justify-between">
+                            <span>Version {version.version_number}</span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                 </div>
 
