@@ -1,7 +1,12 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+// @ts-ignore
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.5.0";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+
+const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY") || "";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -14,101 +19,116 @@ serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (!ANTHROPIC_API_KEY) {
+    console.error("ANTHROPIC_API_KEY is not set");
+    return new Response(
+      JSON.stringify({
+        error: "Server configuration error: ANTHROPIC_API_KEY not set"
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
+    );
+  }
+
   try {
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     const { prompt, contentType } = await req.json();
 
-    if (!prompt) {
+    if (!prompt || typeof prompt !== "string") {
       return new Response(
-        JSON.stringify({ error: "Prompt is required" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
+        JSON.stringify({ error: "Invalid or missing prompt parameter" }),
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
-    // Get OpenAI key from environment
-    const openaiKey = Deno.env.get("OPENAI_API_KEY");
-    if (!openaiKey) {
-      return new Response(
-        JSON.stringify({ error: "OpenAI API key not configured" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
-      );
-    }
+    console.log(`Enhancing prompt for content type: ${contentType}`);
+    console.log(`Original prompt: ${prompt.substring(0, 50)}...`);
 
-    // Build the prompt based on content type
-    let enhancerPrompt = "";
-    switch (contentType) {
-      case "game":
-        enhancerPrompt = "Enhance this prompt for a game creation AI. Add clear details about game mechanics, visual style, theme, and player experience. Be specific and descriptive. Don't add any prefatory text or formatting instructions - just return the enhanced prompt directly. Prompt:";
-        break;
-      case "svg":
-        enhancerPrompt = "Enhance this prompt for an SVG graphic creation AI. Add clear details about visual elements, style, colors, and layout. Be specific and descriptive. Don't add any prefatory text or formatting instructions - just return the enhanced prompt directly. Prompt:";
-        break;
-      case "webdesign":
-        enhancerPrompt = "Enhance this prompt for a web design creation AI. Add clear details about layout, color scheme, typography, user interface elements, and overall aesthetic. Be specific and descriptive. Don't add any prefatory text or formatting instructions - just return the enhanced prompt directly. Prompt:";
-        break;
-      case "dataviz":
-        enhancerPrompt = "Enhance this prompt for a data visualization creation AI. Add clear details about data types, chart types, colors, labels, and insights to highlight. Be specific and descriptive. Don't add any prefatory text or formatting instructions - just return the enhanced prompt directly. Prompt:";
-        break;
-      case "diagram":
-        enhancerPrompt = "Enhance this prompt for a diagram creation AI. Add clear details about diagram type, elements, connections, layout, and visual style. Be specific and descriptive. Don't add any prefatory text or formatting instructions - just return the enhanced prompt directly. Prompt:";
-        break;
-      case "infographic":
-        enhancerPrompt = "Enhance this prompt for an infographic creation AI. Add clear details about information flow, sections, visual elements, style, and key data points to highlight. Be specific and descriptive. Don't add any prefatory text or formatting instructions - just return the enhanced prompt directly. Prompt:";
-        break;
-      default:
-        enhancerPrompt = "Enhance this prompt with more specific details and clear instructions. Be descriptive and precise. Don't add any prefatory text or formatting instructions - just return the enhanced prompt directly. Prompt:";
-    }
+    // Prepare system instructions based on content type
+    let systemPrompt = `You are an AI assistant that helps improve and enhance user prompts for creating ${contentType || 'content'}.
+Your task is to take the user's basic prompt and make it more detailed, specific, and effective.
+Focus on adding clarity, specific details, and creative elements that will result in better output.
+Do not completely change the user's intent - just enhance and improve their original idea.
+Return ONLY the enhanced prompt text with no explanations, introductions, or other text.`;
 
-    // Call OpenAI API to enhance the prompt
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
+    // Make the request to Anthropic Claude API
+    const response = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${openaiKey}`,
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
+        model: "claude-3-sonnet-20240229",
+        max_tokens: 1000,
+        system: systemPrompt,
         messages: [
           {
-            role: "system",
-            content: "You are an AI prompt enhancer that takes user prompts and makes them more detailed, specific, and effective. Your response should be the enhanced prompt only - DO NOT include any prefatory text like 'Here's an enhanced prompt' or explanations before the prompt. Just provide the enhanced prompt text. Always maintain the user's original intent while adding helpful details."
-          },
-          {
             role: "user",
-            content: `${enhancerPrompt} "${prompt}"`
-          }
+            content: `Please enhance this prompt for creating ${contentType || 'content'}:\n\n${prompt}`
+          },
         ],
-        temperature: 0.7,
-        max_tokens: 1024,
       }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      console.error("OpenAI API error:", errorData);
-      throw new Error(`OpenAI API error: ${errorData.error?.message || response.statusText}`);
+      const errorText = await response.text();
+      console.error(`Anthropic API error: ${response.status}`, errorText);
+      
+      return new Response(
+        JSON.stringify({
+          error: `Error from AI service: ${response.status} ${response.statusText}`,
+        }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     const data = await response.json();
-    const enhancedPrompt = data.choices[0].message.content.trim();
+    
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      console.error("Unexpected response format from Anthropic:", JSON.stringify(data));
+      return new Response(
+        JSON.stringify({
+          error: "Received unexpected response format from AI service",
+        }),
+        {
+          status: 502,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
 
-    // Remove any common prefatory text patterns using regex
-    const cleanedPrompt = enhancedPrompt
-      .replace(/^(here('s| is) (an |the )?(enhanced|improved|better|revised|detailed) prompt:?)\s*/i, '')
-      .replace(/^(enhanced prompt:?)\s*/i, '')
-      .replace(/^(here you go:?)\s*/i, '')
-      .replace(/^(with clear layout, style, and user experience considerations:?)\s*/i, '')
-      .trim();
+    const enhancedPrompt = data.content[0].text.trim();
+    console.log(`Enhanced prompt: ${enhancedPrompt.substring(0, 50)}...`);
 
+    // Return the enhanced prompt
     return new Response(
-      JSON.stringify({ enhancedPrompt: cleanedPrompt }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ enhancedPrompt }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
-
   } catch (error) {
     console.error("Error in enhance-prompt function:", error);
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 500 }
+      JSON.stringify({
+        error: error instanceof Error ? error.message : "An unknown error occurred",
+      }),
+      {
+        status: 500,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   }
 });
