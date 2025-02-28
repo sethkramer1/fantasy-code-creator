@@ -40,6 +40,14 @@ export function GamesList({
 }: GamesListProps) {
   const [selectedType, setSelectedType] = useState<string>("");
   
+  // Calculate counts for each content type
+  const typeCounts = games.reduce((counts: Record<string, number>, game) => {
+    if (game.type) {
+      counts[game.type] = (counts[game.type] || 0) + 1;
+    }
+    return counts;
+  }, {});
+  
   // Filter games based on selected type
   const filteredGames = selectedType 
     ? games.filter(game => game.type === selectedType)
@@ -49,19 +57,50 @@ export function GamesList({
     <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm">
       <div className="mb-6">
         <div className="flex overflow-x-auto pb-1 gap-2">
-          {contentTypes.map((type) => (
-            <button
-              key={type.id}
-              onClick={() => setSelectedType(type.id === selectedType ? "" : type.id)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap ${
-                type.id === selectedType
-                  ? 'bg-black text-white'
-                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-              } transition-colors`}
-            >
-              {type.label}
-            </button>
-          ))}
+          {/* All filter tab */}
+          <button
+            onClick={() => setSelectedType("")}
+            className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap ${
+              selectedType === ""
+                ? 'bg-black text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            } transition-colors`}
+          >
+            All <span className="ml-1 px-1.5 py-0.5 rounded-full bg-gray-200 text-gray-700 text-xs">
+              {games.length}
+            </span>
+          </button>
+          
+          {contentTypes.map((type) => {
+            const count = typeCounts[type.id] || 0;
+            const isDisabled = count === 0;
+            
+            return (
+              <button
+                key={type.id}
+                onClick={() => !isDisabled && setSelectedType(type.id === selectedType ? "" : type.id)}
+                className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap ${
+                  type.id === selectedType
+                    ? 'bg-black text-white'
+                    : isDisabled
+                      ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
+                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                } transition-colors`}
+                disabled={isDisabled}
+              >
+                {type.label}
+                <span className={`ml-1 px-1.5 py-0.5 rounded-full text-xs ${
+                  type.id === selectedType
+                    ? 'bg-white/30 text-white'
+                    : isDisabled
+                      ? 'bg-gray-100 text-gray-400'
+                      : 'bg-gray-200 text-gray-700'
+                }`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
       
