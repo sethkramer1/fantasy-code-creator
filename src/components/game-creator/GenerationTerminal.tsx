@@ -73,7 +73,8 @@ export function GenerationTerminal({
   // If asModal is false, render the terminal directly
   if (!asModal) {
     return (
-      <div className="bg-black text-green-400 font-mono p-6 h-full flex flex-col overflow-hidden border border-green-500/20 rounded-lg">
+      <div className="bg-black text-green-400 font-mono p-6 flex flex-col overflow-hidden border border-green-500/20 rounded-lg" 
+           style={{ height: "600px", maxHeight: "60vh" }}>
         <div className="mb-4 flex-shrink-0">
           <h2 className="text-green-400 text-xl font-bold">Generation Progress</h2>
           <div className="text-green-400/70 space-y-2 mt-2">
@@ -86,10 +87,7 @@ export function GenerationTerminal({
         </div>
         
         {/* Terminal output container with fixed height */}
-        <div 
-          className="flex-1 overflow-hidden flex flex-col"
-          style={{ height: 'calc(100% - 120px)' }}
-        >
+        <div className="flex-1 overflow-hidden flex flex-col">
           <div 
             ref={terminalRef}
             className="w-full h-full overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 pr-2"
