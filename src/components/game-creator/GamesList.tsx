@@ -84,12 +84,22 @@ function GamePreview({ gameId }: GamePreviewProps) {
           display: flex;
           justify-content: center;
           align-items: center;
+          background-color: rgba(0,0,0,0.02);
         }
         body > * {
-          max-width: 90%;
-          max-height: 90%;
-          transform: scale(0.85);
-          transform-origin: center center;
+          max-width: 95%;
+          height: auto;
+          object-fit: contain;
+          overflow: hidden;
+        }
+        /* Special handling for mobile UI mockups */
+        body > div.mobile-ui,
+        body > div.phone,
+        body > div.device,
+        body > div.smartphone {
+          max-height: 95%;
+          object-fit: contain;
+          overflow: visible;
         }
       </style>
     `;
