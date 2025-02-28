@@ -129,7 +129,14 @@ WEB DESIGN REQUIREMENTS:
 - Use semantic HTML
 - Include keyboard navigation
 - Implement proper color contrast
-- Add focus indicators`;
+- Add focus indicators
+
+5. Container:
+- If the user asks for a mobile UI, wrap the design in an iphone container
+
+`;
+
+    
           break;
         case 'dataviz':
           systemInstructions = `
