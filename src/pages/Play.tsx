@@ -29,6 +29,13 @@ const Play = () => {
   const [loading, setLoading] = useState(true);
   const [showCode, setShowCode] = useState(false);
   const [showGenerating, setShowGenerating] = useState(isGenerating);
+  const [pollingStatus, setPollingStatus] = useState(isGenerating);
+  const [initialTerminalOutput, setInitialTerminalOutput] = useState<string[]>([
+    "> Starting generation process...", 
+    "> Creating your design based on your prompt..."
+  ]);
+  const [thinkingSeconds, setThinkingSeconds] = useState(0);
+  const timerRef = useRef<NodeJS.Timeout>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -48,9 +55,39 @@ const Play = () => {
     }
   }, [id, setGameId]);
   
+  // Set up the thinking timer if we're showing generation status
+  useEffect(() => {
+    if (showGenerating && pollingStatus) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+      
+      timerRef.current = setInterval(() => {
+        setThinkingSeconds(prev => prev + 1);
+        
+        // Add more descriptive messages over time to show progress
+        if (thinkingSeconds === 5) {
+          setInitialTerminalOutput(prev => [...prev, "> Analyzing your requirements..."]);
+        } else if (thinkingSeconds === 10) {
+          setInitialTerminalOutput(prev => [...prev, "> Creating the structure..."]);
+        } else if (thinkingSeconds === 15) {
+          setInitialTerminalOutput(prev => [...prev, "> Adding styling and functionality..."]);
+        } else if (thinkingSeconds % 10 === 0 && thinkingSeconds > 0) {
+          setInitialTerminalOutput(prev => [...prev, "> Still working, this might take a minute..."]);
+        }
+      }, 1000);
+      
+      return () => {
+        if (timerRef.current) {
+          clearInterval(timerRef.current);
+        }
+      };
+    }
+  }, [showGenerating, pollingStatus, thinkingSeconds]);
+  
   // Check for generation status
   useEffect(() => {
-    if (isGenerating) {
+    if (pollingStatus) {
       // Poll the database to check if generation is complete
       const interval = setInterval(async () => {
         try {
@@ -62,23 +99,38 @@ const Play = () => {
             
           if (error) throw error;
           
+          console.log("Polling generation status:", data?.code === "Generating...");
+          
           // If code no longer shows "Generating...", refresh the page data
           if (data && data.code !== "Generating...") {
             setShowGenerating(false);
+            setPollingStatus(false);
             clearInterval(interval);
             // Remove the generating param from URL
             navigate(`/play/${id}`, { replace: true });
             // Refresh game data
             fetchGame();
+            
+            // Clear thinking timer
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+            }
+            
+            toast({
+              title: "Generation complete",
+              description: "Your content has been generated successfully."
+            });
           }
         } catch (error) {
           console.error("Error checking generation status:", error);
         }
       }, 2000);
       
-      return () => clearInterval(interval);
+      return () => {
+        clearInterval(interval);
+      };
     }
-  }, [isGenerating, id, navigate]);
+  }, [pollingStatus, id, navigate, toast]);
 
   // Prevent keyboard events from being captured by the iframe
   useEffect(() => {
@@ -543,7 +595,7 @@ const Play = () => {
         
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
-            {!isLatestVersion && currentVersion && (
+            {!showGenerating && !isLatestVersion && currentVersion && (
               <button 
                 onClick={() => handleRevertToVersion(currentVersion)} 
                 className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
@@ -552,15 +604,18 @@ const Play = () => {
                 <span>Revert to this version</span>
               </button>
             )}
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1 text-sm"
-              onClick={handleDownload}
-            >
-              <Download size={14} />
-              Download
-            </Button>
+            {!showGenerating && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 gap-1 text-sm"
+                onClick={handleDownload}
+                disabled={!currentVersion}
+              >
+                <Download size={14} />
+                Download
+              </Button>
+            )}
           </div>
         </div>
       </div>
@@ -613,7 +668,7 @@ const Play = () => {
                   )}
                 </div>
                 
-                {!showGenerating && (
+                {!showGenerating && gameVersions.length > 0 && (
                   <div className="flex items-center gap-2">
                     <History size={16} className="text-gray-500" />
                     <Select value={selectedVersion} onValueChange={handleVersionChange}>
@@ -636,9 +691,9 @@ const Play = () => {
                 {/* Show generation terminal when generating */}
                 {showGenerating ? (
                   <GenerationTerminal
-                    output={terminalOutput}
-                    thinkingTime={thinkingTime}
-                    loading={generationLoading}
+                    output={terminalOutput.length > 0 ? terminalOutput : initialTerminalOutput}
+                    thinkingTime={terminalOutput.length > 0 ? thinkingTime : thinkingSeconds}
+                    loading={pollingStatus}
                     asModal={false}
                   />
                 ) : !showCode ? (

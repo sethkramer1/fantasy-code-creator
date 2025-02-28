@@ -112,6 +112,8 @@ const Index = () => {
         console.error("Error creating placeholder version:", versionError);
       }
 
+      console.log("Navigating to play page for generation:", placeholderGame.id);
+      
       // Navigate immediately to the play page with a generating flag
       navigate(`/play/${placeholderGame.id}?generating=true`);
       
@@ -121,6 +123,7 @@ const Index = () => {
       // This will now run after navigation
       generateGame(prompt, gameType, imageUrlToUse, placeholderGame.id).then(gameData => {
         if (gameData) {
+          console.log("Generation completed successfully:", gameData.id);
           toast({
             title: "Generated successfully!",
             description: "Your content is ready to view.",
