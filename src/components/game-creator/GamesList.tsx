@@ -24,36 +24,35 @@ function GamePreview({ gameId }: GamePreviewProps) {
   useEffect(() => {
     const fetchGameCode = async () => {
       try {
-        // Get the latest version of the game
-        const { data, error } = await supabase
-          .from('games')
-          .select(`
-            current_version,
-            game_versions (
-              code,
-              version_number
-            )
-          `)
-          .eq('id', gameId)
-          .single();
-
-        if (error) throw error;
+        // Get all versions for this game
+        const { data: versionsData, error: versionsError } = await supabase
+          .from('game_versions')
+          .select('code, version_number, created_at')
+          .eq('game_id', gameId)
+          .order('version_number', { ascending: false });
         
-        // Find the latest version's code
-        if (data && data.game_versions && data.game_versions.length > 0) {
-          // Get the latest version based on current_version
-          const latestVersion = data.game_versions.find(
-            (v: any) => v.version_number === data.current_version
-          );
-          
-          if (latestVersion) {
-            setCode(latestVersion.code);
-          } else {
-            // Fallback to the first version if current_version isn't found
-            setCode(data.game_versions[0].code);
-          }
+        if (versionsError) throw versionsError;
+        
+        if (versionsData && versionsData.length > 0) {
+          // The first item will be the version with the highest version_number
+          // due to our descending order
+          console.log(`Latest version for game ${gameId}:`, versionsData[0]);
+          setCode(versionsData[0].code);
         } else {
-          setError("No code found for this game");
+          // If no versions in game_versions table, try fetching from the games table
+          const { data: gameData, error: gameError } = await supabase
+            .from('games')
+            .select('code')
+            .eq('id', gameId)
+            .single();
+          
+          if (gameError) throw gameError;
+          
+          if (gameData && gameData.code) {
+            setCode(gameData.code);
+          } else {
+            setError("No code found for this game");
+          }
         }
       } catch (err) {
         console.error("Error fetching game code:", err);
