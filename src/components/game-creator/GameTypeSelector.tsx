@@ -53,7 +53,7 @@ export function GameTypeSelector({ selectedType, onSelect }: GameTypeSelectorPro
                     isSelected ? 'text-white' : 'text-gray-700'
                   } />
                 </div>
-                <h3 className="font-medium">{type.label}</h3>
+                <h3 className={`font-medium ${isSelected ? 'text-white' : ''}`}>{type.label}</h3>
               </div>
               
               {isSelected && (
