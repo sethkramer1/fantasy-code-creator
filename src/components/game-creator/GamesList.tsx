@@ -87,8 +87,10 @@ function GamePreview({ gameId }: GamePreviewProps) {
           align-items: center;
         }
         body > * {
-          max-width: 100%;
-          max-height: 100%;
+          max-width: 90%;
+          max-height: 90%;
+          transform: scale(0.85);
+          transform-origin: center center;
         }
       </style>
     `;
@@ -223,10 +225,6 @@ export function GamesList({
                     </span>
                   )}
                 </div>
-                
-                <p className="text-sm text-gray-400 mt-2 flex-shrink-0">
-                  {new Date(game.created_at).toLocaleDateString()}
-                </p>
               </div>
             </div>
           ))}
