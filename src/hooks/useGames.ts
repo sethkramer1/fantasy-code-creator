@@ -12,6 +12,7 @@ export const useGames = () => {
   useEffect(() => {
     const fetchGames = async () => {
       try {
+        setGamesLoading(true);
         const { data, error } = await supabase
           .from('games')
           .select('id, prompt, created_at, type')
@@ -20,11 +21,14 @@ export const useGames = () => {
         if (error) throw error;
         setGames(data || []);
       } catch (error) {
+        console.error("Error loading games:", error);
         toast({
           title: "Error loading games",
           description: error instanceof Error ? error.message : "Please try again",
           variant: "destructive"
         });
+        // Set empty array to prevent the loading state from being stuck
+        setGames([]);
       } finally {
         setGamesLoading(false);
       }

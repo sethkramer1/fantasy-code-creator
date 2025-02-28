@@ -47,6 +47,7 @@ export function GamesList({
   const [selectedType, setSelectedType] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [gameCodeVersions, setGameCodeVersions] = useState<Record<string, string>>({});
+  const [fetchError, setFetchError] = useState<string | null>(null);
   
   // Calculate counts for each content type
   const typeCounts = games.reduce((counts: Record<string, number>, game) => {
@@ -103,9 +104,14 @@ export function GamesList({
   useEffect(() => {
     const fetchGameVersions = async () => {
       try {
-        // Only fetch versions for visible games
+        setFetchError(null);
+        
+        // Only fetch versions if there are filtered games to fetch for
         const gameIds = filteredGames.map(game => game.id);
-        if (gameIds.length === 0) return;
+        if (gameIds.length === 0) {
+          setGameCodeVersions({});
+          return;
+        }
         
         // Fetch the latest version for each game
         const { data, error } = await supabase
@@ -122,25 +128,30 @@ export function GamesList({
         // Group versions by game_id
         const gameVersionsMap: Record<string, GameCodeVersion[]> = {};
         
-        data.forEach(version => {
-          if (!gameVersionsMap[version.game_id]) {
-            gameVersionsMap[version.game_id] = [];
-          }
-          gameVersionsMap[version.game_id].push(version);
-        });
-        
-        // Get the latest version for each game
-        Object.entries(gameVersionsMap).forEach(([gameId, versions]) => {
-          // Sort versions by version_number in descending order
-          const sortedVersions = versions.sort((a, b) => b.version_number - a.version_number);
-          if (sortedVersions.length > 0 && sortedVersions[0].code) {
-            latestVersions[gameId] = sortedVersions[0].code;
-          }
-        });
+        if (data) {
+          data.forEach(version => {
+            if (!gameVersionsMap[version.game_id]) {
+              gameVersionsMap[version.game_id] = [];
+            }
+            gameVersionsMap[version.game_id].push(version);
+          });
+          
+          // Get the latest version for each game
+          Object.entries(gameVersionsMap).forEach(([gameId, versions]) => {
+            // Sort versions by version_number in descending order
+            const sortedVersions = versions.sort((a, b) => b.version_number - a.version_number);
+            if (sortedVersions.length > 0 && sortedVersions[0].code) {
+              latestVersions[gameId] = sortedVersions[0].code;
+            }
+          });
+        }
         
         setGameCodeVersions(latestVersions);
       } catch (error) {
         console.error("Error fetching game versions:", error);
+        setFetchError("Failed to load game versions. Please try again later.");
+        // Still set an empty object to prevent continuous retries
+        setGameCodeVersions({});
       }
     };
     
@@ -224,6 +235,11 @@ export function GamesList({
               </div>
             </div>
           ))}
+        </div>
+      ) : fetchError ? (
+        <div className="text-center py-12 px-4 bg-gray-50 rounded-xl border border-gray-100">
+          <p className="text-gray-500 mb-2">Error loading game versions.</p>
+          <p className="text-gray-600 font-medium">{fetchError}</p>
         </div>
       ) : filteredGames.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
