@@ -23,9 +23,25 @@ export const useGames = () => {
             throw error;
           }
           
-          // Cast data to make TypeScript happy - we know this data matches the Game type
-          setGames(data as Game[]);
+          // Ensure data is an array before using it
+          if (Array.isArray(data)) {
+            // Validate each item has the required Game properties
+            const validGames = data.filter((item): item is Game => 
+              typeof item === 'object' && 
+              item !== null &&
+              'id' in item && 
+              'prompt' in item && 
+              'code' in item
+            );
+            
+            setGames(validGames);
+            return;
+          }
+          
+          // If data is not an array, set empty array
+          setGames([]);
           return;
+          
         } catch (error: any) {
           // Only catch and retry if the specific error is about thumbnail_url column
           if (error?.message?.includes("column 'thumbnail_url' does not exist")) {
@@ -42,15 +58,28 @@ export const useGames = () => {
             }
             
             if (Array.isArray(basicData)) {
+              // Validate each item has the required Game properties
+              const validBasicGames = basicData.filter((item): item is Omit<Game, 'thumbnail_url'> => 
+                typeof item === 'object' && 
+                item !== null &&
+                'id' in item && 
+                'prompt' in item && 
+                'code' in item
+              );
+              
               // Add thumbnail_url: null to each item
-              const gamesWithNullThumbnail = basicData.map(game => ({
+              const gamesWithNullThumbnail = validBasicGames.map(game => ({
                 ...game,
                 thumbnail_url: null
               }));
               
-              setGames(gamesWithNullThumbnail as Game[]);
+              setGames(gamesWithNullThumbnail);
               return;
             }
+            
+            // If basicData is not an array, set empty array
+            setGames([]);
+            return;
           } else {
             // For any other error, just throw it to be caught by the outer catch
             throw error;
