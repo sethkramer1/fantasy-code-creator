@@ -1,5 +1,5 @@
 
-import { Loader2, Terminal, Wand2 } from "lucide-react";
+import { Loader2, Terminal, Wand2, Image as ImageIcon } from "lucide-react";
 import { GameTypeSelector } from "./GameTypeSelector";
 import { GamePromptInput } from "./GamePromptInput";
 import { ImageUpload } from "./ImageUpload";
@@ -82,7 +82,7 @@ export function GenerationForm({
   };
   
   return (
-    <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm space-y-4">
+    <div className="glass-panel p-8 space-y-6 card-shadow">
       <div className="space-y-6">
         <GameTypeSelector 
           selectedType={gameType}
@@ -95,7 +95,7 @@ export function GenerationForm({
         />
       </div>
       
-      <div className="space-y-3">
+      <div className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
             <ImageUpload
@@ -110,38 +110,41 @@ export function GenerationForm({
               <button 
                 onClick={handleEnhancePrompt}
                 disabled={isEnhancing}
-                className="flex items-center gap-1.5 p-2 rounded-lg text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 py-2 px-4 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-ring"
                 title="Enhance your prompt with AI"
               >
                 <Wand2 size={16} className={isEnhancing ? "animate-spin" : ""} />
-                <span className="text-sm">{isEnhancing ? "Enhancing..." : "Enhance prompt"}</span>
+                <span className="font-medium">{isEnhancing ? "Enhancing..." : "Enhance prompt"}</span>
               </button>
             )}
           </div>
         </div>
         
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pt-2">
           <button
             onClick={onGenerate}
             disabled={loading}
-            className="flex-1 py-3 px-6 rounded-lg bg-black text-white hover:bg-gray-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm font-medium"
+            className="flex-1 py-3 px-6 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base font-medium shadow-md hover:shadow-lg focus-ring"
           >
             {loading ? (
               <>
-                <Loader2 className="animate-spin" size={18} />
+                <Loader2 className="animate-spin" size={20} />
                 <span>Generating...</span>
               </>
             ) : (
-              <span>Generate</span>
+              <>
+                <Wand2 size={20} />
+                <span>Generate</span>
+              </>
             )}
           </button>
           {hasTerminalOutput && (
             <button
               onClick={showTerminalOutput}
-              className="p-3 rounded-lg bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+              className="p-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-colors hover:border-blue-200 shadow-sm focus-ring"
               title="Show generation progress"
             >
-              <Terminal size={18} className="text-gray-600" />
+              <Terminal size={20} className="text-gray-600" />
             </button>
           )}
         </div>

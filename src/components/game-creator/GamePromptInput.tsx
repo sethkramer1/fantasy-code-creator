@@ -72,13 +72,14 @@ export function GamePromptInput({ value, onChange, selectedType }: GamePromptInp
 
   return (
     <div className="relative">
+      <p className="font-medium text-gray-700 mb-3">Describe what you want</p>
       <textarea
         ref={textareaRef}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={getPlaceholder()}
-        className="w-full p-4 rounded-lg bg-white border border-gray-200 focus:ring-2 focus:ring-black/5 focus:outline-none transition-all text-gray-800 placeholder:text-gray-400 min-h-[48px] resize-none"
-        style={{ height: 'auto', overflow: 'hidden' }}
+        className="w-full p-4 rounded-xl bg-white border border-gray-200 focus:border-blue-300 focus:ring-2 focus:ring-blue-100 transition-all text-gray-800 placeholder:text-gray-400 min-h-[120px] resize-none shadow-sm"
+        style={{ overflow: 'hidden' }}
       />
     </div>
   );

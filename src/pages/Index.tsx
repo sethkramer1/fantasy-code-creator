@@ -9,6 +9,7 @@ import { useGameGeneration } from "@/hooks/useGameGeneration";
 import { useGames } from "@/hooks/useGames";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { Sparkles } from "lucide-react";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
@@ -141,9 +142,9 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#F5F5F5]">
-      <div className="max-w-4xl mx-auto p-6 md:p-8">
-        <div className="space-y-8">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+      <div className="max-w-5xl mx-auto px-6 py-12 md:py-16">
+        <div className="space-y-10">
           <Header 
             title="What would you like to mock up?"
             description="Describe what you want to create and watch it come to life"
@@ -162,6 +163,13 @@ const Index = () => {
             onImageUploaded={handleImageUploaded}
             onImageRemoved={handleImageRemoved}
           />
+
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <Sparkles size={18} className="text-blue-500" />
+              <h2 className="text-xl font-medium text-gray-900">Your Designs</h2>
+            </div>
+          </div>
 
           <GamesList
             games={games}
