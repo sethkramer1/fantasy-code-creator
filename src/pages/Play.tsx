@@ -68,7 +68,19 @@ const Play = () => {
         if (error) throw error;
         if (!data) throw new Error("Game not found");
         
-        const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
+        // Ensure we have valid game versions with all required properties
+        const versionsWithRequiredFields = data.game_versions
+          .filter(v => v && typeof v === 'object' && 'id' in v && 'version_number' in v)
+          .map(v => ({
+            id: v.id,
+            version_number: v.version_number,
+            code: v.code,
+            instructions: v.instructions,
+            created_at: v.created_at,
+            image_url: v.image_url || null
+          }));
+        
+        const sortedVersions = versionsWithRequiredFields.sort((a, b) => b.version_number - a.version_number);
         setGameVersions(sortedVersions);
         
         if (sortedVersions.length > 0) {
@@ -564,24 +576,20 @@ const Play = () => {
           
           if (imageUrl) {
             // Update the version with the image URL
-            const { error: updateVersionError } = await supabase
+            await supabase
               .from('game_versions')
-              .update({ image_url: imageUrl })
+              .update({
+                image_url: imageUrl
+              })
               .eq('id', newVersion.id);
-              
-            if (updateVersionError) {
-              console.error("Error updating version with image URL:", updateVersionError);
-            }
             
             // Also update the game with the latest thumbnail
-            const { error: updateGameError } = await supabase
+            await supabase
               .from('games')
-              .update({ thumbnail_url: imageUrl })
+              .update({
+                thumbnail_url: imageUrl
+              })
               .eq('id', id);
-              
-            if (updateGameError) {
-              console.error("Error updating game with thumbnail URL:", updateGameError);
-            }
             
             // Update the local state
             setGameVersions(prev => prev.map(v => 
@@ -624,6 +632,8 @@ const Play = () => {
         created_at: new Date().toISOString(),
         image_url: version.image_url
       };
+      
+      // Insert the new version
       const { error } = await supabase.from('game_versions').insert({
         id: newVersion.id,
         game_id: id,
@@ -632,8 +642,10 @@ const Play = () => {
         instructions: newVersion.instructions,
         image_url: newVersion.image_url
       });
+      
       if (error) throw error;
       
+      // Update the games table
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
