@@ -344,6 +344,11 @@ ENSURE INTERACTION CAPABILITIES:
         const text = new TextDecoder().decode(value);
         buffer += text;
         
+        console.log("Received chunk size:", text.length, "Buffer size:", buffer.length);
+        if (text.length > 0) {
+          console.log("Chunk sample:", text.substring(0, Math.min(100, text.length)));
+        }
+        
         // Process complete lines from the buffer
         let lineEnd;
         while ((lineEnd = buffer.indexOf('\n')) >= 0) {

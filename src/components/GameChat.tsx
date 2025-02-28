@@ -327,7 +327,7 @@ export const GameChat = ({
         totalChunks++;
         const chunk = new TextDecoder().decode(value);
         buffer += chunk;
-        console.log("Received chunk:", chunk.substring(0, 50) + (chunk.length > 50 ? "..." : ""));
+        console.log("Received chunk:", chunk.substring(0, 100) + (chunk.length > 100 ? "..." : ""));
         
         let lineEnd;
         while ((lineEnd = buffer.indexOf('\n')) >= 0) {
@@ -396,7 +396,7 @@ export const GameChat = ({
             } catch (e) {
               console.warn("Error parsing streaming data:", e);
               console.log("Raw data that failed to parse:", line.slice(5));
-              updateTerminalOutput(`> Warning: ${e instanceof Error ? e.message : 'Unknown error'}`);
+              // Don't throw here, just log and continue
             }
           } else {
             // Try to parse as Groq streaming format
@@ -410,7 +410,7 @@ export const GameChat = ({
                 if (contentChunk) {
                   content += contentChunk;
                   combinedResponse += contentChunk;
-                  console.log("Added Groq content chunk:", contentChunk.substring(0, 50));
+                  console.log("Added Groq content chunk, length:", contentChunk.length);
                   
                   // Display content chunks in same format as Anthropic
                   if (contentChunk.includes('\n')) {
