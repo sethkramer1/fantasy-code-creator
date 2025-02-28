@@ -12,42 +12,51 @@ export const useGames = () => {
   useEffect(() => {
     const fetchGames = async () => {
       try {
-        // Try to fetch all fields including the new thumbnail_url
-        const { data, error } = await supabase
+        // First, try to fetch all fields including thumbnail_url
+        const result = await supabase
           .from('games')
           .select('id, prompt, created_at, code, type, instructions, current_version, thumbnail_url')
           .order('created_at', { ascending: false });
         
-        if (error) {
-          // If there's an error with the column, try again without thumbnail_url
-          if (error.message.includes("column 'thumbnail_url' does not exist")) {
+        if (result.error) {
+          // If the error is about thumbnail_url column not existing
+          if (result.error.message.includes("column 'thumbnail_url' does not exist")) {
             console.warn("thumbnail_url column not found, fetching without it");
-            const fallbackResult = await supabase
+            
+            // Try again without the thumbnail_url column
+            const basicResult = await supabase
               .from('games')
               .select('id, prompt, created_at, code, type, instructions, current_version')
               .order('created_at', { ascending: false });
             
-            if (fallbackResult.error) throw fallbackResult.error;
+            if (basicResult.error) {
+              throw basicResult.error;
+            }
             
-            // Map the results to include a null thumbnail_url field
-            const gamesWithNullThumbnail = (fallbackResult.data || []).map(game => ({
+            // Map each game to include a null thumbnail_url
+            const gamesWithNullThumbnail = (basicResult.data || []).map(game => ({
               ...game,
               thumbnail_url: null
             }));
             
             setGames(gamesWithNullThumbnail);
           } else {
-            throw error;
+            // If it's another kind of error, throw it
+            throw result.error;
           }
         } else {
-          setGames(data || []);
+          // If successful, set the games data
+          setGames(result.data || []);
         }
       } catch (error) {
+        console.error("Error loading games:", error);
         toast({
           title: "Error loading games",
           description: error instanceof Error ? error.message : "Please try again",
           variant: "destructive"
         });
+        // Even on error, set empty array to avoid undefined
+        setGames([]);
       } finally {
         setGamesLoading(false);
       }

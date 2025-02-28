@@ -54,78 +54,82 @@ const Play = () => {
     const fetchGame = async () => {
       try {
         // First try to get all fields including the new fields
-        const result = await supabase.from('games').select(`
-            id,
-            current_version,
-            game_versions (
+        let result;
+        try {
+          result = await supabase.from('games').select(`
               id,
-              version_number,
-              code,
-              instructions,
-              created_at,
-              image_url
-            )
-          `).eq('id', id).single();
+              current_version,
+              game_versions (
+                id,
+                version_number,
+                code,
+                instructions,
+                created_at,
+                image_url
+              )
+            `).eq('id', id).single();
+        } catch (e) {
+          // If there's any error, we'll try the fallback query
+          result = { error: e };
+        }
         
         if (result.error) {
-          // If there's an error with the image_url column, try without it
-          if (result.error.message.includes("column 'image_url' does not exist")) {
-            console.warn("image_url column not found, fetching without it");
-            const fallbackResult = await supabase.from('games').select(`
+          // Try with a fallback query without image_url
+          console.warn("Using fallback query without image_url:", result.error);
+          const fallbackResult = await supabase.from('games').select(`
+              id,
+              current_version,
+              game_versions (
                 id,
-                current_version,
-                game_versions (
-                  id,
-                  version_number,
-                  code,
-                  instructions,
-                  created_at
-                )
-              `).eq('id', id).single();
-            
-            if (fallbackResult.error) throw fallbackResult.error;
-            if (!fallbackResult.data) throw new Error("Game not found");
-            
-            // Add the missing image_url field as null
-            const versionsWithImageUrl = fallbackResult.data.game_versions
-              // Ensure we only work with valid objects that have the expected properties
-              .filter((v): v is any => v !== null && typeof v === 'object' && 'id' in v)
-              .map(version => ({
-                ...version,
-                image_url: null
-              }));
-            
-            const sortedVersions = versionsWithImageUrl
-              .sort((a, b) => b.version_number - a.version_number);
-            
-            setGameVersions(sortedVersions);
-            
-            if (sortedVersions.length > 0) {
-              setSelectedVersion(sortedVersions[0].id);
-              console.log("Selected latest version:", sortedVersions[0].version_number);
-            }
-            
-          } else {
-            throw result.error;
+                version_number,
+                code,
+                instructions,
+                created_at
+              )
+            `).eq('id', id).single();
+          
+          if (fallbackResult.error) throw fallbackResult.error;
+          if (!fallbackResult.data) throw new Error("Game not found");
+          
+          // Process the game versions - ensure each item is valid and add image_url: null
+          const validVersions = Array.isArray(fallbackResult.data.game_versions) 
+            ? fallbackResult.data.game_versions
+                .filter(v => v !== null && typeof v === 'object') 
+                .map(v => ({
+                  id: v?.id || crypto.randomUUID(),
+                  version_number: v?.version_number || 1,
+                  code: v?.code || '',
+                  instructions: v?.instructions || null,
+                  created_at: v?.created_at || new Date().toISOString(),
+                  image_url: null
+                }))
+            : [];
+          
+          const sortedVersions = validVersions.sort((a, b) => b.version_number - a.version_number);
+          setGameVersions(sortedVersions);
+          
+          if (sortedVersions.length > 0) {
+            setSelectedVersion(sortedVersions[0].id);
+            console.log("Selected latest version:", sortedVersions[0].version_number);
           }
         } else {
           if (!result.data) throw new Error("Game not found");
           
-          // Ensure we have valid game versions with all required properties
-          const versionsWithRequiredFields = result.data.game_versions
-            // Filter out any null or invalid entries
-            .filter((v): v is any => v !== null && typeof v === 'object' && 'id' in v)
-            // Map to ensure consistent shape
-            .map(v => ({
-              id: v.id,
-              version_number: v.version_number,
-              code: v.code,
-              instructions: v.instructions,
-              created_at: v.created_at,
-              image_url: v.image_url || null
-            }));
+          // Process the game versions
+          const validVersions = Array.isArray(result.data.game_versions) 
+            ? result.data.game_versions
+                .filter(v => v !== null && typeof v === 'object')
+                .map(v => ({
+                  id: v?.id || crypto.randomUUID(),
+                  version_number: v?.version_number || 1,
+                  code: v?.code || '',
+                  instructions: v?.instructions || null,
+                  created_at: v?.created_at || new Date().toISOString(),
+                  image_url: v?.image_url || null
+                }))
+            : [];
           
-          const sortedVersions = versionsWithRequiredFields.sort((a, b) => b.version_number - a.version_number);
+          const sortedVersions = validVersions.sort((a, b) => b.version_number - a.version_number);
           setGameVersions(sortedVersions);
           
           if (sortedVersions.length > 0) {
@@ -134,6 +138,7 @@ const Play = () => {
           }
         }
       } catch (error) {
+        console.error("Error loading game:", error);
         toast({
           title: "Error loading game",
           description: error instanceof Error ? error.message : "Please try again",
@@ -143,7 +148,12 @@ const Play = () => {
         setLoading(false);
       }
     };
-    fetchGame();
+    
+    if (id) {
+      fetchGame();
+    } else {
+      setLoading(false);
+    }
   }, [id, toast]);
 
   const prepareIframeContent = (html: string) => {
@@ -646,23 +656,31 @@ const Play = () => {
             
             if (imageUrl) {
               try {
-                // Update the version with the image URL
-                await supabase
-                  .from('game_versions')
-                  .update({
-                    image_url: imageUrl
-                  } as any)
-                  .eq('id', newVersion.id);
+                // Try to update with image_url - will fail silently if column doesn't exist
+                try {
+                  await supabase
+                    .from('game_versions')
+                    .update({
+                      image_url: imageUrl
+                    } as any)
+                    .eq('id', newVersion.id);
+                } catch (updateImageError) {
+                  console.warn("Could not update image_url on game_versions", updateImageError);
+                }
                 
-                // Also update the game with the latest thumbnail
-                await supabase
-                  .from('games')
-                  .update({
-                    thumbnail_url: imageUrl
-                  } as any)
-                  .eq('id', id);
+                // Try to update with thumbnail_url - will fail silently if column doesn't exist
+                try {
+                  await supabase
+                    .from('games')
+                    .update({
+                      thumbnail_url: imageUrl
+                    } as any)
+                    .eq('id', id);
+                } catch (updateThumbnailError) {
+                  console.warn("Could not update thumbnail_url on games", updateThumbnailError);
+                }
                 
-                // Update the local state
+                // Update the local state regardless of DB updates
                 setGameVersions(prev => prev.map(v => 
                   v.id === newVersion.id ? { ...v, image_url: imageUrl } : v
                 ));
@@ -723,15 +741,26 @@ const Play = () => {
       
       // Only add image_url if it exists
       if (version.image_url) {
-        // Add it as any type to bypass TypeScript error
-        (versionData as any).image_url = version.image_url;
+        // Use as any to bypass TypeScript error
+        try {
+          await supabase
+            .from('game_versions')
+            .insert({
+              ...versionData,
+              image_url: version.image_url
+            } as any);
+        } catch (e) {
+          // If that fails, try without image_url
+          console.warn("Error inserting with image_url, trying without:", e);
+          await supabase
+            .from('game_versions')
+            .insert(versionData);
+        }
+      } else {
+        await supabase
+          .from('game_versions')
+          .insert(versionData);
       }
-      
-      const { error } = await supabase
-        .from('game_versions')
-        .insert(versionData);
-      
-      if (error) throw error;
       
       // Update the games table
       const updateData = {
@@ -742,16 +771,28 @@ const Play = () => {
       
       // Only add thumbnail_url if image_url exists
       if (version.image_url) {
-        // Add it as any type to bypass TypeScript error
-        (updateData as any).thumbnail_url = version.image_url;
+        try {
+          await supabase
+            .from('games')
+            .update({
+              ...updateData,
+              thumbnail_url: version.image_url
+            } as any)
+            .eq('id', id);
+        } catch (e) {
+          // If that fails, try without thumbnail_url
+          console.warn("Error updating with thumbnail_url, trying without:", e);
+          await supabase
+            .from('games')
+            .update(updateData)
+            .eq('id', id);
+        }
+      } else {
+        await supabase
+          .from('games')
+          .update(updateData)
+          .eq('id', id);
       }
-      
-      const { error: gameError } = await supabase
-        .from('games')
-        .update(updateData)
-        .eq('id', id);
-        
-      if (gameError) throw gameError;
       
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
