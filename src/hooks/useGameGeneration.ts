@@ -37,6 +37,7 @@ export const useGameGeneration = () => {
     
     let gameContent = '';
     let buffer = '';
+    let combinedResponse = '';
 
     try {
       const selectedType = contentTypes.find(type => type.id === gameType);
@@ -377,6 +378,7 @@ ENSURE INTERACTION CAPABILITIES:
                     const content = data.delta.text || '';
                     if (content) {
                       gameContent += content;
+                      combinedResponse += content;
                       
                       // Display the content in smaller chunks for better visibility
                       if (content.includes('\n')) {
@@ -428,6 +430,7 @@ ENSURE INTERACTION CAPABILITIES:
                 const content = data.choices[0].delta.content;
                 if (content) {
                   gameContent += content;
+                  combinedResponse += content;
                   
                   // Display content in chunks similar to Anthropic format
                   if (content.includes('\n')) {
@@ -454,8 +457,63 @@ ENSURE INTERACTION CAPABILITIES:
         }
       }
 
+      console.log("Combined response length:", combinedResponse.length);
+      if (combinedResponse.length > 0) {
+        console.log("Combined response sample:", combinedResponse.substring(0, 200));
+      }
+
       if (!gameContent) {
         throw new Error("No content received");
+      }
+
+      // Process and validate Groq content
+      if (modelType === "fast") {
+        // For Groq, we need to check if the content needs to be wrapped in HTML
+        const isHtmlContent = gameContent.includes('<html') || 
+                             gameContent.includes('<!DOCTYPE') || 
+                             (gameContent.includes('<body') && gameContent.includes('</body>'));
+        
+        if (!isHtmlContent) {
+          // If not HTML, look for code blocks that might be HTML
+          const htmlCodeBlock = gameContent.match(/```html\s*([\s\S]*?)```/);
+          if (htmlCodeBlock && htmlCodeBlock[1]) {
+            // Extract HTML from code block
+            gameContent = htmlCodeBlock[1];
+          }
+          
+          // Fallback - wrap in HTML if it's not already HTML
+          if (!gameContent.includes('<html') && !gameContent.includes('<!DOCTYPE')) {
+            console.log("Wrapping Groq content in HTML");
+            gameContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generated Content</title>
+  <style>
+    body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; }
+    code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+    pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
+  </style>
+</head>
+<body>
+  ${gameContent
+    .split('\n')
+    .map(line => {
+      if (line.trim().length === 0) return '';
+      if (line.startsWith('#')) {
+        const level = line.match(/^#+/)[0].length;
+        const text = line.replace(/^#+\s*/, '');
+        return `<h${level}>${text}</h${level}>`;
+      }
+      return `<p>${line}</p>`;
+    })
+    .join('\n')}
+</body>
+</html>`;
+          }
+        }
       }
 
       // For SVG content type, wrap the SVG in basic HTML if it's just raw SVG

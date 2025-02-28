@@ -317,6 +317,7 @@ export const GameChat = ({
       
       let buffer = '';
       let currentLineContent = '';
+      let combinedResponse = '';
       
       while (true) {
         const { done, value } = await reader.read();
@@ -342,6 +343,7 @@ export const GameChat = ({
                 const contentChunk = parsedData.delta.text || '';
                 if (contentChunk) {
                   content += contentChunk;
+                  combinedResponse += contentChunk;
                   
                   // Handle streaming UI updates
                   if (contentChunk.includes('\n')) {
@@ -402,6 +404,7 @@ export const GameChat = ({
                 const contentChunk = parsedData.choices[0].delta.content;
                 if (contentChunk) {
                   content += contentChunk;
+                  combinedResponse += contentChunk;
                   
                   // Display content chunks in same format as Anthropic
                   if (contentChunk.includes('\n')) {
@@ -432,7 +435,7 @@ export const GameChat = ({
                   }
                 }
               } 
-              // Check if it's a final message
+              // Check if it's a final Groq message
               else if (parsedData.choices && parsedData.choices[0]?.finish_reason) {
                 updateTerminalOutput(`> Content generation ${parsedData.choices[0].finish_reason}`, true);
               }
@@ -444,25 +447,39 @@ export const GameChat = ({
         }
       }
       
-      // Improved validation for content based on model type
-      let validContent = false;
-      let isHtmlContent = false;
+      console.log("Combined response length:", combinedResponse.length);
+      if (combinedResponse.length > 0) {
+        console.log("Combined response sample:", combinedResponse.substring(0, 200));
+      }
 
+      // Enhanced validation and processing for Groq content
+      let validContent = false;
+      
       // Log the first bit of content to help debug
       console.log("Content sample:", content.substring(0, 200));
       
       if (currentModelType === "fast") {
-        // For Groq model, check if the content is already HTML
-        isHtmlContent = content.includes('<html') || 
-                        content.includes('<!DOCTYPE') || 
-                        (content.includes('<') && content.includes('>') && 
-                         (content.includes('<div') || content.includes('<body') || content.includes('<head')));
+        // For Groq model, we'll be more flexible with content validation
+        // Check if we have any content at all first
+        if (!content || content.trim().length === 0) {
+          console.error("Empty content received from Groq");
+          throw new Error("No content received from AI. Please try again.");
+        }
         
-        // For Groq, any non-empty content is valid, but we'll need to wrap non-HTML content
-        validContent = content && content.length > 0;
+        // Check if content is HTML or needs to be wrapped
+        const isHtmlContent = content.includes('<html') || 
+                             content.includes('<!DOCTYPE') || 
+                             (content.includes('<body') && content.includes('</body>'));
         
-        // If content is not HTML, wrap it in HTML
-        if (validContent && !isHtmlContent) {
+        if (!isHtmlContent) {
+          // If not HTML, look for code blocks that might be HTML
+          const htmlCodeBlock = content.match(/```html\s*([\s\S]*?)```/);
+          if (htmlCodeBlock && htmlCodeBlock[1]) {
+            // Extract HTML from code block
+            content = htmlCodeBlock[1];
+          }
+          
+          // Wrap content in proper HTML structure
           console.log("Adding HTML wrapper to Groq content");
           content = `
 <!DOCTYPE html>
@@ -486,6 +503,12 @@ export const GameChat = ({
       border-radius: 5px;
       overflow-x: auto;
     }
+    code {
+      font-family: monospace;
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
     h1, h2, h3 {
       color: #2c3e50;
     }
@@ -500,13 +523,27 @@ export const GameChat = ({
 </head>
 <body>
   <div class="content">
-    ${content.split('\n').map(line => `<p>${line}</p>`).join('\n')}
+    ${content
+      .split('\n')
+      .map(line => {
+        if (line.trim().length === 0) return '';
+        if (line.startsWith('#')) {
+          const level = line.match(/^#+/)[0].length;
+          const text = line.replace(/^#+\s*/, '');
+          return `<h${level}>${text}</h${level}>`;
+        }
+        return `<p>${line}</p>`;
+      })
+      .join('\n')}
   </div>
 </body>
 </html>`;
         }
+        
+        // Mark as valid since we've processed it
+        validContent = true;
       } else {
-        // For Anthropic model, use the original check
+        // For Anthropic model, check for HTML content
         validContent = content && content.includes('<html');
       }
       
