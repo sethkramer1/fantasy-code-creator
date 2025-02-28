@@ -30,107 +30,224 @@ const Play = () => {
   const [showCode, setShowCode] = useState(false);
   const [showGenerating, setShowGenerating] = useState(isGenerating);
   const [pollingStatus, setPollingStatus] = useState(isGenerating);
-  const [initialTerminalOutput, setInitialTerminalOutput] = useState<string[]>([
+  const [terminalOutput, setTerminalOutput] = useState<string[]>([
     "> Starting generation process...", 
     "> Creating your design based on your prompt..."
   ]);
   const [thinkingSeconds, setThinkingSeconds] = useState(0);
+  const [streamConnected, setStreamConnected] = useState(false);
+  const streamConnectionAttemptedRef = useRef(false);
   const timerRef = useRef<NodeJS.Timeout>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
   
-  // Initialize game generation hooks
-  const {
-    loading: generationLoading,
-    terminalOutput,
-    thinkingTime,
-    setGameId
-  } = useGameGeneration();
-  
-  // Set the game ID for the generation hook
+  // Connect to the generation stream if we're in generation mode
   useEffect(() => {
-    if (id) {
-      setGameId(id);
-    }
-  }, [id, setGameId]);
-  
-  // Set up the thinking timer if we're showing generation status
-  useEffect(() => {
-    if (showGenerating && pollingStatus) {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-      }
+    if (isGenerating && id && !streamConnected && !streamConnectionAttemptedRef.current) {
+      streamConnectionAttemptedRef.current = true;
       
+      // Start a timer to show thinking time
       timerRef.current = setInterval(() => {
         setThinkingSeconds(prev => prev + 1);
-        
-        // Add more descriptive messages over time to show progress
-        if (thinkingSeconds === 5) {
-          setInitialTerminalOutput(prev => [...prev, "> Analyzing your requirements..."]);
-        } else if (thinkingSeconds === 10) {
-          setInitialTerminalOutput(prev => [...prev, "> Creating the structure..."]);
-        } else if (thinkingSeconds === 15) {
-          setInitialTerminalOutput(prev => [...prev, "> Adding styling and functionality..."]);
-        } else if (thinkingSeconds % 10 === 0 && thinkingSeconds > 0) {
-          setInitialTerminalOutput(prev => [...prev, "> Still working, this might take a minute..."]);
-        }
       }, 1000);
       
-      return () => {
-        if (timerRef.current) {
-          clearInterval(timerRef.current);
-        }
-      };
-    }
-  }, [showGenerating, pollingStatus, thinkingSeconds]);
-  
-  // Check for generation status
-  useEffect(() => {
-    if (pollingStatus) {
-      // Poll the database to check if generation is complete
-      const interval = setInterval(async () => {
+      // Setup an EventSource connection to watch generation progress
+      const connectToStream = async () => {
         try {
-          const { data, error } = await supabase
-            .from('games')
-            .select('code')
-            .eq('id', id)
-            .single();
+          // Subscribe to game_versions updates to catch when a real version is created
+          const gameVersionSub = supabase
+            .channel('game-version-updates')
+            .on('postgres_changes', {
+              event: 'INSERT',
+              schema: 'public',
+              table: 'game_versions',
+              filter: `game_id=eq.${id}`,
+            }, (payload) => {
+              console.log('New game version created:', payload);
+              if (payload.new && payload.new.code !== "Generating...") {
+                // Once we have real content, refresh and show it
+                setPollingStatus(false);
+                setShowGenerating(false);
+                navigate(`/play/${id}`, { replace: true });
+                fetchGame();
+                
+                if (timerRef.current) {
+                  clearInterval(timerRef.current);
+                }
+                
+                toast({
+                  title: "Generation complete",
+                  description: "Your content has been generated successfully."
+                });
+              }
+            })
+            .subscribe();
             
-          if (error) throw error;
+          // Also setup direct polling to check the status
+          const pollingInterval = setInterval(async () => {
+            try {
+              const { data, error } = await supabase
+                .from('games')
+                .select('code')
+                .eq('id', id)
+                .single();
+                
+              console.log('Polling game status:', data);
+              
+              if (error) {
+                console.error('Error polling game status:', error);
+                return;
+              }
+              
+              if (data && data.code !== "Generating...") {
+                setPollingStatus(false);
+                setShowGenerating(false);
+                clearInterval(pollingInterval);
+                navigate(`/play/${id}`, { replace: true });
+                fetchGame();
+                
+                if (timerRef.current) {
+                  clearInterval(timerRef.current);
+                }
+                
+                toast({
+                  title: "Generation complete",
+                  description: "Your content has been generated successfully."
+                });
+              }
+            } catch (err) {
+              console.error('Error in polling interval:', err);
+            }
+          }, 5000);
           
-          console.log("Polling generation status:", data?.code === "Generating...");
+          // Connect to the Supabase Edge Function to get real-time generation updates
+          // This uses a custom endpoint that streams the generation progress
+          const response = await fetch(
+            `https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/stream-generation?gameId=${id}`,
+            {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`,
+              },
+            }
+          );
           
-          // If code no longer shows "Generating...", refresh the page data
-          if (data && data.code !== "Generating...") {
-            setShowGenerating(false);
-            setPollingStatus(false);
-            clearInterval(interval);
-            // Remove the generating param from URL
-            navigate(`/play/${id}`, { replace: true });
-            // Refresh game data
-            fetchGame();
+          if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Error connecting to stream:', errorText);
+            setTerminalOutput(prev => [...prev, `> Error connecting to generation stream: ${response.status}`]);
+            setTerminalOutput(prev => [...prev, `> Fallback to polling for updates...`]);
+            return;
+          }
+          
+          setStreamConnected(true);
+          console.log('Connected to generation stream');
+          setTerminalOutput(prev => [...prev, `> Connected to generation stream...`]);
+          
+          const reader = response.body?.getReader();
+          if (!reader) {
+            throw new Error('No reader available from stream');
+          }
+          
+          // Process the stream data
+          let buffer = '';
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
             
-            // Clear thinking timer
+            const chunk = new TextDecoder().decode(value);
+            buffer += chunk;
+            
+            // Process complete lines from the buffer
+            let lineEnd;
+            while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+              const line = buffer.slice(0, lineEnd).trim();
+              buffer = buffer.slice(lineEnd + 1);
+              
+              if (!line) continue;
+              
+              // Check if it's server-sent event data
+              if (line.startsWith('data: ')) {
+                try {
+                  const data = JSON.parse(line.slice(5));
+                  
+                  if (data.type === 'thinking') {
+                    setTerminalOutput(prev => [...prev, `> Thinking: ${data.thinking || 'processing...'}`]);
+                  } else if (data.type === 'content' || data.type === 'text') {
+                    setTerminalOutput(prev => [...prev, `> ${data.content || data.text || 'generating content...'}`]);
+                  } else if (data.type === 'error') {
+                    setTerminalOutput(prev => [...prev, `> Error: ${data.error || 'Unknown error'}`]);
+                  } else if (data.type) {
+                    // For any other event types
+                    setTerminalOutput(prev => [...prev, `> ${data.type}: ${JSON.stringify(data).slice(0, 100)}`]);
+                  }
+                } catch (e) {
+                  console.error('Error parsing stream data:', e);
+                  // Just add the raw line if we can't parse it as JSON
+                  if (line.length > 6) {
+                    setTerminalOutput(prev => [...prev, `> ${line.slice(5)}`]);
+                  }
+                }
+              } else {
+                // If it's not JSON data, just display the line
+                setTerminalOutput(prev => [...prev, `> ${line}`]);
+              }
+            }
+          }
+          
+          console.log('Stream completed');
+          setTerminalOutput(prev => [...prev, '> Stream completed. Waiting for final content...']);
+          
+          // Clean up
+          return () => {
+            gameVersionSub.unsubscribe();
+            clearInterval(pollingInterval);
             if (timerRef.current) {
               clearInterval(timerRef.current);
             }
-            
-            toast({
-              title: "Generation complete",
-              description: "Your content has been generated successfully."
-            });
-          }
+          };
+          
         } catch (error) {
-          console.error("Error checking generation status:", error);
+          console.error('Error connecting to generation stream:', error);
+          setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : 'Unknown error connecting to stream'}`]);
+          setTerminalOutput(prev => [...prev, '> Falling back to polling for updates...']);
+          
+          // Even if streaming fails, we still poll for completion
+          return () => {
+            if (timerRef.current) {
+              clearInterval(timerRef.current);
+            }
+          };
         }
-      }, 2000);
-      
-      return () => {
-        clearInterval(interval);
       };
+      
+      connectToStream();
     }
-  }, [pollingStatus, id, navigate, toast]);
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
+    };
+  }, [id, isGenerating, streamConnected, navigate, toast]);
+  
+  // Create a fallback messages system for when we don't have a stream
+  useEffect(() => {
+    if (showGenerating && pollingStatus && !streamConnected && thinkingSeconds > 0) {
+      // Add descriptive fallback messages over time
+      if (thinkingSeconds === 10) {
+        setTerminalOutput(prev => [...prev, "> Analyzing your requirements..."]);
+      } else if (thinkingSeconds === 20) {
+        setTerminalOutput(prev => [...prev, "> Creating the structure..."]);
+      } else if (thinkingSeconds === 30) {
+        setTerminalOutput(prev => [...prev, "> Adding styling and functionality..."]);
+      } else if (thinkingSeconds % 20 === 0 && thinkingSeconds > 0) {
+        setTerminalOutput(prev => [...prev, "> Still working, this might take a minute..."]);
+      }
+    }
+  }, [showGenerating, pollingStatus, streamConnected, thinkingSeconds]);
 
   // Prevent keyboard events from being captured by the iframe
   useEffect(() => {
@@ -691,8 +808,8 @@ const Play = () => {
                 {/* Show generation terminal when generating */}
                 {showGenerating ? (
                   <GenerationTerminal
-                    output={terminalOutput.length > 0 ? terminalOutput : initialTerminalOutput}
-                    thinkingTime={terminalOutput.length > 0 ? thinkingTime : thinkingSeconds}
+                    output={terminalOutput}
+                    thinkingTime={thinkingSeconds}
                     loading={pollingStatus}
                     asModal={false}
                   />
