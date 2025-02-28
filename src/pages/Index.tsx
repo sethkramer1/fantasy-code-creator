@@ -143,8 +143,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header and Form section with constrained width */}
-      <div className="max-w-3xl mx-auto px-6 py-12 md:py-16">
+      {/* Header and Form section with increased width */}
+      <div className="max-w-4xl mx-auto px-6 py-12 md:py-16">
         <div className="space-y-10">
           <Header 
             title="What would you like to mock up?"
