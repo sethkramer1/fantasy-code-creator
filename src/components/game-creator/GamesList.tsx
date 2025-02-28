@@ -242,12 +242,14 @@ export function GamesList({
                   {gameCode ? (
                     <iframe 
                       srcDoc={prepareIframeContent(gameCode)}
-                      className="w-full h-[800px] origin-top-left pointer-events-none"
+                      className="pointer-events-none"
                       style={{ 
+                        width: '400%',  /* Make iframe 4x wider to match the 0.25 scale */
+                        height: '800px',
                         transform: 'scale(0.25)', 
                         transformOrigin: 'top left',
-                        overflow: 'hidden',
-                        border: 'none'
+                        border: 'none',
+                        overflow: 'hidden'
                       }}
                       title={`Preview of ${game.prompt || 'design'}`}
                       loading="lazy"
