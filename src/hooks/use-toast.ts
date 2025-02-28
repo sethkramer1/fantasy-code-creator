@@ -3,7 +3,7 @@ import * as React from "react"
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
-const TOAST_REMOVE_DELAY = 5000 // 5 seconds
+const TOAST_REMOVE_DELAY = 8000 // 8 seconds instead of 5
 
 type ToasterToast = ToastProps & {
   id: string

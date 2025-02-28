@@ -318,13 +318,16 @@ export const GameChat = ({
       let buffer = '';
       let currentLineContent = '';
       let combinedResponse = '';
+      let totalChunks = 0;
       
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
         
+        totalChunks++;
         const chunk = new TextDecoder().decode(value);
         buffer += chunk;
+        console.log("Received chunk:", chunk.substring(0, 50) + (chunk.length > 50 ? "..." : ""));
         
         let lineEnd;
         while ((lineEnd = buffer.indexOf('\n')) >= 0) {
@@ -392,12 +395,14 @@ export const GameChat = ({
               }
             } catch (e) {
               console.warn("Error parsing streaming data:", e);
-              updateTerminalOutput(`> Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
+              console.log("Raw data that failed to parse:", line.slice(5));
+              updateTerminalOutput(`> Warning: ${e instanceof Error ? e.message : 'Unknown error'}`);
             }
           } else {
             // Try to parse as Groq streaming format
             try {
               const parsedData = JSON.parse(line);
+              console.log("Parsed Groq data:", parsedData);
               
               // Check if it's a Groq delta chunk
               if (parsedData.choices && parsedData.choices[0]?.delta?.content) {
@@ -405,6 +410,7 @@ export const GameChat = ({
                 if (contentChunk) {
                   content += contentChunk;
                   combinedResponse += contentChunk;
+                  console.log("Added Groq content chunk:", contentChunk.substring(0, 50));
                   
                   // Display content chunks in same format as Anthropic
                   if (contentChunk.includes('\n')) {
@@ -442,46 +448,106 @@ export const GameChat = ({
             } catch (e) {
               // Not valid JSON or unexpected format - might be partial chunk
               // Just continue processing
+              console.log("Failed to parse as JSON:", line.substring(0, 50) + (line.length > 50 ? "..." : ""));
             }
           }
         }
       }
       
+      console.log("Total chunks received:", totalChunks);
       console.log("Combined response length:", combinedResponse.length);
       if (combinedResponse.length > 0) {
         console.log("Combined response sample:", combinedResponse.substring(0, 200));
+      } else {
+        console.error("No combined response content!");
       }
 
-      // Enhanced validation and processing for Groq content
+      // Enhanced validation and processing for all model content
       let validContent = false;
       
       // Log the first bit of content to help debug
       console.log("Content sample:", content.substring(0, 200));
       
+      // Check if we have any content at all first
+      if (!content || content.trim().length === 0) {
+        console.error("Empty content received");
+        throw new Error("No content received from AI. Please try again.");
+      }
+
+      // For Groq model (fast), we need special processing
       if (currentModelType === "fast") {
-        // For Groq model, we'll be more flexible with content validation
-        // Check if we have any content at all first
-        if (!content || content.trim().length === 0) {
-          console.error("Empty content received from Groq");
-          throw new Error("No content received from AI. Please try again.");
+        console.log("Processing Groq content");
+        
+        // Check for code blocks - Groq often returns code blocks instead of direct HTML
+        if (content.includes("```html")) {
+          console.log("Found HTML code block, extracting...");
+          const htmlMatch = content.match(/```html\s*([\s\S]*?)```/);
+          if (htmlMatch && htmlMatch[1] && htmlMatch[1].trim().length > 0) {
+            content = htmlMatch[1].trim();
+            console.log("Extracted HTML from code block, length:", content.length);
+          }
         }
         
-        // Check if content is HTML or needs to be wrapped
+        // Check if content is already valid HTML
         const isHtmlContent = content.includes('<html') || 
                              content.includes('<!DOCTYPE') || 
                              (content.includes('<body') && content.includes('</body>'));
         
         if (!isHtmlContent) {
-          // If not HTML, look for code blocks that might be HTML
-          const htmlCodeBlock = content.match(/```html\s*([\s\S]*?)```/);
-          if (htmlCodeBlock && htmlCodeBlock[1]) {
-            // Extract HTML from code block
-            content = htmlCodeBlock[1];
-          }
-          
-          // Wrap content in proper HTML structure
-          console.log("Adding HTML wrapper to Groq content");
-          content = `
+          // If it's just HTML fragments without full document structure, wrap it
+          if (content.includes('<') && content.includes('>') && 
+              (content.includes('<div') || content.includes('<p') || content.includes('<span'))) {
+            console.log("Found HTML elements but not full document, wrapping...");
+            content = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generated Content</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    code {
+      font-family: monospace;
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    h1, h2, h3 {
+      color: #2c3e50;
+    }
+    a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="content">
+    ${content}
+  </div>
+</body>
+</html>`;
+          } else {
+            // It's probably markdown or plain text, convert to HTML
+            console.log("Content appears to be markdown or text, converting to HTML...");
+            content = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -538,18 +604,29 @@ export const GameChat = ({
   </div>
 </body>
 </html>`;
+          }
         }
         
-        // Mark as valid since we've processed it
-        validContent = true;
+        // Check content validity again after processing
+        console.log("Final content length after processing:", content.length);
+        console.log("Final content sample:", content.substring(0, 200));
+        
+        // Mark as valid if we have HTML content
+        validContent = content && (
+          content.includes('<html') || 
+          content.includes('<!DOCTYPE')
+        );
       } else {
-        // For Anthropic model, check for HTML content
-        validContent = content && content.includes('<html');
+        // For Anthropic (smart) model, check for HTML content
+        validContent = content && (
+          content.includes('<html') || 
+          content.includes('<!DOCTYPE')
+        );
       }
       
       if (!validContent) {
-        console.error("Invalid content received:", content ? content.substring(0, 200) : "No content");
-        throw new Error("Invalid content received from AI. Please try again or switch to the Smartest model.");
+        console.error("Invalid content after processing:", content ? content.substring(0, 200) : "No content");
+        throw new Error("Invalid content received from AI. Please try again or switch models.");
       }
       
       updateTerminalOutput("> Updating content...", true);
