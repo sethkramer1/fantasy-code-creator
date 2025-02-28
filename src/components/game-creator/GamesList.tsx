@@ -88,7 +88,9 @@ function GamePreview({ gameId }: GamePreviewProps) {
         }
         body > * {
           max-width: 95%;
-          height: auto;
+          max-height: 95%;
+          transform: scale(0.8);
+          transform-origin: center center;
           object-fit: contain;
           overflow: hidden;
         }
@@ -98,8 +100,7 @@ function GamePreview({ gameId }: GamePreviewProps) {
         body > div.device,
         body > div.smartphone {
           max-height: 95%;
-          object-fit: contain;
-          overflow: visible;
+          transform-origin: top center;
         }
       </style>
     `;
