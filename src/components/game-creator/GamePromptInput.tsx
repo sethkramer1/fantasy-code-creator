@@ -99,7 +99,8 @@ export function GamePromptInput({
       const { data, error } = await supabase.functions.invoke('enhance-prompt', {
         body: { 
           prompt: value,
-          contentType: selectedType 
+          contentType: selectedType,
+          note: "The resulting code will be written in HTML, JavaScript, and CSS, so keep the enhanced prompt realistic and implementable within these technologies."
         },
       });
       

@@ -636,6 +636,7 @@ const Play = () => {
               gameId={id!} 
               onGameUpdate={handleGameUpdate} 
               onTerminalStatusChange={handleTerminalStatusChange}
+              disabled={generationInProgress} // Disable chat during initial generation
             />
           </div>
         </div>
@@ -686,3 +687,4 @@ const Play = () => {
 };
 
 export default Play;
+

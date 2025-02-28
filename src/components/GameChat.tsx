@@ -17,12 +17,14 @@ interface GameChatProps {
   gameId: string;
   onGameUpdate: (newCode: string, newInstructions: string) => void;
   onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
+  disabled?: boolean; // New prop to disable chat during initial generation
 }
 
 export const GameChat = ({
   gameId,
   onGameUpdate,
-  onTerminalStatusChange
+  onTerminalStatusChange,
+  disabled = false // Default to enabled
 }: GameChatProps) => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -193,7 +195,7 @@ export const GameChat = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!message.trim() && !imageUrl) || loading) return;
+    if ((!message.trim() && !imageUrl) || loading || disabled) return;
     
     setLoading(true);
     setThinkingTime(0); // Reset thinking time
@@ -502,6 +504,7 @@ export const GameChat = ({
                 type="button"
                 onClick={handleRemoveImage}
                 className="absolute top-1 right-1 p-1 bg-white/90 rounded-full hover:bg-white transition-colors shadow-sm"
+                disabled={disabled}
               >
                 <X size={16} className="text-gray-600" />
               </button>
@@ -509,7 +512,7 @@ export const GameChat = ({
           </div>
         )}
         
-        <div className="bg-[#F1F1F1] rounded-2xl shadow-sm p-4 border border-gray-100">
+        <div className={`bg-[#F1F1F1] rounded-2xl shadow-sm p-4 border border-gray-100 ${disabled ? 'opacity-50' : ''}`}>
           <div className="relative">
             <textarea 
               ref={textareaRef}
@@ -522,9 +525,9 @@ export const GameChat = ({
                   handleSubmit(e);
                 }
               }} 
-              placeholder="Request a change" 
+              placeholder={disabled ? "Chat will be enabled once generation is complete..." : "Request a change"} 
               className="w-full bg-transparent text-gray-800 border-none focus:ring-0 focus:outline-none resize-none min-h-[24px] max-h-[200px] py-0 px-0 placeholder-gray-500" 
-              disabled={loading}
+              disabled={loading || disabled}
               rows={1}
             />
           </div>
@@ -532,7 +535,7 @@ export const GameChat = ({
           <div className="flex items-center justify-between mt-6 gap-2">
             <div className="flex items-center gap-4">
               <label
-                className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-800 transition-colors"
+                className={`flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-800 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
                 title="Attach"
               >
                 <Paperclip size={20} />
@@ -543,14 +546,14 @@ export const GameChat = ({
                   className="hidden"
                   accept="image/*"
                   onChange={handleImageUpload}
-                  disabled={loading || isUploading}
+                  disabled={loading || isUploading || disabled}
                 />
               </label>
             </div>
             
             <button 
               type="submit" 
-              disabled={loading || (!message.trim() && !imageUrl) || isUploading} 
+              disabled={loading || (!message.trim() && !imageUrl) || isUploading || disabled} 
               className="h-10 w-10 rounded-full bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
               aria-label="Send message"
             >
@@ -566,7 +569,14 @@ export const GameChat = ({
               Uploading image...
             </div>
           )}
+          
+          {disabled && (
+            <div className="mt-2 text-xs text-gray-500">
+              Chat will be enabled after content generation is complete
+            </div>
+          )}
         </div>
       </form>
     </div>;
 };
+
