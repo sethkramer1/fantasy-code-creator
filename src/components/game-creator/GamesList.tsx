@@ -28,7 +28,7 @@ export function GamesList({
   const [selectedType, setSelectedType] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const pageSize = 6; // Number of designs per page
+  const pageSize = 24; // Number of designs per page
   
   // Filter games based on selected type and search query
   const filteredGames = games.filter(game => {
