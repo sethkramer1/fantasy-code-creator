@@ -214,8 +214,8 @@ export function GamesList({
       </div>
       
       {isLoading ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          {[1, 2, 3, 4].map(i => (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map(i => (
             <div key={i} className="rounded-xl overflow-hidden border border-gray-100">
               <Skeleton className="h-28 w-full" />
               <div className="p-4">
@@ -226,7 +226,7 @@ export function GamesList({
           ))}
         </div>
       ) : filteredGames.length > 0 ? (
-        <div className="grid gap-4 md:grid-cols-2">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {filteredGames.map(game => {
             const { label, badgeColor } = getTypeInfo(game.type);
             const gameCode = gameCodeVersions[game.id];
