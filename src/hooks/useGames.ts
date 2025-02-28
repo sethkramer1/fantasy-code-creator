@@ -13,77 +13,37 @@ export const useGames = () => {
     const fetchGames = async () => {
       try {
         // First attempt: Try to fetch with thumbnail_url column
-        try {
-          const { data, error } = await supabase
-            .from('games')
-            .select('id, prompt, created_at, code, type, instructions, current_version, thumbnail_url')
-            .order('created_at', { ascending: false });
-          
-          if (error) {
-            throw error;
-          }
-          
-          // Ensure data is an array before using it
-          if (Array.isArray(data)) {
-            // Validate each item has the required Game properties
-            const validGames = data.filter((item): item is Game => 
-              typeof item === 'object' && 
-              item !== null &&
-              'id' in item && 
-              'prompt' in item && 
-              'code' in item
-            );
-            
-            setGames(validGames);
-            return;
-          }
-          
-          // If data is not an array, set empty array
-          setGames([]);
-          return;
-          
-        } catch (error: any) {
-          // Only catch and retry if the specific error is about thumbnail_url column
-          if (error?.message?.includes("column 'thumbnail_url' does not exist")) {
+        const response = await supabase
+          .from('games')
+          .select('id, prompt, created_at, code, type, instructions, current_version, thumbnail_url')
+          .order('created_at', { ascending: false });
+        
+        if (response.error) {
+          // If the error is specifically about thumbnail_url column not existing
+          if (response.error.message.includes("column 'thumbnail_url' does not exist")) {
             console.warn("thumbnail_url column not found, fetching without it");
             
             // Second attempt: Try without thumbnail_url
-            const { data: basicData, error: basicError } = await supabase
+            const basicResponse = await supabase
               .from('games')
               .select('id, prompt, created_at, code, type, instructions, current_version')
               .order('created_at', { ascending: false });
             
-            if (basicError) {
-              throw basicError;
+            if (basicResponse.error) {
+              throw basicResponse.error;
             }
             
-            if (Array.isArray(basicData)) {
-              // Validate each item has the required Game properties
-              const validBasicGames = basicData.filter((item): item is Omit<Game, 'thumbnail_url'> => 
-                typeof item === 'object' && 
-                item !== null &&
-                'id' in item && 
-                'prompt' in item && 
-                'code' in item
-              );
-              
-              // Add thumbnail_url: null to each item
-              const gamesWithNullThumbnail = validBasicGames.map(game => ({
-                ...game,
-                thumbnail_url: null
-              }));
-              
-              setGames(gamesWithNullThumbnail);
-              return;
-            }
-            
-            // If basicData is not an array, set empty array
-            setGames([]);
-            return;
+            // If no error, process the data
+            const processedGames = processGamesData(basicResponse.data || [], true);
+            setGames(processedGames);
           } else {
-            // For any other error, just throw it to be caught by the outer catch
-            throw error;
+            // For any other error, throw it to be caught by the outer catch
+            throw response.error;
           }
+        } else {
+          // If no error, process the data
+          const processedGames = processGamesData(response.data || [], false);
+          setGames(processedGames);
         }
       } catch (error) {
         console.error("Error loading games:", error);
@@ -97,6 +57,31 @@ export const useGames = () => {
       } finally {
         setGamesLoading(false);
       }
+    };
+
+    // Helper function to process and validate games data
+    const processGamesData = (data: any[], addThumbnail: boolean): Game[] => {
+      if (!Array.isArray(data)) {
+        return [];
+      }
+      
+      return data
+        .filter(item => 
+          item && 
+          typeof item === 'object' && 
+          'id' in item && 
+          'prompt' in item && 
+          'code' in item
+        )
+        .map(item => {
+          if (addThumbnail) {
+            return {
+              ...item,
+              thumbnail_url: null
+            } as Game;
+          }
+          return item as Game;
+        });
     };
 
     fetchGames();
