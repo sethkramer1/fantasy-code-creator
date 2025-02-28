@@ -110,7 +110,7 @@ export function GenerationForm({
               <button 
                 onClick={handleEnhancePrompt}
                 disabled={isEnhancing}
-                className="flex items-center gap-2 py-2 px-4 rounded-lg text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-ring"
+                className="flex items-center gap-2 py-2 px-4 rounded-lg text-black bg-gray-100 hover:bg-gray-200 border border-gray-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-ring"
                 title="Enhance your prompt with AI"
               >
                 <Wand2 size={16} className={isEnhancing ? "animate-spin" : ""} />
@@ -124,7 +124,7 @@ export function GenerationForm({
           <button
             onClick={onGenerate}
             disabled={loading}
-            className="flex-1 py-3 px-6 rounded-xl bg-blue-600 text-white hover:bg-blue-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base font-medium shadow-md hover:shadow-lg focus-ring"
+            className="flex-1 py-3 px-6 rounded-xl bg-black text-white hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-base font-medium shadow-md hover:shadow-lg focus-ring"
           >
             {loading ? (
               <>
@@ -141,7 +141,7 @@ export function GenerationForm({
           {hasTerminalOutput && (
             <button
               onClick={showTerminalOutput}
-              className="p-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-colors hover:border-blue-200 shadow-sm focus-ring"
+              className="p-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-colors hover:border-gray-300 shadow-sm focus-ring"
               title="Show generation progress"
             >
               <Terminal size={20} className="text-gray-600" />
