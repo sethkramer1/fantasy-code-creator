@@ -104,7 +104,7 @@ SVG REQUIREMENTS:
           systemInstructions = `
 WEB DESIGN REQUIREMENTS:
 1. Structure:
-- If the user asks for a mobile design, mobile UI, or anything similar for a mobile device, the design should be wrapped in an iPhone  container showing the status bar and home indicator.
+- If the user asks for a mobile design, mobile UI, or anything similar for a mobile device, the design should be wrapped in an iPhone container showing the status bar and home indicator.
  In this case, create a mobile UI design inside an iPhone frame so the user can see what the design mock up looks like in an iphone frame since it is a mobile UI design.
 - Use semantic HTML5 elements
 - Implement proper heading hierarchy
@@ -135,10 +135,7 @@ WEB DESIGN REQUIREMENTS:
 
 5. Container:
 - If the user asks for a mobile UI, wrap the design in an iphone container
-
 `;
-
-    
           break;
         case 'dataviz':
           systemInstructions = `
@@ -216,9 +213,31 @@ INFOGRAPHIC REQUIREMENTS:
           systemInstructions = "Create content based on the user's requirements with clean, maintainable code.";
       }
 
+      // Extra emphasis for mobile UI wrapping in iPhone container
+      if (selectedType.id === 'webdesign' && 
+          (prompt.toLowerCase().includes('mobile') || 
+           prompt.toLowerCase().includes('phone') || 
+           prompt.toLowerCase().includes('iphone') || 
+           prompt.toLowerCase().includes('smartphone'))) {
+        const mobileEmphasis = `
+IMPORTANT MOBILE INSTRUCTION:
+This is a mobile UI design request. You MUST wrap the final design in an iPhone container showing 
+the status bar at the top and home indicator at the bottom. The design should appear as if it's 
+being displayed on an actual iPhone device to provide proper context for the mobile UI design.
+`;
+        systemInstructions = mobileEmphasis + systemInstructions;
+      }
+
       // Combine the system instructions with the enhanced prompt and image URL
       const finalPrompt = `${systemInstructions}\n\n${enhancedPrompt}`;
-      setTerminalOutput(prev => [...prev, `> Enhanced prompt created with ${systemInstructions.length} characters of instructions`]);
+      
+      // Log the full length of the system instructions to confirm it's complete
+      const instructionsLength = systemInstructions.length;
+      setTerminalOutput(prev => [...prev, `> Enhanced prompt created with ${instructionsLength} characters of instructions`]);
+      
+      // For debugging, log a sample of the beginning of the instructions
+      const instructionsSample = systemInstructions.substring(0, 100) + "...";
+      setTerminalOutput(prev => [...prev, `> Instructions begin with: "${instructionsSample}"`]);
 
       // Log if an image is being included
       if (imageUrl) {
