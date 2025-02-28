@@ -197,7 +197,7 @@ export const GameChat = ({
     const initialMessage = `> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`;
     setTerminalOutput([initialMessage]);
     
-    // Notify parent component to show terminal
+    // Notify parent component to show terminal and start timer
     if (onTerminalStatusChange) {
       onTerminalStatusChange(true, [initialMessage], 0, true);
     }
@@ -299,7 +299,7 @@ export const GameChat = ({
       const reader = apiResponse.body?.getReader();
       if (!reader) throw new Error("Unable to read response stream");
       
-      let gameContent = '';
+      let content = '';
       let buffer = '';
       let currentLineContent = '';
       
@@ -323,14 +323,14 @@ export const GameChat = ({
             const parsedData = JSON.parse(line.slice(5));
             
             if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
-              const content = parsedData.delta.text || '';
-              if (content) {
-                gameContent += content;
+              const contentChunk = parsedData.delta.text || '';
+              if (contentChunk) {
+                content += contentChunk;
                 
                 // Handle newlines in content specially
-                if (content.includes('\n')) {
+                if (contentChunk.includes('\n')) {
                   // Split by newlines and process each part
-                  const lines = content.split('\n');
+                  const lines = contentChunk.split('\n');
                   
                   // Add first part to current line
                   if (lines[0]) {
@@ -357,7 +357,7 @@ export const GameChat = ({
                   }
                 } else {
                   // No newlines, append to current line
-                  currentLineContent += content;
+                  currentLineContent += contentChunk;
                   updateTerminalOutput(`> ${currentLineContent}`, false);
                 }
               }
@@ -372,9 +372,9 @@ export const GameChat = ({
                 updateTerminalOutput(`> Thinking: ${thinking}`, true);
               }
             } else if (parsedData.type === 'message_delta' && parsedData.delta?.stop_reason) {
-              updateTerminalOutput(`> Code generation ${parsedData.delta.stop_reason}`, true);
+              updateTerminalOutput(`> Content generation ${parsedData.delta.stop_reason}`, true);
             } else if (parsedData.type === 'message_stop') {
-              updateTerminalOutput("> Code generation completed!", true);
+              updateTerminalOutput("> Content generation completed!", true);
             } else if (parsedData.type) {
               // Log other event types for debugging
               updateTerminalOutput(`> Event: ${parsedData.type}`, true);
@@ -385,21 +385,21 @@ export const GameChat = ({
         }
       }
       
-      console.log("Stream complete, content length:", gameContent.length);
+      console.log("Stream complete, content length:", content.length);
       
-      if (!gameContent || !gameContent.includes('<html')) {
-        console.error("Invalid content received:", gameContent.substring(0, 100));
+      if (!content || !content.includes('<html')) {
+        console.error("Invalid content received:", content.substring(0, 100));
         throw new Error("Invalid content received from AI");
       }
       
-      // Update the game with the new content
-      updateTerminalOutput("> Updating code...", true);
-      onGameUpdate(gameContent, "Code updated successfully");
+      // Update the content with the new code
+      updateTerminalOutput("> Updating content...", true);
+      onGameUpdate(content, "Content updated successfully");
       
       // Update the message response
       const { error: updateError } = await supabase
         .from('game_messages')
-        .update({ response: "Code updated successfully" })
+        .update({ response: "Content updated successfully" })
         .eq('id', insertedMessage.id);
       
       if (updateError) {
@@ -417,7 +417,7 @@ export const GameChat = ({
         setMessages(updatedMessages);
       }
       
-      updateTerminalOutput("> Code updated successfully!", true);
+      updateTerminalOutput("> Content updated successfully!", true);
       
       // Notify parent that processing is complete but keep terminal visible
       if (onTerminalStatusChange) {
@@ -428,8 +428,8 @@ export const GameChat = ({
       }
       
       toast({
-        title: "Code updated successfully",
-        description: "The changes have been applied to your game."
+        title: "Content updated successfully",
+        description: "The changes have been applied successfully."
       });
       
     } catch (error) {

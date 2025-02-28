@@ -143,7 +143,7 @@ const Play = () => {
         .single();
         
       if (gameError) throw gameError;
-      if (!gameData) throw new Error("Game not found");
+      if (!gameData) throw new Error("Content not found");
       
       const prompt = gameData.prompt;
       const contentType = gameData.type || gameType;
@@ -189,7 +189,7 @@ const Play = () => {
       const reader = response.body?.getReader();
       if (!reader) throw new Error("No reader available");
       
-      let gameContent = '';
+      let content = '';
       let buffer = '';
       let currentLineContent = '';
       
@@ -230,14 +230,14 @@ const Play = () => {
                     updateTerminalOutput(`> ${thinking}`, true);
                   }
                 } else if (data.delta?.type === 'text_delta') {
-                  const content = data.delta.text || '';
-                  if (content) {
-                    gameContent += content;
+                  const contentChunk = data.delta.text || '';
+                  if (contentChunk) {
+                    content += contentChunk;
                     
                     // Handle newlines in content specially
-                    if (content.includes('\n')) {
+                    if (contentChunk.includes('\n')) {
                       // Split by newlines and process each part
-                      const lines = content.split('\n');
+                      const lines = contentChunk.split('\n');
                       
                       // Add first part to current line
                       if (lines[0]) {
@@ -264,7 +264,7 @@ const Play = () => {
                       }
                     } else {
                       // No newlines, append to current line
-                      currentLineContent += content;
+                      currentLineContent += contentChunk;
                       updateTerminalOutput(`> ${currentLineContent}`, false);
                     }
                   }
@@ -279,12 +279,12 @@ const Play = () => {
                 
               case 'message_delta':
                 if (data.delta?.stop_reason) {
-                  updateTerminalOutput(`> Code generation ${data.delta.stop_reason}`, true);
+                  updateTerminalOutput(`> Content generation ${data.delta.stop_reason}`, true);
                 }
                 break;
                 
               case 'message_stop':
-                updateTerminalOutput("> Code generation completed!", true);
+                updateTerminalOutput("> Content generation completed!", true);
                 break;
                 
               case 'error':
@@ -297,15 +297,15 @@ const Play = () => {
         }
       }
       
-      if (!gameContent) {
+      if (!content) {
         throw new Error("No content received");
       }
 
       updateTerminalOutput("> Saving to database...", true);
       
       // For SVG content type, wrap the SVG in basic HTML if it's just raw SVG
-      if (contentType === 'svg' && !gameContent.includes('<!DOCTYPE html>')) {
-        gameContent = `
+      if (contentType === 'svg' && !content.includes('<!DOCTYPE html>')) {
+        content = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -315,27 +315,27 @@ const Play = () => {
   </style>
 </head>
 <body>
-  ${gameContent}
+  ${content}
 </body>
 </html>`;
       }
       
-      // Update the game with generated content
+      // Update the database with generated content
       const { error: updateGameError } = await supabase
         .from('games')
         .update({ 
-          code: gameContent,
+          code: content,
           instructions: "Content generated successfully"
         })
         .eq('id', id);
         
       if (updateGameError) throw updateGameError;
       
-      // Update the game version with the generated content
+      // Update the version with the generated content
       const { error: updateVersionError } = await supabase
         .from('game_versions')
         .update({
-          code: gameContent,
+          code: content,
           instructions: "Content generated successfully"
         })
         .eq('game_id', id)
@@ -343,7 +343,7 @@ const Play = () => {
         
       if (updateVersionError) throw updateVersionError;
       
-      // Add initial message to game_messages if it doesn't exist
+      // Add initial message if it doesn't exist
       const { data: existingMessages } = await supabase
         .from('game_messages')
         .select('id')
@@ -372,7 +372,7 @@ const Play = () => {
       // Set generation as complete and load the result
       setGenerationInProgress(false);
       
-      // Refresh game data to show the generated content
+      // Refresh data to show the generated content
       fetchGame();
       
       // Remove the generating parameter from URL
@@ -389,7 +389,7 @@ const Play = () => {
       updateTerminalOutput(`> Error: ${error instanceof Error ? error.message : "Generation failed"}`, true);
       updateTerminalOutput("> Attempting to recover...", true);
       
-      // Even if there's an error, try to load the game
+      // Even if there's an error, try to load the content
       fetchGame();
       
       toast({
@@ -414,7 +414,7 @@ const Play = () => {
           )
         `).eq('id', id).single();
       if (error) throw error;
-      if (!data) throw new Error("Game not found");
+      if (!data) throw new Error("Content not found");
       
       // Sort versions by version_number in descending order (latest first)
       const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
@@ -433,7 +433,7 @@ const Play = () => {
       }
     } catch (error) {
       toast({
-        title: "Error loading game",
+        title: "Error loading content",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
@@ -500,7 +500,7 @@ const Play = () => {
       if (versionError) throw versionError;
       if (!versionData) throw new Error("Failed to save new version");
       
-      // Update the game's current version
+      // Update the current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -525,7 +525,7 @@ const Play = () => {
       setSelectedVersion(newVersion.id);
       
       toast({
-        title: "Code updated successfully",
+        title: "Content updated successfully",
         description: `Version ${newVersionNumber} has been created and set as current.`
       });
       
@@ -562,7 +562,7 @@ const Play = () => {
       });
       if (error) throw error;
       
-      // Update the game's current version
+      // Update the current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
