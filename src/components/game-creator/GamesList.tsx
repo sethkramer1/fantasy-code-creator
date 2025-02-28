@@ -149,11 +149,16 @@ export function GamesList({
                 <div className="relative w-full h-40 bg-gray-50 border-b border-gray-100 overflow-hidden">
                   <iframe 
                     src={`/play/${game.id}`}
-                    className="w-full h-[800px] transform scale-[0.33] origin-top-left pointer-events-none"
-                    style={{ overflow: 'hidden' }}
+                    className="w-full h-[800px] origin-top-left pointer-events-none"
+                    style={{ 
+                      transform: 'scale(0.25)', 
+                      transformOrigin: 'top left',
+                      overflow: 'hidden',
+                      border: 'none'
+                    }}
                     title={`Preview of ${game.prompt || 'design'}`}
                     loading="lazy"
-                    sandbox="allow-same-origin"
+                    sandbox="allow-same-origin allow-scripts"
                   />
                   <div className="absolute inset-0 z-10" aria-hidden="true"></div>
                 </div>
