@@ -1,12 +1,20 @@
 
+
 export interface Game {
   id: string;
   prompt: string;
   created_at: string;
   type?: string;
+  thumbnail_url?: string;
 }
 
 export const contentTypes = [
+  { 
+    id: 'webdesign', 
+    label: 'Web Design Prototype', 
+    example: 'Create responsive webpage layouts and UI components',
+    promptPrefix: 'Create a web design prototype with the following requirements. Include responsive design:'
+  },
   { 
     id: 'game', 
     label: 'Interactive Game', 
@@ -18,12 +26,6 @@ export const contentTypes = [
     label: 'SVG Graphic', 
     example: 'Create vector graphics, logos, or illustrations',
     promptPrefix: 'Create an SVG graphic with the following requirements. Return ONLY the SVG code:'
-  },
-  { 
-    id: 'webdesign', 
-    label: 'Web Design Prototype', 
-    example: 'Create responsive webpage layouts and UI components',
-    promptPrefix: 'Create a web design prototype with the following requirements. Include responsive design:'
   },
   { 
     id: 'dataviz', 
@@ -44,3 +46,4 @@ export const contentTypes = [
     promptPrefix: 'Create an infographic with the following requirements. Use HTML and CSS:'
   }
 ] as const;
+

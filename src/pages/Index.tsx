@@ -1,4 +1,5 @@
 
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/game-creator/Header";
@@ -11,7 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
-  const [gameType, setGameType] = useState<string>("");
+  const [gameType, setGameType] = useState<string>("webdesign");
   const [imageUrl, setImageUrl] = useState<string>("");
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -124,3 +125,4 @@ const Index = () => {
 };
 
 export default Index;
+

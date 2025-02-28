@@ -1,9 +1,10 @@
 
+
 import { contentTypes } from "@/types/game";
 import { 
+  Layout, 
   Gamepad, 
   PenTool, 
-  Layout, 
   BarChart, 
   Network, 
   PieChart
@@ -17,9 +18,9 @@ interface GameTypeSelectorProps {
 export function GameTypeSelector({ selectedType, onSelect }: GameTypeSelectorProps) {
   // Map of icons for each content type
   const typeIcons = {
+    'webdesign': Layout,
     'game': Gamepad,
     'svg': PenTool,
-    'webdesign': Layout,
     'dataviz': BarChart,
     'diagram': Network,
     'infographic': PieChart
@@ -57,3 +58,4 @@ export function GameTypeSelector({ selectedType, onSelect }: GameTypeSelectorPro
     </div>
   );
 }
+
