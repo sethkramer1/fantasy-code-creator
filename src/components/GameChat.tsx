@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X, Cpu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,21 +10,21 @@ interface Message {
   created_at: string;
   version_id?: string | null;
   image_url?: string | null;
-  model_type?: string | null; // New field to track model type
+  model_type?: string | null;
 }
 
 interface GameChatProps {
   gameId: string;
   onGameUpdate: (newCode: string, newInstructions: string) => void;
   onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
-  disabled?: boolean; // Prop to disable chat during initial generation
+  disabled?: boolean;
 }
 
 export const GameChat = ({
   gameId,
   onGameUpdate,
   onTerminalStatusChange,
-  disabled = false // Default to enabled
+  disabled = false
 }: GameChatProps) => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -35,13 +34,12 @@ export const GameChat = ({
   const [thinkingTime, setThinkingTime] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [modelType, setModelType] = useState<string>("smart"); // Default to smart model
+  const [modelType, setModelType] = useState<string>("smart");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
 
-  // Auto-resize textarea
   useEffect(() => {
     const textarea = textareaRef.current;
     if (textarea) {
@@ -75,22 +73,18 @@ export const GameChat = ({
     fetchMessages();
   }, [gameId, toast]);
 
-  // Setup thinking time timer when loading
   useEffect(() => {
     console.log("Timer effect triggered. Loading:", loading);
     
     if (loading) {
       console.log("Starting thinking timer");
-      // Reset thinking time when starting
       setThinkingTime(0);
       
-      // Clear any existing timer
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
       
-      // Start new timer
       timerRef.current = setInterval(() => {
         setThinkingTime(prev => {
           const newTime = prev + 1;
@@ -100,14 +94,12 @@ export const GameChat = ({
       }, 1000);
     } else {
       console.log("Clearing thinking timer");
-      // Clean up timer when not loading
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
       }
     }
     
-    // Clean up on unmount
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
@@ -116,7 +108,6 @@ export const GameChat = ({
     };
   }, [loading]);
 
-  // Separate effect for notifying parent of timer updates
   useEffect(() => {
     if (onTerminalStatusChange && loading) {
       console.log("Notifying parent of time update:", thinkingTime);
@@ -164,10 +155,8 @@ export const GameChat = ({
     }
   };
 
-  // Helper function to update terminal output without always creating new lines
   const updateTerminalOutput = (newContent: string, isNewMessage = false) => {
     setTerminalOutput(prev => {
-      // Handle special case content that should always be on a new line
       if (isNewMessage || 
           newContent.startsWith("> Thinking:") || 
           newContent.startsWith("> Generation") || 
@@ -176,21 +165,17 @@ export const GameChat = ({
         return [...prev, newContent];
       }
       
-      // Otherwise, try to append to the last line if it's code content
       if (prev.length > 0) {
         const lastLine = prev[prev.length - 1];
         
-        // If both are code content (indicated by ">"), combine them
         if (lastLine.startsWith("> ") && !lastLine.startsWith("> Thinking:") && 
             newContent.startsWith("> ") && !newContent.startsWith("> Thinking:")) {
           
-          // Strip the ">" prefix from the new content when combining
           const updatedLastLine = lastLine + newContent.slice(1);
           return [...prev.slice(0, -1), updatedLastLine];
         }
       }
       
-      // Default: add as new line
       return [...prev, newContent];
     });
   };
@@ -210,21 +195,17 @@ export const GameChat = ({
     if ((!message.trim() && !imageUrl) || loading || disabled) return;
     
     setLoading(true);
-    setThinkingTime(0); // Reset thinking time
+    setThinkingTime(0);
     
-    // Initialize terminal with request info
     const initialMessage = `> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`;
     setTerminalOutput([initialMessage]);
     
-    // Log which model is being used
     updateTerminalOutput(`> Using ${modelType === "smart" ? "Anthropic (Smartest)" : "Groq (Fastest)"} model`, true);
     
-    // Notify parent component to show terminal and start timer
     if (onTerminalStatusChange) {
       onTerminalStatusChange(true, [initialMessage], 0, true);
     }
     
-    // Create temp message to show in UI
     const tempId = crypto.randomUUID();
     const tempMessage = {
       id: tempId,
@@ -236,12 +217,10 @@ export const GameChat = ({
     
     setMessages(prev => [...prev, tempMessage]);
     
-    // Save values before clearing form
     const currentMessage = message.trim();
     const currentImageUrl = imageUrl;
     const currentModelType = modelType;
     
-    // Clear form
     setMessage("");
     setImageUrl(null);
     if (fileInputRef.current) {
@@ -249,7 +228,6 @@ export const GameChat = ({
     }
     
     try {
-      // Add the message to database
       console.log("Inserting message into database...");
       const insertData: any = {
         game_id: gameId,
@@ -257,7 +235,6 @@ export const GameChat = ({
         model_type: currentModelType
       };
       
-      // Only include image_url if it exists
       if (currentImageUrl) {
         insertData.image_url = currentImageUrl;
       }
@@ -280,30 +257,25 @@ export const GameChat = ({
       console.log("Message inserted successfully:", insertedMessage);
       updateTerminalOutput("> Message saved successfully", true);
       
-      // Update messages list with the actual saved message
       setMessages(prev => 
         prev.map(msg => msg.id === tempId ? insertedMessage : msg)
       );
       
-      // Call the edge function to process the request
       console.log("Calling process-game-update function...");
       updateTerminalOutput("> Sending request to AI...", true);
       
-      // Build request payload
-      const payload: any = {
+      const payload = {
         gameId: gameId,
-        prompt: currentMessage,
-        modelType: currentModelType // Add model type to payload
+        message: currentMessage,
+        modelType: currentModelType
       };
       
-      // Only include imageUrl if it exists
       if (currentImageUrl) {
         payload.imageUrl = currentImageUrl;
       }
       
       console.log("Request payload:", payload);
       
-      // Use the appropriate API endpoint based on model type
       const apiUrl = currentModelType === "fast" 
         ? 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update-with-groq'
         : 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update';
@@ -326,7 +298,6 @@ export const GameChat = ({
       console.log("Response received, processing stream...");
       updateTerminalOutput("> Response received, generating content...", true);
       
-      // Process the streamed response
       const reader = apiResponse.body?.getReader();
       if (!reader) throw new Error("Unable to read response stream");
       
@@ -338,11 +309,9 @@ export const GameChat = ({
         const { done, value } = await reader.read();
         if (done) break;
         
-        // Decode the chunk and add it to our buffer
         const chunk = new TextDecoder().decode(value);
         buffer += chunk;
         
-        // Process complete lines from the buffer
         let lineEnd;
         while ((lineEnd = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, lineEnd).trim();
@@ -358,18 +327,13 @@ export const GameChat = ({
               if (contentChunk) {
                 content += contentChunk;
                 
-                // Handle newlines in content specially
                 if (contentChunk.includes('\n')) {
-                  // Split by newlines and process each part
                   const lines = contentChunk.split('\n');
-                  
-                  // Add first part to current line
                   if (lines[0]) {
                     currentLineContent += lines[0];
                     updateTerminalOutput(`> ${currentLineContent}`, false);
                   }
                   
-                  // Handle middle parts - each gets its own line
                   for (let i = 1; i < lines.length - 1; i++) {
                     if (lines[i].trim()) {
                       currentLineContent = lines[i];
@@ -377,7 +341,6 @@ export const GameChat = ({
                     }
                   }
                   
-                  // Start a new current line with the last part
                   if (lines.length > 1) {
                     currentLineContent = lines[lines.length - 1];
                     if (currentLineContent) {
@@ -387,7 +350,6 @@ export const GameChat = ({
                     }
                   }
                 } else {
-                  // No newlines, append to current line
                   currentLineContent += contentChunk;
                   updateTerminalOutput(`> ${currentLineContent}`, false);
                 }
@@ -407,7 +369,6 @@ export const GameChat = ({
             } else if (parsedData.type === 'message_stop') {
               updateTerminalOutput("> Content generation completed!", true);
             } else if (parsedData.type) {
-              // Log other event types for debugging
               updateTerminalOutput(`> Event: ${parsedData.type}`, true);
             }
           } catch (e) {
@@ -423,11 +384,9 @@ export const GameChat = ({
         throw new Error("Invalid content received from AI");
       }
       
-      // Update the content with the new code
       updateTerminalOutput("> Updating content...", true);
       onGameUpdate(content, "Content updated successfully");
       
-      // Update the message response
       const { error: updateError } = await supabase
         .from('game_messages')
         .update({ response: "Content updated successfully" })
@@ -437,7 +396,6 @@ export const GameChat = ({
         console.error("Error updating message response:", updateError);
       }
       
-      // Refresh the messages list
       const { data: updatedMessages } = await supabase
         .from('game_messages')
         .select('*')
@@ -450,9 +408,7 @@ export const GameChat = ({
       
       updateTerminalOutput("> Content updated successfully!", true);
       
-      // Notify parent that processing is complete but keep terminal visible
       if (onTerminalStatusChange) {
-        // Keep terminal visible for a moment after completion
         setTimeout(() => {
           onTerminalStatusChange(false, [], 0, false);
         }, 3000);
@@ -477,16 +433,13 @@ export const GameChat = ({
         variant: "destructive"
       });
       
-      // Remove the temporary message since it failed
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
       
-      // Notify parent that processing failed
       if (onTerminalStatusChange) {
         setTimeout(() => {
           onTerminalStatusChange(false, [], 0, false);
         }, 3000);
       }
-      
     } finally {
       setLoading(false);
     }
