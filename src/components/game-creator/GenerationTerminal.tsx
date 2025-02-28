@@ -22,24 +22,41 @@ export function GenerationTerminal({
 }: GenerationTerminalProps) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
+  const previousOutputLength = useRef<number>(0);
 
   // Enhanced auto-scroll to bottom whenever output changes
   useEffect(() => {
-    if (terminalRef.current) {
-      // First approach: directly set scrollTop
-      terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+    // Only auto-scroll if content is actually added (not on initial render)
+    const shouldAutoScroll = output.length > previousOutputLength.current;
+    previousOutputLength.current = output.length;
+
+    const scrollToBottom = () => {
+      if (terminalRef.current) {
+        terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+      }
       
-      // Second approach: use requestAnimationFrame to ensure DOM has updated
-      requestAnimationFrame(() => {
-        if (terminalRef.current) {
-          terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
-        }
-      });
-      
-      // Third approach: use scrollIntoView on an anchor element
       if (scrollAnchorRef.current) {
         scrollAnchorRef.current.scrollIntoView({ behavior: 'auto', block: 'end' });
       }
+    };
+
+    if (shouldAutoScroll) {
+      // Immediate scroll
+      scrollToBottom();
+      
+      // Delayed scroll for when DOM updates take time
+      setTimeout(scrollToBottom, 10);
+      
+      // Even more delayed scroll for safety
+      setTimeout(scrollToBottom, 100);
+      
+      // Final scroll with animation frame
+      requestAnimationFrame(() => {
+        scrollToBottom();
+        
+        // Double requestAnimationFrame for complex layouts
+        requestAnimationFrame(scrollToBottom);
+      });
     }
   }, [output]); // React to output changes
 
@@ -57,30 +74,35 @@ export function GenerationTerminal({
             <p>Watching the AI create your content in real-time...</p>
           </div>
         </div>
+        
+        {/* Terminal output container with fixed height */}
         <div 
-          ref={terminalRef}
-          className="mt-4 space-y-1 flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 scroll-smooth max-h-[calc(100%-120px)]"
-          style={{ 
-            overflowY: 'auto',
-            height: 'calc(100% - 120px)',
-            maxHeight: 'calc(100% - 120px)',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
+          className="flex-1 overflow-hidden flex flex-col"
+          style={{ height: 'calc(100% - 120px)' }}
         >
-          <div className="flex-1">
+          <div 
+            ref={terminalRef}
+            className="w-full h-full overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 pr-2"
+            style={{ 
+              overflowY: 'auto',
+              overflowX: 'hidden'
+            }}
+          >
             {output.map((line, index) => (
-              <div key={`line-${index}-${line.substring(0, 10)}`} className="whitespace-pre-wrap py-1 break-all">
+              <div key={index} className="whitespace-pre-wrap py-1 break-all">
                 {line}
               </div>
             ))}
+            
+            {loading && (
+              <div className="animate-pulse mt-2">
+                <span className="text-green-500">_</span>
+              </div>
+            )}
+            
+            {/* Scroll anchor */}
+            <div ref={scrollAnchorRef} />
           </div>
-          {loading && (
-            <div className="animate-pulse mt-2">
-              <span className="text-green-500">_</span>
-            </div>
-          )}
-          <div ref={scrollAnchorRef} style={{ float: 'left', clear: 'both' }}></div>
         </div>
       </div>
     );
@@ -98,30 +120,27 @@ export function GenerationTerminal({
           </div>
           <p>Watching the AI create your content in real-time...</p>
         </DialogDescription>
-        <div 
-          ref={terminalRef}
-          className="mt-4 space-y-1 h-[50vh] overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 scroll-smooth"
-          style={{ 
-            overflowY: 'auto',
-            height: '50vh',
-            maxHeight: '50vh',
-            display: 'flex',
-            flexDirection: 'column'
-          }}
-        >
-          <div className="flex-1">
+        
+        <div className="h-[50vh] overflow-hidden">
+          <div 
+            ref={terminalRef}
+            className="h-full w-full overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 pr-2"
+          >
             {output.map((line, index) => (
-              <div key={`line-${index}-${line.substring(0, 10)}`} className="whitespace-pre-wrap py-1 break-all">
+              <div key={index} className="whitespace-pre-wrap py-1 break-all">
                 {line}
               </div>
             ))}
+            
+            {loading && (
+              <div className="animate-pulse mt-2">
+                <span className="text-green-500">_</span>
+              </div>
+            )}
+            
+            {/* Scroll anchor */}
+            <div ref={scrollAnchorRef} />
           </div>
-          {loading && (
-            <div className="animate-pulse mt-2">
-              <span className="text-green-500">_</span>
-            </div>
-          )}
-          <div ref={scrollAnchorRef} style={{ float: 'left', clear: 'both' }}></div>
         </div>
       </DialogContent>
     </Dialog>
