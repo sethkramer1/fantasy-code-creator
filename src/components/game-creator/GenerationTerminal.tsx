@@ -60,6 +60,16 @@ export function GenerationTerminal({
     }
   }, [output]); // React to output changes
 
+  // Process output lines to better format code blocks
+  const processedOutput = output.map(line => {
+    // Check if line starts with "> " (code output indicator)
+    if (line.startsWith('> ')) {
+      // Remove the prefix for display
+      return line.slice(2);
+    }
+    return line;
+  });
+
   // If asModal is false, render the terminal directly
   if (!asModal) {
     return (
@@ -88,11 +98,9 @@ export function GenerationTerminal({
               overflowX: 'hidden'
             }}
           >
-            {output.map((line, index) => (
-              <div key={index} className="whitespace-pre-wrap py-1 break-all">
-                {line}
-              </div>
-            ))}
+            <div className="whitespace-pre-wrap py-1 break-all">
+              {processedOutput.join('\n')}
+            </div>
             
             {loading && (
               <div className="animate-pulse mt-2">
@@ -126,11 +134,9 @@ export function GenerationTerminal({
             ref={terminalRef}
             className="h-full w-full overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 pr-2"
           >
-            {output.map((line, index) => (
-              <div key={index} className="whitespace-pre-wrap py-1 break-all">
-                {line}
-              </div>
-            ))}
+            <div className="whitespace-pre-wrap py-1 break-all">
+              {processedOutput.join('\n')}
+            </div>
             
             {loading && (
               <div className="animate-pulse mt-2">
