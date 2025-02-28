@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -295,7 +294,8 @@ ENSURE INTERACTION CAPABILITIES:
             body: JSON.stringify({ 
               prompt: finalPrompt,
               imageUrl: imageUrl,
-              contentType: gameType
+              contentType: gameType,
+              stream: true // Enable streaming for Groq
             }),
           }
         );
@@ -347,72 +347,109 @@ ENSURE INTERACTION CAPABILITIES:
           const line = buffer.slice(0, lineEnd);
           buffer = buffer.slice(lineEnd + 1);
           
-          if (!line.startsWith('data: ')) continue;
+          // Skip empty lines
+          if (!line) continue;
           
-          try {
-            const data = JSON.parse(line.slice(5));
+          // Handle both Anthropic and Groq streaming formats
+          if (line.startsWith('data: ')) {
+            // Anthropic format
+            try {
+              const data = JSON.parse(line.slice(5));
 
-            switch (data.type) {
-              case 'message_start':
-                setTerminalOutput(prev => [...prev, "> AI is analyzing your request..."]);
-                break;
+              switch (data.type) {
+                case 'message_start':
+                  setTerminalOutput(prev => [...prev, "> AI is analyzing your request..."]);
+                  break;
 
-              case 'content_block_start':
-                if (data.content_block?.type === 'thinking') {
-                  setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
-                }
-                break;
-
-              case 'content_block_delta':
-                if (data.delta?.type === 'thinking_delta') {
-                  const thinking = data.delta.thinking || '';
-                  if (thinking && thinking.trim()) {
-                    setTerminalOutput(prev => [...prev, `> ${thinking}`]);
+                case 'content_block_start':
+                  if (data.content_block?.type === 'thinking') {
+                    setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
                   }
-                } else if (data.delta?.type === 'text_delta') {
-                  const content = data.delta.text || '';
-                  if (content) {
-                    gameContent += content;
-                    
-                    // Display the content in smaller chunks for better visibility
-                    if (content.includes('\n')) {
-                      // If it contains newlines, split it and display each line
-                      const contentLines = content.split('\n');
-                      for (const contentLine of contentLines) {
-                        if (contentLine.trim()) {
-                          setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                  break;
+
+                case 'content_block_delta':
+                  if (data.delta?.type === 'thinking_delta') {
+                    const thinking = data.delta.thinking || '';
+                    if (thinking && thinking.trim()) {
+                      setTerminalOutput(prev => [...prev, `> ${thinking}`]);
+                    }
+                  } else if (data.delta?.type === 'text_delta') {
+                    const content = data.delta.text || '';
+                    if (content) {
+                      gameContent += content;
+                      
+                      // Display the content in smaller chunks for better visibility
+                      if (content.includes('\n')) {
+                        // If it contains newlines, split it and display each line
+                        const contentLines = content.split('\n');
+                        for (const contentLine of contentLines) {
+                          if (contentLine.trim()) {
+                            setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                          }
                         }
+                      } else {
+                        // Otherwise display the chunk directly
+                        setTerminalOutput(prev => [...prev, `> ${content}`]);
                       }
-                    } else {
-                      // Otherwise display the chunk directly
-                      setTerminalOutput(prev => [...prev, `> ${content}`]);
                     }
                   }
-                }
-                break;
+                  break;
 
-              case 'content_block_stop':
-                if (data.content_block?.type === 'thinking') {
-                  setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
-                }
-                break;
+                case 'content_block_stop':
+                  if (data.content_block?.type === 'thinking') {
+                    setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
+                  }
+                  break;
 
-              case 'message_delta':
-                if (data.delta?.stop_reason) {
-                  setTerminalOutput(prev => [...prev, `> Generation ${data.delta.stop_reason}`]);
-                }
-                break;
+                case 'message_delta':
+                  if (data.delta?.stop_reason) {
+                    setTerminalOutput(prev => [...prev, `> Generation ${data.delta.stop_reason}`]);
+                  }
+                  break;
 
-              case 'message_stop':
-                setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
-                break;
+                case 'message_stop':
+                  setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
+                  break;
 
-              case 'error':
-                throw new Error(data.error?.message || 'Unknown error in stream');
+                case 'error':
+                  throw new Error(data.error?.message || 'Unknown error in stream');
+              }
+            } catch (e) {
+              console.error('Error parsing SSE line:', e);
+              setTerminalOutput(prev => [...prev, `> Error: ${e instanceof Error ? e.message : 'Unknown error'}`]);
             }
-          } catch (e) {
-            console.error('Error parsing SSE line:', e);
-            setTerminalOutput(prev => [...prev, `> Error: ${e instanceof Error ? e.message : 'Unknown error'}`]);
+          } else {
+            // Try to parse as Groq streaming format
+            try {
+              const data = JSON.parse(line);
+              
+              // Check if it's a Groq delta chunk with content
+              if (data.choices && data.choices[0]?.delta?.content) {
+                const content = data.choices[0].delta.content;
+                if (content) {
+                  gameContent += content;
+                  
+                  // Display content in chunks similar to Anthropic format
+                  if (content.includes('\n')) {
+                    const contentLines = content.split('\n');
+                    for (const contentLine of contentLines) {
+                      if (contentLine.trim()) {
+                        setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                      }
+                    }
+                  } else {
+                    setTerminalOutput(prev => [...prev, `> ${content}`]);
+                  }
+                }
+              } 
+              // Check if it's the final Groq message
+              else if (data.choices && data.choices[0]?.finish_reason) {
+                setTerminalOutput(prev => [...prev, `> Generation ${data.choices[0].finish_reason}`]);
+              }
+            } catch (e) {
+              // Not valid JSON or not expected format, might be a partial chunk
+              console.warn('Invalid JSON in stream or unexpected format:', line.substring(0, 50) + '...');
+            }
           }
         }
       }

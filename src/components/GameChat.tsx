@@ -269,10 +269,12 @@ export const GameChat = ({
         message: string;
         modelType: string;
         imageUrl?: string;
+        stream?: boolean;
       } = {
         gameId: gameId,
         message: currentMessage,
-        modelType: currentModelType
+        modelType: currentModelType,
+        stream: true // Enable streaming for both models
       };
       
       if (currentImageUrl) {
@@ -309,57 +311,30 @@ export const GameChat = ({
       
       let content = '';
       
-      // Different handling based on model type
-      if (currentModelType === "fast") {
-        // For Groq model, expect a JSON response with choices array
-        const jsonResponse = await apiResponse.json();
-        console.log("Groq response structure:", Object.keys(jsonResponse));
+      // Handle streaming response for both models
+      const reader = apiResponse.body?.getReader();
+      if (!reader) throw new Error("Unable to read response stream");
+      
+      let buffer = '';
+      let currentLineContent = '';
+      
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
         
-        // Check if it's a standard Groq API response
-        if (jsonResponse.choices && Array.isArray(jsonResponse.choices) && jsonResponse.choices.length > 0) {
-          const firstChoice = jsonResponse.choices[0];
-          if (firstChoice.message && firstChoice.message.content) {
-            content = firstChoice.message.content;
-            updateTerminalOutput("> Received content from Groq model", true);
-            
-            // Log sample of the content
-            const contentSample = content.substring(0, 100);
-            updateTerminalOutput(`> Content sample: ${contentSample}...`, true);
-          } else {
-            console.error("Unexpected Groq response structure:", jsonResponse);
-            throw new Error("Invalid response format from Groq API");
-          }
-        } 
-        // Check if it's our custom response format
-        else if (jsonResponse.content) {
-          content = jsonResponse.content;
-          updateTerminalOutput("> Received content from Groq wrapper", true);
-        } else {
-          console.error("Unexpected response structure:", jsonResponse);
-          throw new Error("Invalid response format from API");
-        }
-      } else {
-        // For Anthropic model, handle streaming response as before
-        const reader = apiResponse.body?.getReader();
-        if (!reader) throw new Error("Unable to read response stream");
+        const chunk = new TextDecoder().decode(value);
+        buffer += chunk;
         
-        let buffer = '';
-        let currentLineContent = '';
-        
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        let lineEnd;
+        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, lineEnd);
+          buffer = buffer.slice(lineEnd + 1);
           
-          const chunk = new TextDecoder().decode(value);
-          buffer += chunk;
+          if (!line) continue;
           
-          let lineEnd;
-          while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-            const line = buffer.slice(0, lineEnd);
-            buffer = buffer.slice(lineEnd + 1);
-            
-            if (!line || !line.startsWith('data: ')) continue;
-            
+          // Handle both formats: Anthropic SSE and Groq streaming
+          if (line.startsWith('data: ')) {
+            // Anthropic format
             try {
               const parsedData = JSON.parse(line.slice(5));
               
@@ -368,7 +343,7 @@ export const GameChat = ({
                 if (contentChunk) {
                   content += contentChunk;
                   
-                  // Display the content in smaller chunks for better visibility
+                  // Handle streaming UI updates
                   if (contentChunk.includes('\n')) {
                     const lines = contentChunk.split('\n');
                     if (lines[0]) {
@@ -417,11 +392,57 @@ export const GameChat = ({
               console.warn("Error parsing streaming data:", e);
               updateTerminalOutput(`> Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
             }
+          } else {
+            // Try to parse as Groq streaming format
+            try {
+              const parsedData = JSON.parse(line);
+              
+              // Check if it's a Groq delta chunk
+              if (parsedData.choices && parsedData.choices[0]?.delta?.content) {
+                const contentChunk = parsedData.choices[0].delta.content;
+                if (contentChunk) {
+                  content += contentChunk;
+                  
+                  // Display content chunks in same format as Anthropic
+                  if (contentChunk.includes('\n')) {
+                    const lines = contentChunk.split('\n');
+                    if (lines[0]) {
+                      currentLineContent += lines[0];
+                      updateTerminalOutput(`> ${currentLineContent}`, false);
+                    }
+                    
+                    for (let i = 1; i < lines.length - 1; i++) {
+                      if (lines[i].trim()) {
+                        currentLineContent = lines[i];
+                        updateTerminalOutput(`> ${currentLineContent}`, true);
+                      }
+                    }
+                    
+                    if (lines.length > 1) {
+                      currentLineContent = lines[lines.length - 1];
+                      if (currentLineContent) {
+                        updateTerminalOutput(`> ${currentLineContent}`, true);
+                      } else {
+                        currentLineContent = '';
+                      }
+                    }
+                  } else {
+                    currentLineContent += contentChunk;
+                    updateTerminalOutput(`> ${currentLineContent}`, false);
+                  }
+                }
+              } 
+              // Check if it's a final message
+              else if (parsedData.choices && parsedData.choices[0]?.finish_reason) {
+                updateTerminalOutput(`> Content generation ${parsedData.choices[0].finish_reason}`, true);
+              }
+            } catch (e) {
+              // Not valid JSON or unexpected format - might be partial chunk
+              // Just continue processing
+            }
           }
         }
       }
-      
-      console.log("Processing complete, content length:", content.length);
       
       // Improved validation for content based on model type
       let validContent = false;
