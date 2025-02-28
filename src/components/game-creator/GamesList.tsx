@@ -99,8 +99,12 @@ function GamePreview({ gameId }: GamePreviewProps) {
         body > div.phone,
         body > div.device,
         body > div.smartphone {
-          max-height: 95%;
-          transform-origin: top center;
+          height: auto;
+          max-height: none;
+          aspect-ratio: 9/19;
+          transform: scale(0.85);
+          transform-origin: center;
+          margin: 0 auto;
         }
       </style>
     `;
