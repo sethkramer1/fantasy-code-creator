@@ -80,7 +80,7 @@ export function GamesList({
             onClick={() => setSelectedType("")}
             className={`px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
               selectedType === ""
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-black text-white shadow-sm'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
@@ -99,7 +99,7 @@ export function GamesList({
                 onClick={() => !isDisabled && setSelectedType(type.id === selectedType ? "" : type.id)}
                 className={`px-3 py-1.5 rounded-md text-sm font-medium whitespace-nowrap transition-colors ${
                   type.id === selectedType
-                    ? 'bg-blue-600 text-white shadow-sm'
+                    ? 'bg-black text-white shadow-sm'
                     : isDisabled
                       ? 'bg-gray-50 text-gray-400 cursor-not-allowed'
                       : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -142,12 +142,12 @@ export function GamesList({
             return (
               <div 
                 key={game.id}
-                className="rounded-xl bg-white border border-gray-100 hover:border-blue-200 transition-all text-left group p-4 cursor-pointer hover-scale card-shadow"
+                className="rounded-xl bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group p-4 cursor-pointer hover-scale card-shadow"
                 onClick={() => onGameClick(game.id)}
               >
                 <div className="flex justify-between items-start gap-2">
                   <div className="space-y-2 flex-1">
-                    <p className="font-medium text-gray-900 group-hover:text-blue-600 transition-colors line-clamp-2">
+                    <p className="font-medium text-gray-900 group-hover:text-black transition-colors line-clamp-2">
                       {game.prompt}
                     </p>
                     
@@ -160,8 +160,8 @@ export function GamesList({
                     </div>
                   </div>
                   
-                  <div className="p-1.5 rounded-full bg-gray-50 group-hover:bg-blue-50 transition-colors">
-                    <ArrowUpRight size={18} className="text-gray-400 group-hover:text-blue-500 transition-colors" />
+                  <div className="p-1.5 rounded-full bg-gray-50 group-hover:bg-gray-100 transition-colors">
+                    <ArrowUpRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
                   </div>
                 </div>
               </div>
