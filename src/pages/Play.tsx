@@ -625,7 +625,7 @@ const Play = () => {
       
       {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-[400px] flex flex-col bg-white border-r border-gray-100">
+        <div className="w-[320px] flex flex-col bg-white border-r border-gray-100">
           <div className="p-4 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center">
               <h2 className="text-lg font-medium text-black">Modify Content</h2>
