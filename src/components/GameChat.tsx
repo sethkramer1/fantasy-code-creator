@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from "react";
-import { Loader2, ArrowUp, Paperclip, X } from "lucide-react";
+import { Loader2, ArrowUp, Paperclip, X, Cpu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -11,13 +11,14 @@ interface Message {
   created_at: string;
   version_id?: string | null;
   image_url?: string | null;
+  model_type?: string | null; // New field to track model type
 }
 
 interface GameChatProps {
   gameId: string;
   onGameUpdate: (newCode: string, newInstructions: string) => void;
   onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
-  disabled?: boolean; // New prop to disable chat during initial generation
+  disabled?: boolean; // Prop to disable chat during initial generation
 }
 
 export const GameChat = ({
@@ -34,6 +35,7 @@ export const GameChat = ({
   const [thinkingTime, setThinkingTime] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [modelType, setModelType] = useState<string>("smart"); // Default to smart model
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -193,6 +195,16 @@ export const GameChat = ({
     });
   };
 
+  const toggleModelType = () => {
+    setModelType(prev => prev === "smart" ? "fast" : "smart");
+    toast({
+      title: `Switched to ${modelType === "smart" ? "Fastest" : "Smartest"} model`,
+      description: modelType === "smart" 
+        ? "Using Groq's Mixtral 8x7B for faster responses" 
+        : "Using Claude for higher quality responses"
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!message.trim() && !imageUrl) || loading || disabled) return;
@@ -203,6 +215,9 @@ export const GameChat = ({
     // Initialize terminal with request info
     const initialMessage = `> Processing request: "${message}"${imageUrl ? ' (with image)' : ''}`;
     setTerminalOutput([initialMessage]);
+    
+    // Log which model is being used
+    updateTerminalOutput(`> Using ${modelType === "smart" ? "Anthropic (Smartest)" : "Groq (Fastest)"} model`, true);
     
     // Notify parent component to show terminal and start timer
     if (onTerminalStatusChange) {
@@ -215,7 +230,8 @@ export const GameChat = ({
       id: tempId,
       message: message.trim(),
       created_at: new Date().toISOString(),
-      image_url: imageUrl
+      image_url: imageUrl,
+      model_type: modelType
     };
     
     setMessages(prev => [...prev, tempMessage]);
@@ -223,6 +239,7 @@ export const GameChat = ({
     // Save values before clearing form
     const currentMessage = message.trim();
     const currentImageUrl = imageUrl;
+    const currentModelType = modelType;
     
     // Clear form
     setMessage("");
@@ -236,7 +253,8 @@ export const GameChat = ({
       console.log("Inserting message into database...");
       const insertData: any = {
         game_id: gameId,
-        message: currentMessage
+        message: currentMessage,
+        model_type: currentModelType
       };
       
       // Only include image_url if it exists
@@ -274,7 +292,8 @@ export const GameChat = ({
       // Build request payload
       const payload: any = {
         gameId: gameId,
-        prompt: currentMessage
+        prompt: currentMessage,
+        modelType: currentModelType // Add model type to payload
       };
       
       // Only include imageUrl if it exists
@@ -284,7 +303,12 @@ export const GameChat = ({
       
       console.log("Request payload:", payload);
       
-      const apiResponse = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update', {
+      // Use the appropriate API endpoint based on model type
+      const apiUrl = currentModelType === "fast" 
+        ? 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update-with-groq'
+        : 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update';
+      
+      const apiResponse = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -474,7 +498,15 @@ export const GameChat = ({
             <Loader2 className="animate-spin" size={24} />
           </div> : messages.length === 0 ? <p className="text-center text-gray-500">No messages yet. Ask me to modify!</p> : messages.map(msg => <div key={msg.id} className="space-y-2">
               <div className="bg-blue-50 p-3 rounded-lg">
-                <p className="text-blue-800">{msg.message}</p>
+                <div className="flex justify-between items-start">
+                  <p className="text-blue-800">{msg.message}</p>
+                  {msg.model_type && (
+                    <span className="text-xs text-blue-500 flex items-center ml-2 px-2 py-0.5 rounded-full bg-blue-100">
+                      <Cpu size={12} className="mr-1" />
+                      {msg.model_type === "smart" ? "Smart" : "Fast"}
+                    </span>
+                  )}
+                </div>
                 {msg.image_url && (
                   <div className="mt-2 max-w-xs">
                     <img 
@@ -549,6 +581,17 @@ export const GameChat = ({
                   disabled={loading || isUploading || disabled}
                 />
               </label>
+              
+              <button
+                type="button"
+                onClick={toggleModelType}
+                className={`flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+                disabled={loading || disabled}
+                title={`Using ${modelType === "smart" ? "Smartest" : "Fastest"} model. Click to toggle.`}
+              >
+                <Cpu size={20} />
+                <span className="text-sm font-medium">{modelType === "smart" ? "Smartest" : "Fastest"}</span>
+              </button>
             </div>
             
             <button 
@@ -579,4 +622,3 @@ export const GameChat = ({
       </form>
     </div>;
 };
-

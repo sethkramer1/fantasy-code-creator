@@ -10,6 +10,7 @@ export const useGameGeneration = () => {
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [thinkingTime, setThinkingTime] = useState(0);
   const [gameId, setGameId] = useState<string | null>(null);
+  const [modelType, setModelType] = useState<string>("smart"); // Default to smart (Anthropic) model
   const timerRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
 
@@ -226,6 +227,11 @@ IMPORTANT IMAGE USAGE INSTRUCTIONS:
 - When using Unsplash images, ONLY use valid, real Unsplash URLs (https://source.unsplash.com/...)
 - Never make up or invent Unsplash image URLs
 - If you need a placeholder image, use a proper placeholder service instead of making up an Unsplash URL
+
+IMPORTANT CODE LIMITATIONS:
+- The resulting code will be written in HTML, JS, and CSS only
+- Do not include server-side code, backend functionality, or external APIs that require server implementation
+- Keep all functionality client-side and self-contained
 `;
 
       // Enhanced emphasis for mobile UI wrapping in iPhone container
@@ -271,21 +277,46 @@ ENSURE INTERACTION CAPABILITIES:
         setTerminalOutput(prev => [...prev, `> Including image reference with generation request`]);
       }
 
-      const response = await fetch(
-        'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
-          },
-          body: JSON.stringify({ 
-            prompt: finalPrompt,
-            imageUrl: imageUrl,
-            contentType: gameType  // Explicitly pass the content type to the edge function
-          }),
-        }
-      );
+      // Log which model is being used
+      setTerminalOutput(prev => [...prev, `> Using ${modelType === "smart" ? "Anthropic (Smartest)" : "Groq (Fastest)"} model`]);
+
+      let response;
+      
+      if (modelType === "fast") {
+        // Use Groq API for "fast" model
+        response = await fetch(
+          'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-with-groq',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
+            },
+            body: JSON.stringify({ 
+              prompt: finalPrompt,
+              imageUrl: imageUrl,
+              contentType: gameType
+            }),
+          }
+        );
+      } else {
+        // Use default Anthropic API for "smart" model
+        response = await fetch(
+          'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
+            },
+            body: JSON.stringify({ 
+              prompt: finalPrompt,
+              imageUrl: imageUrl,
+              contentType: gameType
+            }),
+          }
+        );
+      }
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -456,7 +487,8 @@ ENSURE INTERACTION CAPABILITIES:
             code: gameContent,
             instructions: "Content generated successfully",
             current_version: 1,
-            type: selectedType.id
+            type: selectedType.id,
+            model_type: modelType // Save the model type used
           }])
           .select()
           .single();
@@ -485,7 +517,8 @@ ENSURE INTERACTION CAPABILITIES:
           game_id: gameData.id,
           message: prompt,
           response: "Content generated successfully",
-          image_url: imageUrl
+          image_url: imageUrl,
+          model_type: modelType // Save the model type used
         }]);
         
       if (messageError) {
@@ -522,6 +555,8 @@ ENSURE INTERACTION CAPABILITIES:
     generateGame,
     timerRef,
     gameId,
-    setGameId
+    setGameId,
+    modelType,
+    setModelType
   };
 };
