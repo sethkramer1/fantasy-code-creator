@@ -296,111 +296,152 @@ export const GameChat = ({
       
       if (!apiResponse.ok) {
         const errorText = await apiResponse.text();
-        console.error("Edge function returned an error:", errorText);
-        throw new Error(`API error: ${apiResponse.status} ${apiResponse.statusText} - ${errorText}`);
+        try {
+          const errorJson = JSON.parse(errorText);
+          throw new Error(`HTTP error! status: ${apiResponse.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
+        } catch (e) {
+          throw new Error(`HTTP error! status: ${apiResponse.status}, response: ${errorText.substring(0, 100)}...`);
+        }
       }
       
-      console.log("Response received, processing stream...");
+      console.log("Response received, processing...");
       updateTerminalOutput("> Response received, generating content...", true);
       
-      const reader = apiResponse.body?.getReader();
-      if (!reader) throw new Error("Unable to read response stream");
-      
       let content = '';
-      let buffer = '';
-      let currentLineContent = '';
       
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+      // Different handling based on model type
+      if (currentModelType === "fast") {
+        // For Groq model, expect a JSON response with choices array
+        const jsonResponse = await apiResponse.json();
+        console.log("Groq response structure:", Object.keys(jsonResponse));
         
-        const chunk = new TextDecoder().decode(value);
-        buffer += chunk;
-        
-        let lineEnd;
-        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, lineEnd).trim();
-          buffer = buffer.slice(lineEnd + 1);
-          
-          if (!line || !line.startsWith('data: ')) continue;
-          
-          try {
-            const parsedData = JSON.parse(line.slice(5));
+        // Check if it's a standard Groq API response
+        if (jsonResponse.choices && Array.isArray(jsonResponse.choices) && jsonResponse.choices.length > 0) {
+          const firstChoice = jsonResponse.choices[0];
+          if (firstChoice.message && firstChoice.message.content) {
+            content = firstChoice.message.content;
+            updateTerminalOutput("> Received content from Groq model", true);
             
-            if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
-              const contentChunk = parsedData.delta.text || '';
-              if (contentChunk) {
-                content += contentChunk;
-                
-                if (contentChunk.includes('\n')) {
-                  const lines = contentChunk.split('\n');
-                  if (lines[0]) {
-                    currentLineContent += lines[0];
+            // Log sample of the content
+            const contentSample = content.substring(0, 100);
+            updateTerminalOutput(`> Content sample: ${contentSample}...`, true);
+          } else {
+            console.error("Unexpected Groq response structure:", jsonResponse);
+            throw new Error("Invalid response format from Groq API");
+          }
+        } 
+        // Check if it's our custom response format
+        else if (jsonResponse.content) {
+          content = jsonResponse.content;
+          updateTerminalOutput("> Received content from Groq wrapper", true);
+        } else {
+          console.error("Unexpected response structure:", jsonResponse);
+          throw new Error("Invalid response format from API");
+        }
+      } else {
+        // For Anthropic model, handle streaming response as before
+        const reader = apiResponse.body?.getReader();
+        if (!reader) throw new Error("Unable to read response stream");
+        
+        let buffer = '';
+        let currentLineContent = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          const chunk = new TextDecoder().decode(value);
+          buffer += chunk;
+          
+          let lineEnd;
+          while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, lineEnd);
+            buffer = buffer.slice(lineEnd + 1);
+            
+            if (!line || !line.startsWith('data: ')) continue;
+            
+            try {
+              const parsedData = JSON.parse(line.slice(5));
+              
+              if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
+                const contentChunk = parsedData.delta.text || '';
+                if (contentChunk) {
+                  content += contentChunk;
+                  
+                  // Display the content in smaller chunks for better visibility
+                  if (contentChunk.includes('\n')) {
+                    const lines = contentChunk.split('\n');
+                    if (lines[0]) {
+                      currentLineContent += lines[0];
+                      updateTerminalOutput(`> ${currentLineContent}`, false);
+                    }
+                    
+                    for (let i = 1; i < lines.length - 1; i++) {
+                      if (lines[i].trim()) {
+                        currentLineContent = lines[i];
+                        updateTerminalOutput(`> ${currentLineContent}`, true);
+                      }
+                    }
+                    
+                    if (lines.length > 1) {
+                      currentLineContent = lines[lines.length - 1];
+                      if (currentLineContent) {
+                        updateTerminalOutput(`> ${currentLineContent}`, true);
+                      } else {
+                        currentLineContent = '';
+                      }
+                    }
+                  } else {
+                    currentLineContent += contentChunk;
                     updateTerminalOutput(`> ${currentLineContent}`, false);
                   }
-                  
-                  for (let i = 1; i < lines.length - 1; i++) {
-                    if (lines[i].trim()) {
-                      currentLineContent = lines[i];
-                      updateTerminalOutput(`> ${currentLineContent}`, true);
-                    }
-                  }
-                  
-                  if (lines.length > 1) {
-                    currentLineContent = lines[lines.length - 1];
-                    if (currentLineContent) {
-                      updateTerminalOutput(`> ${currentLineContent}`, true);
-                    } else {
-                      currentLineContent = '';
-                    }
-                  }
-                } else {
-                  currentLineContent += contentChunk;
-                  updateTerminalOutput(`> ${currentLineContent}`, false);
                 }
+              } else if (parsedData.type === 'thinking') {
+                const thinking = parsedData.thinking || '';
+                if (thinking && thinking.trim()) {
+                  updateTerminalOutput(`> Thinking: ${thinking}`, true);
+                }
+              } else if (parsedData.delta?.type === 'thinking_delta') {
+                const thinking = parsedData.delta.thinking || '';
+                if (thinking && thinking.trim()) {
+                  updateTerminalOutput(`> Thinking: ${thinking}`, true);
+                }
+              } else if (parsedData.type === 'message_delta' && parsedData.delta?.stop_reason) {
+                updateTerminalOutput(`> Content generation ${parsedData.delta.stop_reason}`, true);
+              } else if (parsedData.type === 'message_stop') {
+                updateTerminalOutput("> Content generation completed!", true);
+              } else if (parsedData.type) {
+                updateTerminalOutput(`> Event: ${parsedData.type}`, true);
               }
-            } else if (parsedData.type === 'thinking') {
-              const thinking = parsedData.thinking || '';
-              if (thinking && thinking.trim()) {
-                updateTerminalOutput(`> Thinking: ${thinking}`, true);
-              }
-            } else if (parsedData.delta?.type === 'thinking_delta') {
-              const thinking = parsedData.delta.thinking || '';
-              if (thinking && thinking.trim()) {
-                updateTerminalOutput(`> Thinking: ${thinking}`, true);
-              }
-            } else if (parsedData.type === 'message_delta' && parsedData.delta?.stop_reason) {
-              updateTerminalOutput(`> Content generation ${parsedData.delta.stop_reason}`, true);
-            } else if (parsedData.type === 'message_stop') {
-              updateTerminalOutput("> Content generation completed!", true);
-            } else if (parsedData.type) {
-              updateTerminalOutput(`> Event: ${parsedData.type}`, true);
+            } catch (e) {
+              console.warn("Error parsing streaming data:", e);
+              updateTerminalOutput(`> Error: ${e instanceof Error ? e.message : 'Unknown error'}`);
             }
-          } catch (e) {
-            console.warn("Error parsing streaming data:", e);
           }
         }
       }
       
-      console.log("Stream complete, content length:", content.length);
+      console.log("Processing complete, content length:", content.length);
       
       // Improved validation for content based on model type
       let validContent = false;
+      let isHtmlContent = false;
 
       // Log the first bit of content to help debug
       console.log("Content sample:", content.substring(0, 200));
       
       if (currentModelType === "fast") {
-        // For Groq model, be more flexible with content validation
-        // Accept any non-empty content that looks like markup (has angle brackets)
-        validContent = content && content.length > 0 && (
-          content.includes('<html') || 
-          content.includes('<!DOCTYPE') || 
-          (content.includes('<') && content.includes('>'))
-        );
+        // For Groq model, check if the content is already HTML
+        isHtmlContent = content.includes('<html') || 
+                        content.includes('<!DOCTYPE') || 
+                        (content.includes('<') && content.includes('>') && 
+                         (content.includes('<div') || content.includes('<body') || content.includes('<head')));
         
-        // If content doesn't have HTML tags but has valid content, wrap it in HTML
-        if (content && content.length > 0 && !validContent) {
+        // For Groq, any non-empty content is valid, but we'll need to wrap non-HTML content
+        validContent = content && content.length > 0;
+        
+        // If content is not HTML, wrap it in HTML
+        if (validContent && !isHtmlContent) {
           console.log("Adding HTML wrapper to Groq content");
           content = `
 <!DOCTYPE html>
@@ -409,12 +450,39 @@ export const GameChat = ({
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Generated Content</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    h1, h2, h3 {
+      color: #2c3e50;
+    }
+    a {
+      color: #3498db;
+      text-decoration: none;
+    }
+    a:hover {
+      text-decoration: underline;
+    }
+  </style>
 </head>
 <body>
-  ${content}
+  <div class="content">
+    ${content.split('\n').map(line => `<p>${line}</p>`).join('\n')}
+  </div>
 </body>
 </html>`;
-          validContent = true;
         }
       } else {
         // For Anthropic model, use the original check
