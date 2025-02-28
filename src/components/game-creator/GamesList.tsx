@@ -1,9 +1,10 @@
 
 import { useState, useEffect } from "react";
 import { Game, contentTypes } from "@/types/game";
-import { Loader2, Code, ExternalLink } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { GameTypeSelector } from "@/components/game-creator/GameTypeSelector";
 
 interface GamesListProps {
   games: Game[];
@@ -116,18 +117,13 @@ function GamePreview({ gameId }: GamePreviewProps) {
   }
 
   return (
-    <div className="aspect-video bg-white border border-gray-100 rounded-md overflow-hidden relative">
+    <div className="aspect-video bg-white border border-gray-100 rounded-md overflow-hidden">
       <iframe 
         srcDoc={prepareIframeContent(code)}
         className="w-full h-full"
         sandbox="allow-scripts"
         title={`Preview for game ${gameId}`}
       />
-      <div className="absolute top-0 right-0 m-1">
-        <div className="bg-black/50 text-white p-1 rounded-full">
-          <ExternalLink size={12} />
-        </div>
-      </div>
     </div>
   );
 }
@@ -159,33 +155,46 @@ export function GamesList({
   isLoading,
   onGameClick
 }: GamesListProps) {
+  const [selectedType, setSelectedType] = useState<string>("");
+  
+  // Filter games based on selected type
+  const filteredGames = selectedType 
+    ? games.filter(game => game.type === selectedType)
+    : games;
+
   return (
     <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm">
-      <h2 className="text-xl font-medium text-gray-900 mb-6">My History</h2>
+      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
+        <h2 className="text-xl font-medium text-gray-900">My History</h2>
+        
+        {/* Type filter */}
+        <div className="w-full md:w-auto">
+          <GameTypeSelector 
+            selectedType={selectedType} 
+            onSelect={setSelectedType} 
+          />
+        </div>
+      </div>
+      
       {isLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 className="animate-spin text-gray-400" size={32} />
         </div>
-      ) : games.length > 0 ? (
+      ) : filteredGames.length > 0 ? (
         <div className="grid gap-4 md:grid-cols-2">
-          {games.map(game => (
-            <div 
+          {filteredGames.map(game => (
+            <button 
               key={game.id}
-              className="rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group overflow-hidden flex flex-col"
+              onClick={() => onGameClick(game.id)}
+              className="rounded-lg bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group overflow-hidden flex flex-col w-full"
             >
               {/* Preview iframe */}
-              <button 
-                onClick={() => onGameClick(game.id)}
-                className="overflow-hidden flex-shrink-0"
-              >
+              <div className="overflow-hidden flex-shrink-0">
                 <GamePreview gameId={game.id} />
-              </button>
+              </div>
               
               {/* Game info */}
-              <button 
-                onClick={() => onGameClick(game.id)} 
-                className="p-4 text-left flex-1 flex flex-col"
-              >
+              <div className="p-4 text-left flex-1 flex flex-col">
                 <div className="flex justify-between items-start gap-2">
                   <p className="font-medium text-gray-700 group-hover:text-black transition-colors line-clamp-2">
                     {game.prompt}
@@ -201,13 +210,15 @@ export function GamesList({
                 <p className="text-sm text-gray-400 mt-2 flex-shrink-0">
                   {new Date(game.created_at).toLocaleDateString()}
                 </p>
-              </button>
-            </div>
+              </div>
+            </button>
           ))}
         </div>
       ) : (
         <p className="text-center text-gray-500 py-8">
-          No games have been created yet. Be the first to create one!
+          {selectedType 
+            ? `No ${contentTypes.find(t => t.id === selectedType)?.label || selectedType} projects found.` 
+            : "No games have been created yet. Be the first to create one!"}
         </p>
       )}
     </div>
