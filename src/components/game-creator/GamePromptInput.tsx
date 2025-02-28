@@ -141,8 +141,8 @@ export function GamePromptInput({
             value={value}
             onChange={(e) => onChange(e.target.value)}
             placeholder={getPlaceholder()}
-            className="w-full min-h-[120px] bg-transparent text-gray-800 placeholder:text-gray-400 resize-none focus:ring-0 focus:outline-none border-none focus:border-none"
-            style={{ overflow: 'hidden' }}
+            className="w-full min-h-[120px] bg-transparent text-gray-800 placeholder:text-gray-400 resize-none focus:ring-0 focus:outline-none border-0 focus:border-0 outline-none"
+            style={{ overflow: 'hidden', outline: 'none', boxShadow: 'none' }}
           />
         </div>
         
