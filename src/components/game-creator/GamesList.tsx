@@ -120,7 +120,7 @@ function GamePreview({ gameId }: GamePreviewProps) {
     <div className="aspect-video bg-white border border-gray-100 rounded-md overflow-hidden">
       <iframe 
         srcDoc={prepareIframeContent(code)}
-        className="w-full h-full"
+        className="w-full h-full pointer-events-none"
         sandbox="allow-scripts"
         title={`Preview for game ${gameId}`}
       />
@@ -164,15 +164,21 @@ export function GamesList({
 
   return (
     <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-6 shadow-sm">
-      <div className="flex flex-col md:flex-row md:justify-between md:items-center gap-4 mb-6">
-        <h2 className="text-xl font-medium text-gray-900">My History</h2>
-        
-        {/* Type filter */}
-        <div className="w-full md:w-auto">
-          <GameTypeSelector 
-            selectedType={selectedType} 
-            onSelect={setSelectedType} 
-          />
+      <div className="mb-6">
+        <div className="flex overflow-x-auto pb-1 gap-2">
+          {contentTypes.map((type) => (
+            <button
+              key={type.id}
+              onClick={() => setSelectedType(type.id === selectedType ? "" : type.id)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium whitespace-nowrap ${
+                type.id === selectedType
+                  ? 'bg-black text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              } transition-colors`}
+            >
+              {type.label}
+            </button>
+          ))}
         </div>
       </div>
       

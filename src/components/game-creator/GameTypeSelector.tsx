@@ -1,5 +1,4 @@
 
-
 import { contentTypes } from "@/types/game";
 import { 
   Layout, 
@@ -58,4 +57,3 @@ export function GameTypeSelector({ selectedType, onSelect }: GameTypeSelectorPro
     </div>
   );
 }
-
