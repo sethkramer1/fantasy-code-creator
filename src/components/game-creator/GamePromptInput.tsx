@@ -133,9 +133,22 @@ export function GamePromptInput({
     <div className="relative">
       <p className="font-medium text-gray-700 mb-3">Describe what you want</p>
       
-      <div className="relative flex items-start rounded-xl bg-white border border-gray-200 focus-within:border-black focus-within:ring-2 focus-within:ring-gray-100 transition-all shadow-sm">
-        {/* Left inset control - Image upload */}
-        <div className="flex-shrink-0 p-3 border-r border-gray-100">
+      <div className="relative flex flex-col rounded-xl bg-white border border-gray-200 focus-within:border-black focus-within:ring-2 focus-within:ring-gray-100 transition-all shadow-sm">
+        {/* Text input area */}
+        <div className="flex-grow px-3 pt-4 pb-2">
+          <textarea
+            ref={textareaRef}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={getPlaceholder()}
+            className="w-full min-h-[120px] bg-transparent text-gray-800 placeholder:text-gray-400 resize-none focus:ring-0 focus:outline-none border-none"
+            style={{ overflow: 'hidden' }}
+          />
+        </div>
+        
+        {/* Bottom controls area */}
+        <div className="flex items-center px-3 py-2 space-x-2">
+          {/* Image upload button */}
           <label className="flex items-center justify-center w-8 h-8 cursor-pointer hover:bg-gray-50 rounded-md transition-colors" title="Add an image reference">
             <Image size={20} className="text-gray-500" />
             <input
@@ -147,23 +160,9 @@ export function GamePromptInput({
               disabled={isUploading || !!imageUrl}
             />
           </label>
-        </div>
-        
-        {/* Textarea with padding to accommodate inset controls */}
-        <div className="flex-grow">
-          <textarea
-            ref={textareaRef}
-            value={value}
-            onChange={(e) => onChange(e.target.value)}
-            placeholder={getPlaceholder()}
-            className="w-full px-3 py-4 min-h-[120px] bg-transparent text-gray-800 placeholder:text-gray-400 resize-none focus:ring-0 focus:outline-none border-none"
-            style={{ overflow: 'hidden' }}
-          />
-        </div>
-        
-        {/* Right inset control - Enhance prompt */}
-        {value.trim().length > 0 && (
-          <div className="flex-shrink-0 p-3 border-l border-gray-100">
+          
+          {/* Enhance prompt button - only shows when there's text */}
+          {value.trim().length > 0 && (
             <button 
               onClick={handleEnhancePrompt}
               disabled={isEnhancing || !value.trim()}
@@ -172,8 +171,8 @@ export function GamePromptInput({
             >
               <Wand2 size={20} className={`text-gray-500 ${isEnhancing ? "animate-spin" : ""}`} />
             </button>
-          </div>
-        )}
+          )}
+        </div>
       </div>
       
       {/* Upload status indicator */}
