@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -32,6 +33,7 @@ const Play = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
   
+  // Initialize game generation hooks
   const {
     loading: generationLoading,
     terminalOutput,
@@ -39,14 +41,17 @@ const Play = () => {
     setGameId
   } = useGameGeneration();
   
+  // Set the game ID for the generation hook
   useEffect(() => {
     if (id) {
       setGameId(id);
     }
   }, [id, setGameId]);
   
+  // Check for generation status
   useEffect(() => {
     if (isGenerating) {
+      // Poll the database to check if generation is complete
       const interval = setInterval(async () => {
         try {
           const { data, error } = await supabase
@@ -57,10 +62,13 @@ const Play = () => {
             
           if (error) throw error;
           
+          // If code no longer shows "Generating...", refresh the page data
           if (data && data.code !== "Generating...") {
             setShowGenerating(false);
             clearInterval(interval);
+            // Remove the generating param from URL
             navigate(`/play/${id}`, { replace: true });
+            // Refresh game data
             fetchGame();
           }
         } catch (error) {
@@ -71,6 +79,22 @@ const Play = () => {
       return () => clearInterval(interval);
     }
   }, [isGenerating, id, navigate]);
+
+  // Prevent keyboard events from being captured by the iframe
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "PageUp", "PageDown", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    };
+  }, []);
 
   const fetchGame = async () => {
     try {
@@ -88,9 +112,11 @@ const Play = () => {
       if (error) throw error;
       if (!data) throw new Error("Game not found");
       
+      // Sort versions by version_number in descending order (latest first)
       const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
       setGameVersions(sortedVersions);
       
+      // Always select the latest version (first in the sorted array)
       if (sortedVersions.length > 0) {
         setSelectedVersion(sortedVersions[0].id);
         console.log("Selected latest version:", sortedVersions[0].version_number);
@@ -110,7 +136,9 @@ const Play = () => {
     fetchGame();
   }, [id, toast]);
 
+  // Helper function to inject scripts and fix common iframe issues
   const prepareIframeContent = (html: string) => {
+    // Helper script to ensure tabs and anchor links work correctly
     const helperScript = `
       <script>
         document.addEventListener('DOMContentLoaded', function() {
@@ -283,11 +311,14 @@ const Play = () => {
       </script>
     `;
 
+    // Check if the document has a <head> tag
     if (html.includes('<head>')) {
       return html.replace('<head>', '<head>' + helperScript);
     } else if (html.includes('<html')) {
+      // If it has <html> but no <head>, insert head after html opening tag
       return html.replace(/<html[^>]*>/, '$&<head>' + helperScript + '</head>');
     } else {
+      // If neither, just prepend the script
       return helperScript + html;
     }
   };
@@ -296,6 +327,7 @@ const Play = () => {
     if (!loading && iframeRef.current) {
       iframeRef.current.focus();
       
+      // Set up message event listener for communication with iframe
       const handleIframeMessage = (event: MessageEvent) => {
         if (event.source === iframeRef.current?.contentWindow) {
           console.log('Message from iframe:', event.data);
@@ -311,10 +343,13 @@ const Play = () => {
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
+      // Show generation UI
       setShowGenerating(true);
       
+      // Create a new version with incremented version number
       const newVersionNumber = gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1;
       
+      // Insert the new version into database
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .insert({
@@ -329,6 +364,7 @@ const Play = () => {
       if (versionError) throw versionError;
       if (!versionData) throw new Error("Failed to save new version");
       
+      // Update the game's current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -340,6 +376,7 @@ const Play = () => {
         
       if (gameError) throw gameError;
       
+      // Add the new version to state and select it
       const newVersion: GameVersion = {
         id: versionData.id,
         version_number: versionData.version_number,
@@ -390,6 +427,7 @@ const Play = () => {
       });
       if (error) throw error;
       
+      // Update the game's current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -425,6 +463,7 @@ const Play = () => {
   };
 
   const handleDownload = async () => {
+    const currentVersion = gameVersions.find(v => v.id === selectedVersion);
     if (!currentVersion) return;
     
     try {
@@ -489,8 +528,13 @@ const Play = () => {
       </div>;
   }
 
+  // Compute currentVersion and isLatestVersion here to make them available throughout the component
+  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
+  const isLatestVersion = currentVersion?.version_number === gameVersions[0]?.version_number;
+
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
+      {/* Navbar */}
       <div className="w-full h-12 bg-white border-b border-gray-200 px-4 flex items-center justify-between z-10 shadow-sm flex-shrink-0">
         <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
           <ArrowLeft size={18} />
@@ -521,6 +565,7 @@ const Play = () => {
         </div>
       </div>
       
+      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         <div className="w-[400px] flex flex-col bg-white border-r border-gray-200">
           <div className="p-4 border-b border-gray-200 flex-shrink-0">
@@ -588,6 +633,7 @@ const Play = () => {
               </div>
 
               <div className="flex-1 bg-white rounded-lg overflow-hidden">
+                {/* Show generation terminal when generating */}
                 {showGenerating ? (
                   <GenerationTerminal
                     output={terminalOutput}
