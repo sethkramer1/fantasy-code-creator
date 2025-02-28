@@ -384,9 +384,46 @@ export const GameChat = ({
       
       console.log("Stream complete, content length:", content.length);
       
-      if (!content || !content.includes('<html')) {
-        console.error("Invalid content received:", content.substring(0, 100));
-        throw new Error("Invalid content received from AI");
+      // Improved validation for content based on model type
+      let validContent = false;
+
+      // Log the first bit of content to help debug
+      console.log("Content sample:", content.substring(0, 200));
+      
+      if (currentModelType === "fast") {
+        // For Groq model, be more flexible with content validation
+        // Accept any non-empty content that looks like markup (has angle brackets)
+        validContent = content && content.length > 0 && (
+          content.includes('<html') || 
+          content.includes('<!DOCTYPE') || 
+          (content.includes('<') && content.includes('>'))
+        );
+        
+        // If content doesn't have HTML tags but has valid content, wrap it in HTML
+        if (content && content.length > 0 && !validContent) {
+          console.log("Adding HTML wrapper to Groq content");
+          content = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generated Content</title>
+</head>
+<body>
+  ${content}
+</body>
+</html>`;
+          validContent = true;
+        }
+      } else {
+        // For Anthropic model, use the original check
+        validContent = content && content.includes('<html');
+      }
+      
+      if (!validContent) {
+        console.error("Invalid content received:", content ? content.substring(0, 200) : "No content");
+        throw new Error("Invalid content received from AI. Please try again or switch to the Smartest model.");
       }
       
       updateTerminalOutput("> Updating content...", true);
