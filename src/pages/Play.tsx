@@ -1,12 +1,13 @@
-
 import { useState, useEffect, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, ArrowLeft, History, RotateCcw, Download } from "lucide-react";
 import { GameChat } from "@/components/GameChat";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal";
+import { useGameGeneration } from "@/hooks/useGameGeneration";
 import JSZip from 'jszip';
 import html2pdf from 'html2pdf.js';
 
@@ -20,82 +21,101 @@ interface GameVersion {
 
 const Play = () => {
   const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const isGenerating = searchParams.get('generating') === 'true';
   const [gameVersions, setGameVersions] = useState<GameVersion[]>([]);
   const [selectedVersion, setSelectedVersion] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [showCode, setShowCode] = useState(false);
+  const [showGenerating, setShowGenerating] = useState(isGenerating);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
-
-  // Get current version early to prevent TS errors
-  const currentVersion = gameVersions.find(v => v.id === selectedVersion);
-  const selectedVersionNumber = currentVersion?.version_number;
-  const isLatestVersion = selectedVersionNumber === gameVersions[0]?.version_number;
-
+  const navigate = useNavigate();
+  
+  const {
+    loading: generationLoading,
+    terminalOutput,
+    thinkingTime,
+    setGameId
+  } = useGameGeneration();
+  
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
-      }
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "PageUp", "PageDown", "Home", "End"].includes(e.key)) {
-        e.preventDefault();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown, { capture: true });
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown, { capture: true });
-    };
-  }, []);
-
+    if (id) {
+      setGameId(id);
+    }
+  }, [id, setGameId]);
+  
   useEffect(() => {
-    const fetchGame = async () => {
-      try {
-        const { data, error } = await supabase.from('games').select(`
-            id,
-            current_version,
-            game_versions (
-              id,
-              version_number,
-              code,
-              instructions,
-              created_at
-            )
-          `).eq('id', id).single();
-        if (error) throw error;
-        if (!data) throw new Error("Game not found");
-        
-        // Sort versions by version_number in descending order (latest first)
-        const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
-        setGameVersions(sortedVersions);
-        
-        // Always select the latest version (first in the sorted array)
-        if (sortedVersions.length > 0) {
-          setSelectedVersion(sortedVersions[0].id);
-          console.log("Selected latest version:", sortedVersions[0].version_number);
+    if (isGenerating) {
+      const interval = setInterval(async () => {
+        try {
+          const { data, error } = await supabase
+            .from('games')
+            .select('code')
+            .eq('id', id)
+            .single();
+            
+          if (error) throw error;
+          
+          if (data && data.code !== "Generating...") {
+            setShowGenerating(false);
+            clearInterval(interval);
+            navigate(`/play/${id}`, { replace: true });
+            fetchGame();
+          }
+        } catch (error) {
+          console.error("Error checking generation status:", error);
         }
-      } catch (error) {
-        toast({
-          title: "Error loading game",
-          description: error instanceof Error ? error.message : "Please try again",
-          variant: "destructive"
-        });
-      } finally {
-        setLoading(false);
+      }, 2000);
+      
+      return () => clearInterval(interval);
+    }
+  }, [isGenerating, id, navigate]);
+
+  const fetchGame = async () => {
+    try {
+      const { data, error } = await supabase.from('games').select(`
+          id,
+          current_version,
+          game_versions (
+            id,
+            version_number,
+            code,
+            instructions,
+            created_at
+          )
+        `).eq('id', id).single();
+      if (error) throw error;
+      if (!data) throw new Error("Game not found");
+      
+      const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
+      setGameVersions(sortedVersions);
+      
+      if (sortedVersions.length > 0) {
+        setSelectedVersion(sortedVersions[0].id);
+        console.log("Selected latest version:", sortedVersions[0].version_number);
       }
-    };
+    } catch (error) {
+      toast({
+        title: "Error loading game",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchGame();
   }, [id, toast]);
 
-  // Helper function to inject scripts and fix common iframe issues
   const prepareIframeContent = (html: string) => {
-    // Helper script to ensure tabs and anchor links work correctly
     const helperScript = `
       <script>
-        // Wait for document to be fully loaded
         document.addEventListener('DOMContentLoaded', function() {
           console.log('DOM fully loaded, setting up UI enhancements');
           
-          // Fix for anchor tag scrolling
           document.querySelectorAll('a[href^="#"]').forEach(anchor => {
             anchor.addEventListener('click', function(e) {
               e.preventDefault();
@@ -111,10 +131,6 @@ const Play = () => {
             });
           });
           
-          // Generic tab functionality fix
-          // This handles multiple common tab patterns
-          
-          // Type 1: data-tab based tabs
           const setupDataTabs = function() {
             const tabs = document.querySelectorAll('[data-tab]');
             if (tabs.length > 0) {
@@ -123,12 +139,10 @@ const Play = () => {
                 tab.addEventListener('click', function() {
                   const target = this.getAttribute('data-tab');
                   
-                  // Hide all tab content
                   document.querySelectorAll('[data-tab-content]').forEach(content => {
                     content.style.display = 'none';
                   });
                   
-                  // Show selected tab content
                   if (target) {
                     const targetContent = document.querySelector('[data-tab-content="' + target + '"]');
                     if (targetContent) {
@@ -136,13 +150,11 @@ const Play = () => {
                     }
                   }
                   
-                  // Update active state
                   tabs.forEach(t => t.classList.remove('active'));
                   this.classList.add('active');
                 });
               });
               
-              // Activate first tab by default if none is active
               if (!document.querySelector('[data-tab].active')) {
                 const firstTab = document.querySelector('[data-tab]');
                 if (firstTab) {
@@ -152,7 +164,6 @@ const Play = () => {
             }
           };
           
-          // Type 2: aria-based tabs
           const setupAriaTabs = function() {
             const tabButtons = document.querySelectorAll('[role="tab"]');
             if (tabButtons.length > 0) {
@@ -163,23 +174,19 @@ const Play = () => {
                   const tablist = this.closest('[role="tablist"]');
                   
                   if (tablist) {
-                    // Deactivate all tabs
                     tablist.querySelectorAll('[role="tab"]').forEach(tab => {
                       tab.setAttribute('aria-selected', 'false');
                       tab.classList.remove('active');
                     });
                     
-                    // Activate this tab
                     this.setAttribute('aria-selected', 'true');
                     this.classList.add('active');
                     
-                    // Hide all tab panels
                     document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
                       panel.setAttribute('hidden', '');
                       panel.style.display = 'none';
                     });
                     
-                    // Show the selected panel
                     if (controls) {
                       const panel = document.getElementById(controls);
                       if (panel) {
@@ -191,7 +198,6 @@ const Play = () => {
                 });
               });
               
-              // Activate first tab by default if none is selected
               const tablist = document.querySelector('[role="tablist"]');
               if (tablist && !tablist.querySelector('[aria-selected="true"]')) {
                 const firstTab = tablist.querySelector('[role="tab"]');
@@ -202,7 +208,6 @@ const Play = () => {
             }
           };
           
-          // Type 3: Class-based tabs (common pattern)
           const setupClassTabs = function() {
             const tabButtons = document.querySelectorAll('.tabs .tab, .tab-list .tab, .tabs-nav .tab-link');
             if (tabButtons.length > 0) {
@@ -211,33 +216,27 @@ const Play = () => {
                 button.addEventListener('click', function(e) {
                   e.preventDefault();
                   
-                  // Try to get target from href or data attribute
                   let target = this.getAttribute('href');
                   if (!target || !target.startsWith('#')) {
                     target = this.dataset.target || this.dataset.href;
                   } else {
-                    target = target.substring(1); // Remove the # from href
+                    target = target.substring(1);
                   }
                   
-                  // Find tab container (parent or grandparent)
                   const tabContainer = this.closest('.tabs, .tab-container, .tabs-wrapper');
                   
                   if (tabContainer) {
-                    // Deactivate all tabs
                     tabContainer.querySelectorAll('.tab, .tab-link').forEach(tab => {
                       tab.classList.remove('active');
                     });
                     
-                    // Activate this tab
                     this.classList.add('active');
                     
-                    // Hide all content panels in this container
                     tabContainer.querySelectorAll('.tab-content, .tab-pane, .tabs-content > div').forEach(panel => {
                       panel.style.display = 'none';
                       panel.classList.remove('active');
                     });
                     
-                    // Show the selected panel
                     if (target) {
                       const panel = document.getElementById(target) || 
                                     tabContainer.querySelector('[data-tab="' + target + '"]') ||
@@ -252,7 +251,6 @@ const Play = () => {
                 });
               });
               
-              // Activate first tab by default if none is active
               const tabContainer = document.querySelector('.tabs, .tab-container, .tabs-wrapper');
               if (tabContainer && !tabContainer.querySelector('.tab.active, .tab-link.active')) {
                 const firstTab = tabContainer.querySelector('.tab, .tab-link');
@@ -263,12 +261,10 @@ const Play = () => {
             }
           };
           
-          // Run all tab setup functions
           setupDataTabs();
           setupAriaTabs();
           setupClassTabs();
           
-          // Final catch-all for any click events that might need to be triggered
           setTimeout(() => {
             document.querySelectorAll('.tabs .active, [role="tab"][aria-selected="true"], [data-tab].active')
               .forEach(activeTab => {
@@ -276,28 +272,22 @@ const Play = () => {
                 activeTab.click();
               });
             
-            // Dispatch resize event to fix any responsive elements
             window.dispatchEvent(new Event('resize'));
           }, 300);
         });
 
-        // Also run setup on load for any dynamically loaded content
         window.addEventListener('load', function() {
           console.log('Window loaded, re-running tab initialization');
-          // Force a resize event in case any responsive elements need to adjust
           window.dispatchEvent(new Event('resize'));
         });
       </script>
     `;
 
-    // Check if the document has a <head> tag
     if (html.includes('<head>')) {
       return html.replace('<head>', '<head>' + helperScript);
     } else if (html.includes('<html')) {
-      // If it has <html> but no <head>, insert head after html opening tag
       return html.replace(/<html[^>]*>/, '$&<head>' + helperScript + '</head>');
     } else {
-      // If neither, just prepend the script
       return helperScript + html;
     }
   };
@@ -306,7 +296,6 @@ const Play = () => {
     if (!loading && iframeRef.current) {
       iframeRef.current.focus();
       
-      // Set up message event listener for communication with iframe
       const handleIframeMessage = (event: MessageEvent) => {
         if (event.source === iframeRef.current?.contentWindow) {
           console.log('Message from iframe:', event.data);
@@ -322,10 +311,10 @@ const Play = () => {
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
-      // Create a new version with incremented version number
+      setShowGenerating(true);
+      
       const newVersionNumber = gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1;
       
-      // Insert the new version into database
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .insert({
@@ -340,7 +329,6 @@ const Play = () => {
       if (versionError) throw versionError;
       if (!versionData) throw new Error("Failed to save new version");
       
-      // Update the game's current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -352,7 +340,6 @@ const Play = () => {
         
       if (gameError) throw gameError;
       
-      // Add the new version to state and select it
       const newVersion: GameVersion = {
         id: versionData.id,
         version_number: versionData.version_number,
@@ -363,6 +350,7 @@ const Play = () => {
       
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
+      setShowGenerating(false);
       
       toast({
         title: "Code updated successfully",
@@ -371,6 +359,7 @@ const Play = () => {
       
     } catch (error) {
       console.error("Error saving new version:", error);
+      setShowGenerating(false);
       toast({
         title: "Error saving version",
         description: error instanceof Error ? error.message : "Please try again",
@@ -401,7 +390,6 @@ const Play = () => {
       });
       if (error) throw error;
       
-      // Update the game's current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -495,7 +483,7 @@ const Play = () => {
     }
   };
 
-  if (loading) {
+  if (loading && !showGenerating) {
     return <div className="min-h-screen flex items-center justify-center">
         <Loader2 className="animate-spin" size={32} />
       </div>;
@@ -503,7 +491,6 @@ const Play = () => {
 
   return (
     <div className="flex flex-col h-screen bg-[#F5F5F5]">
-      {/* Navbar */}
       <div className="w-full h-12 bg-white border-b border-gray-200 px-4 flex items-center justify-between z-10 shadow-sm flex-shrink-0">
         <Link to="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors">
           <ArrowLeft size={18} />
@@ -534,7 +521,6 @@ const Play = () => {
         </div>
       </div>
       
-      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
         <div className="w-[400px] flex flex-col bg-white border-r border-gray-200">
           <div className="p-4 border-b border-gray-200 flex-shrink-0">
@@ -549,10 +535,10 @@ const Play = () => {
 
         <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
           <div className="max-w-[1200px] mx-auto w-full flex-1 flex flex-col">
-            {currentVersion && (
-              <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
-                <div className="flex items-center justify-between mb-4 flex-shrink-0">
-                  <div className="flex items-center gap-4">
+            <div className="glass-panel bg-white/80 backdrop-blur-sm border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
+              <div className="flex items-center justify-between mb-4 flex-shrink-0">
+                <div className="flex items-center gap-4">
+                  {!showGenerating && (
                     <div className="bg-zinc-900 p-0.5 rounded-full">
                       <Button
                         variant="ghost"
@@ -579,8 +565,10 @@ const Play = () => {
                         Code
                       </Button>
                     </div>
-                  </div>
-                  
+                  )}
+                </div>
+                
+                {!showGenerating && (
                   <div className="flex items-center gap-2">
                     <History size={16} className="text-gray-500" />
                     <Select value={selectedVersion} onValueChange={handleVersionChange}>
@@ -596,35 +584,42 @@ const Play = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
-
-                <div className="flex-1 bg-white rounded-lg overflow-hidden">
-                  {!showCode ? (
-                    <div 
-                      className="h-full relative"
-                      onClick={() => iframeRef.current?.focus()}
-                    >
-                      <iframe
-                        ref={iframeRef}
-                        srcDoc={currentVersion ? prepareIframeContent(currentVersion.code) : ""}
-                        className="absolute inset-0 w-full h-full border border-gray-100"
-                        sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
-                        title="Generated Content"
-                        tabIndex={0}
-                      />
-                    </div>
-                  ) : (
-                    <div className="h-full relative">
-                      <div className="absolute inset-0 overflow-auto">
-                        <pre className="p-4 bg-gray-50 rounded-lg h-full">
-                          <code className="text-sm whitespace-pre-wrap break-words">{currentVersion.code}</code>
-                        </pre>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                )}
               </div>
-            )}
+
+              <div className="flex-1 bg-white rounded-lg overflow-hidden">
+                {showGenerating ? (
+                  <GenerationTerminal
+                    output={terminalOutput}
+                    thinkingTime={thinkingTime}
+                    loading={generationLoading}
+                    asModal={false}
+                  />
+                ) : !showCode ? (
+                  <div 
+                    className="h-full relative"
+                    onClick={() => iframeRef.current?.focus()}
+                  >
+                    <iframe
+                      ref={iframeRef}
+                      srcDoc={currentVersion ? prepareIframeContent(currentVersion.code) : ""}
+                      className="absolute inset-0 w-full h-full border border-gray-100"
+                      sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+                      title="Generated Content"
+                      tabIndex={0}
+                    />
+                  </div>
+                ) : (
+                  <div className="h-full relative">
+                    <div className="absolute inset-0 overflow-auto">
+                      <pre className="p-4 bg-gray-50 rounded-lg h-full">
+                        <code className="text-sm whitespace-pre-wrap break-words">{currentVersion?.code}</code>
+                      </pre>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </div>

@@ -1,5 +1,4 @@
 
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/game-creator/Header";
@@ -9,6 +8,7 @@ import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal
 import { useGameGeneration } from "@/hooks/useGameGeneration";
 import { useGames } from "@/hooks/useGames";
 import { useToast } from "@/components/ui/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
@@ -58,24 +58,86 @@ const Index = () => {
 
   const handleGenerate = async () => {
     try {
-      // Only pass imageUrl if it's a data URL (from FileReader)
+      if (!prompt.trim()) {
+        toast({
+          title: "Please enter a description",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      if (!gameType) {
+        toast({
+          title: "Please select a content type",
+          description: "Choose what you want to create before proceeding",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create a placeholder game record
+      const { data: placeholderGame, error: placeholderError } = await supabase
+        .from('games')
+        .insert([{ 
+          prompt: prompt,
+          code: "Generating...",
+          instructions: "Content is being generated...",
+          current_version: 1,
+          type: gameType
+        }])
+        .select()
+        .single();
+
+      if (placeholderError) {
+        console.error("Error creating placeholder game:", placeholderError);
+        toast({
+          title: "Error starting generation",
+          description: placeholderError.message,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Create a placeholder version
+      const { error: versionError } = await supabase
+        .from('game_versions')
+        .insert([{
+          game_id: placeholderGame.id,
+          code: "Generating...",
+          instructions: "Content is being generated...",
+          version_number: 1
+        }]);
+
+      if (versionError) {
+        console.error("Error creating placeholder version:", versionError);
+      }
+
+      // Navigate immediately to the play page with a generating flag
+      navigate(`/play/${placeholderGame.id}?generating=true`);
+      
+      // Start the actual generation in the background
       const imageUrlToUse = imageUrl && imageUrl.startsWith('data:') ? imageUrl : undefined;
       
-      const gameData = await generateGame(prompt, gameType, imageUrlToUse);
-      if (gameData) {
+      // This will now run after navigation
+      generateGame(prompt, gameType, imageUrlToUse, placeholderGame.id).then(gameData => {
+        if (gameData) {
+          toast({
+            title: "Generated successfully!",
+            description: "Your content is ready to view.",
+          });
+        }
+      }).catch(error => {
+        console.error("Error generating game:", error);
         toast({
-          title: "Generated successfully!",
-          description: "Redirecting to view the content...",
+          title: "Generation failed",
+          description: error instanceof Error ? error.message : "An unexpected error occurred",
+          variant: "destructive",
         });
-        
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        setShowTerminal(false);
-        navigate(`/play/${gameData.id}`);
-      }
+      });
     } catch (error) {
-      console.error("Error generating game:", error);
+      console.error("Error in handleGenerate:", error);
       toast({
-        title: "Generation failed",
+        title: "Error starting generation",
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       });
@@ -125,4 +187,3 @@ const Index = () => {
 };
 
 export default Index;
-
