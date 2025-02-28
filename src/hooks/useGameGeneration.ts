@@ -104,6 +104,8 @@ SVG REQUIREMENTS:
           systemInstructions = `
 WEB DESIGN REQUIREMENTS:
 1. Structure:
+- If the user asks for a mobile design, mobile UI, or anything similar for a mobile device, the design should be wrapped in an iPhone  container showing the status bar and home indicator.
+ In this case, create a mobile UI design inside an iPhone frame so the user can see what the design mock up looks like in an iphone frame since it is a mobile UI design.
 - Use semantic HTML5 elements
 - Implement proper heading hierarchy
 - Include meta tags
