@@ -122,7 +122,7 @@ const Index = () => {
         navigationParams += `&imageUrl=${encodedImageUrl}`;
       }
       
-      // Navigate to the play page with all the necessary parameters
+      // Navigate to the play page with generation
       console.log("Navigating to play page for generation:", placeholderGame.id);
       navigate(`/play/${placeholderGame.id}${navigationParams}`);
       
@@ -143,7 +143,8 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      <div className="max-w-5xl mx-auto px-6 py-12 md:py-16">
+      {/* Header and Form section with constrained width */}
+      <div className="max-w-3xl mx-auto px-6 py-12 md:py-16">
         <div className="space-y-10">
           <Header 
             title="What would you like to mock up?"
@@ -163,20 +164,23 @@ const Index = () => {
             onImageUploaded={handleImageUploaded}
             onImageRemoved={handleImageRemoved}
           />
-
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Sparkles size={18} className="text-gray-700" />
-              <h2 className="text-xl font-medium text-black">Your Designs</h2>
-            </div>
-          </div>
-
-          <GamesList
-            games={games}
-            isLoading={gamesLoading}
-            onGameClick={(id) => navigate(`/play/${id}`)}
-          />
         </div>
+      </div>
+      
+      {/* Designs section with wider width */}
+      <div className="max-w-7xl mx-auto px-6 pb-16">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-2">
+            <Sparkles size={18} className="text-gray-700" />
+            <h2 className="text-xl font-medium text-black">Your Designs</h2>
+          </div>
+        </div>
+
+        <GamesList
+          games={games}
+          isLoading={gamesLoading}
+          onGameClick={(id) => navigate(`/play/${id}`)}
+        />
       </div>
 
       <GenerationTerminal
