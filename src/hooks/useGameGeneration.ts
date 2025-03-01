@@ -280,11 +280,14 @@ ENSURE INTERACTION CAPABILITIES:
       // Log which model is being used
       setTerminalOutput(prev => [...prev, `> Using ${modelType === "smart" ? "Anthropic (Smartest)" : "Groq (Fastest)"} model`]);
 
+      // Show connecting message immediately for better UX
+      setTerminalOutput(prev => [...prev, `> Establishing connection to AI service...`]);
+
       let response;
       
       if (modelType === "fast") {
-        // Use Groq API for "fast" model - now with non-streaming mode
-        setTerminalOutput(prev => [...prev, `> Using non-streaming mode for Groq API...`]);
+        // Use Groq API for "fast" model - now with streaming mode enabled
+        setTerminalOutput(prev => [...prev, `> Using streaming mode for Groq API...`]);
         
         response = await fetch(
           'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-with-groq',
@@ -298,7 +301,7 @@ ENSURE INTERACTION CAPABILITIES:
               prompt: finalPrompt,
               imageUrl: imageUrl,
               contentType: gameType,
-              stream: false // Disable streaming for Groq
+              stream: true // Enable streaming for Groq to get faster feedback
             }),
           }
         );
@@ -313,88 +316,64 @@ ENSURE INTERACTION CAPABILITIES:
           }
         }
         
-        setTerminalOutput(prev => [...prev, `> Received complete response from Groq API`]);
+        setTerminalOutput(prev => [...prev, `> Connected to Groq API, receiving stream...`]);
         
-        // Process the complete response from Groq
-        const responseData = await response.json();
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No reader available");
         
-        if (responseData && responseData.content) {
-          gameContent = responseData.content;
-          setTerminalOutput(prev => [...prev, `> Successfully extracted content from Groq response`]);
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
           
-          // Check if the content is HTML or needs to be processed
-          if (gameContent.includes("```html")) {
-            setTerminalOutput(prev => [...prev, `> Extracting HTML from code block...`]);
-            const htmlMatch = gameContent.match(/```html\s*([\s\S]*?)```/);
-            if (htmlMatch && htmlMatch[1] && htmlMatch[1].trim().length > 0) {
-              gameContent = htmlMatch[1].trim();
-              setTerminalOutput(prev => [...prev, `> Successfully extracted HTML from code block`]);
-            }
-          }
+          // Decode the chunk and add it to our buffer
+          const text = new TextDecoder().decode(value);
+          buffer += text;
           
-          // Ensure content is properly formatted as HTML
-          if (!gameContent.includes('<html') && !gameContent.includes('<!DOCTYPE')) {
-            setTerminalOutput(prev => [...prev, `> Wrapping content in HTML document structure...`]);
-            
-            // If it contains HTML elements but not a full document
-            if (gameContent.includes('<') && gameContent.includes('>') &&
-                (gameContent.includes('<div') || gameContent.includes('<p') || gameContent.includes('<span'))) {
+          // Process chunks directly from the Groq stream
+          try {
+            // Process complete lines from the buffer
+            let lineEnd;
+            while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+              const line = buffer.slice(0, lineEnd);
+              buffer = buffer.slice(lineEnd + 1);
               
-              gameContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generated Content</title>
-  <style>
-    body { font-family: system-ui, sans-serif; line-height: 1.6; margin: 0; padding: 20px; }
-    pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
-    code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
-  </style>
-</head>
-<body>
-  <div class="content">
-    ${gameContent}
-  </div>
-</body>
-</html>`;
-            } else {
-              // If it's plain text
-              gameContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generated Content</title>
-  <style>
-    body { font-family: system-ui, sans-serif; line-height: 1.6; margin: 0; padding: 20px; }
-    pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
-    code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
-  </style>
-</head>
-<body>
-  <div class="content">
-    ${gameContent
-      .split('\n')
-      .map(line => {
-        if (line.trim().length === 0) return '';
-        if (line.startsWith('#')) {
-          const level = line.match(/^#+/)[0].length;
-          const text = line.replace(/^#+\s*/, '');
-          return `<h${level}>${text}</h${level}>`;
-        }
-        return `<p>${line}</p>`;
-      })
-      .join('\n')}
-  </div>
-</body>
-</html>`;
+              if (!line) continue;
+              
+              try {
+                const data = JSON.parse(line);
+                
+                // Check if it's a Groq delta chunk with content
+                if (data.choices && data.choices[0]?.delta?.content) {
+                  const content = data.choices[0].delta.content;
+                  if (content) {
+                    gameContent += content;
+                    combinedResponse += content;
+                    
+                    // Display content in chunks
+                    if (content.includes('\n')) {
+                      const contentLines = content.split('\n');
+                      for (const contentLine of contentLines) {
+                        if (contentLine.trim()) {
+                          setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                        }
+                      }
+                    } else {
+                      setTerminalOutput(prev => [...prev, `> ${content}`]);
+                    }
+                  }
+                } 
+                // Check if it's the final Groq message
+                else if (data.choices && data.choices[0]?.finish_reason) {
+                  setTerminalOutput(prev => [...prev, `> Generation ${data.choices[0].finish_reason}`]);
+                }
+              } catch (e) {
+                // Not valid JSON or not expected format, might be a partial chunk
+                console.warn('Invalid JSON in stream or unexpected format:', line.substring(0, 50) + '...');
+              }
             }
+          } catch (e) {
+            console.error('Error processing Groq chunk:', e);
           }
-        } else {
-          throw new Error("No valid content in Groq response");
         }
       } else {
         // Use default Anthropic API for "smart" model - keep streaming
