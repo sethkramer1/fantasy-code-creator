@@ -41,7 +41,7 @@ export function VersionSelector({
           onClick={() => onRevertToVersion(currentVersion)}
         >
           <RotateCcw size={14} />
-          Revert to this version
+          Create new version from this
         </Button>
       )}
       

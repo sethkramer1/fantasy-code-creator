@@ -515,29 +515,50 @@ const Play = () => {
 
   const handleRevertToVersion = async (version: GameVersion) => {
     try {
-      setSelectedVersion(version.id);
+      const highestVersionNumber = gameVersions.length > 0 
+        ? Math.max(...gameVersions.map(v => v.version_number))
+        : 0;
+      
+      const newVersionNumber = highestVersionNumber + 1;
+      
+      const { data: newVersionData, error: versionError } = await supabase
+        .from('game_versions')
+        .insert({
+          game_id: id,
+          version_number: newVersionNumber,
+          code: version.code,
+          instructions: `Reverted to version ${version.version_number}`
+        })
+        .select()
+        .single();
+      
+      if (versionError) throw versionError;
+      if (!newVersionData) throw new Error("Failed to create new version");
       
       const { error: updateError } = await supabase
         .from('games')
         .update({
-          current_version: version.version_number,
+          current_version: newVersionNumber,
           code: version.code,
-          instructions: version.instructions
+          instructions: `Reverted to version ${version.version_number}`
         })
         .eq('id', id);
-        
+      
       if (updateError) throw updateError;
       
-      toast({
-        title: "Version restored",
-        description: `Reverted to version ${version.version_number}.`
-      });
+      const newVersion: GameVersion = {
+        id: newVersionData.id,
+        version_number: newVersionData.version_number,
+        code: newVersionData.code,
+        instructions: newVersionData.instructions,
+        created_at: newVersionData.created_at
+      };
+      
+      setGameVersions(prev => [newVersion, ...prev]);
+      setSelectedVersion(newVersion.id);
+      
     } catch (error) {
-      toast({
-        title: "Error reverting version",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive"
-      });
+      console.error("Error reverting version:", error);
     }
   };
 
@@ -557,7 +578,7 @@ const Play = () => {
         throw new Error("No version found after this message");
       }
     } catch (error) {
-      throw error;
+      console.error("Error reverting to message version:", error);
     }
   };
 
