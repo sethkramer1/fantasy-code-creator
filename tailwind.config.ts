@@ -81,5 +81,20 @@ export default {
       },
     },
   },
-  plugins: [require("tailwindcss-animate")],
+  plugins: [
+    require("tailwindcss-animate"),
+    function({ addUtilities }) {
+      const newUtilities = {
+        '.focus-none': {
+          'outline': 'none !important',
+          'box-shadow': 'none !important',
+          'border-color': 'transparent !important',
+          'ring': '0 !important',
+          'ring-offset': '0 !important',
+          'ring-color': 'transparent !important',
+        },
+      }
+      addUtilities(newUtilities, ['focus'])
+    }
+  ],
 } satisfies Config;
