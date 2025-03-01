@@ -73,8 +73,8 @@ export function GenerationForm({
                   <TooltipContent className="max-w-xs p-3">
                     <p>Choose the model that best fits your needs:</p>
                     <ul className="mt-2 text-sm list-disc pl-4 space-y-1">
-                      <li><strong>Fastest</strong>: Ideal for most edits - 5x faster to iterate with good results.</li>
-                      <li><strong>Smartest</strong>: Better for complex tasks but takes longer to generate.</li>
+                      <li><strong>Fastest</strong>: Ideal for small edits like color or text edits - 5x faster to iterate with good results.</li>
+                      <li><strong>Smartest</strong>: Best results but takes longer to generate. Supports image uploads.</li>
                     </ul>
                   </TooltipContent>
                 </Tooltip>
