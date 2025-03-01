@@ -15,6 +15,7 @@ const Index = () => {
   const [prompt, setPrompt] = useState("");
   const [gameType, setGameType] = useState<string>("webdesign");
   const [imageUrl, setImageUrl] = useState<string>("");
+  const [modelType, setModelType] = useState<string>("smart");
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -56,6 +57,16 @@ const Index = () => {
     setImageUrl("");
   };
 
+  const handleModelTypeChange = (type: string) => {
+    setModelType(type);
+    toast({
+      title: `Switched to ${type === "smart" ? "Smartest" : "Fastest"} model`,
+      description: type === "smart" 
+        ? "Using Claude for higher quality responses" 
+        : "Using Groq's Mixtral 8x7B for faster responses"
+    });
+  };
+
   const handleGenerate = async () => {
     try {
       if (!prompt.trim()) {
@@ -83,7 +94,8 @@ const Index = () => {
           code: "Generating...",
           instructions: "Content is being generated...",
           current_version: 1,
-          type: gameType
+          type: gameType,
+          model_type: modelType
         }])
         .select()
         .single();
@@ -112,8 +124,8 @@ const Index = () => {
         console.error("Error creating placeholder version:", versionError);
       }
 
-      // Pass the image URL and game type in the URL parameters
-      let navigationParams = `?generating=true&type=${gameType}`;
+      // Pass the image URL, game type, and model type in the URL parameters
+      let navigationParams = `?generating=true&type=${gameType}&modelType=${modelType}`;
       
       // Only include the image in the params if it exists
       if (imageUrl) {
@@ -163,6 +175,8 @@ const Index = () => {
             imageUrl={imageUrl}
             onImageUploaded={handleImageUploaded}
             onImageRemoved={handleImageRemoved}
+            modelType={modelType}
+            setModelType={handleModelTypeChange}
           />
         </div>
       </div>

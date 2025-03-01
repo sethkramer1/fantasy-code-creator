@@ -175,7 +175,7 @@ export const GameChat = ({
   const toggleModelType = () => {
     setModelType(prev => prev === "smart" ? "fast" : "smart");
     toast({
-      title: `Switched to ${modelType === "smart" ? "Fastest" : "Smartest"} model`,
+      title: `Switched to ${modelType === "smart" ? "Fastest" : "Smartest"}`,
       description: modelType === "smart" 
         ? "Using Groq's Mixtral 8x7B for faster responses" 
         : "Using Claude for higher quality responses"
@@ -559,7 +559,7 @@ export const GameChat = ({
     }
   };
 
-  return <div className="flex flex-col h-full">
+  return <div className="flex flex-col h-full w-full max-w-2xl mx-auto">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loadingHistory ? <div className="flex justify-center">
             <Loader2 className="animate-spin" size={24} />
@@ -570,7 +570,7 @@ export const GameChat = ({
                   {msg.model_type && (
                     <span className="text-xs text-blue-500 flex items-center ml-2 px-2 py-0.5 rounded-full bg-blue-100">
                       <Cpu size={12} className="mr-1" />
-                      {msg.model_type === "smart" ? "Smart" : "Fast"}
+                      {msg.model_type === "smart" ? "Smartest" : "Fast"}
                     </span>
                   )}
                 </div>
@@ -651,19 +651,18 @@ export const GameChat = ({
               
               <div
                 className={`flex items-center gap-2 text-gray-600 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
-                title={`Toggle between Smartest and Fastest models`}
+                title="Toggle between Smartest and Fastest"
               >
                 <Cpu size={20} />
-                <span className="text-sm font-medium mr-1">Model:</span>
                 <div className="flex items-center gap-2">
-                  <span className={`text-xs ${modelType === "smart" ? "font-semibold" : "text-gray-400"}`}>Smart</span>
+                  <span className={`text-xs ${modelType === "smart" ? "font-semibold" : "text-gray-400"}`}>Smartest</span>
                   <Switch
                     checked={modelType === "fast"}
                     onCheckedChange={() => toggleModelType()}
                     disabled={loading || disabled}
                     className="ml-0.5"
                   />
-                  <span className={`text-xs ${modelType === "fast" ? "font-semibold" : "text-gray-400"}`}>Fast</span>
+                  <span className={`text-xs ${modelType === "fast" ? "font-semibold" : "text-gray-400"}`}>Fastest</span>
                 </div>
               </div>
             </div>
