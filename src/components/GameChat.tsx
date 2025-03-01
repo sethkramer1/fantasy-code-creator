@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -648,23 +649,7 @@ export const GameChat = ({
           </div>
           
           <div className="flex items-center justify-between mt-6 gap-2">
-            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
-              <label
-                className={`flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-800 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
-                title="Attach"
-              >
-                <Paperclip size={20} />
-                <span className="text-sm font-medium">Attach</span>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  disabled={loading || isUploading || disabled}
-                />
-              </label>
-              
+            <div className="flex items-center gap-4">
               <div
                 className={`flex items-center gap-2 text-gray-600 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
                 title="Select model"
@@ -672,7 +657,7 @@ export const GameChat = ({
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="cursor-help ml-1">
+                      <span className="cursor-help">
                         <Info size={16} className="text-gray-400 hover:text-gray-600" />
                       </span>
                     </TooltipTrigger>
@@ -706,17 +691,34 @@ export const GameChat = ({
                   </SelectContent>
                 </Select>
               </div>
+              
+              {modelType === "smart" && (
+                <label
+                  className={`flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-800 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+                  title="Attach image"
+                >
+                  <Paperclip size={20} />
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    disabled={loading || isUploading || disabled}
+                  />
+                </label>
+              )}
             </div>
             
             <button 
               type="submit" 
               disabled={loading || (!message.trim() && !imageUrl) || isUploading || disabled} 
-              className="h-12 w-12 rounded-full bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
+              className="h-9 w-9 rounded-full bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
               aria-label="Send message"
             >
               {loading ? 
-                <Loader2 className="animate-spin" size={20} /> : 
-                <ArrowUp size={20} />
+                <Loader2 className="animate-spin" size={16} /> : 
+                <ArrowUp size={16} />
               }
             </button>
           </div>
