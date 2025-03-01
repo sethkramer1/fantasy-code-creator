@@ -15,7 +15,8 @@ const Index = () => {
   const [prompt, setPrompt] = useState("");
   const [gameType, setGameType] = useState<string>("webdesign");
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [modelType, setModelType] = useState<string>("smart");
+  // Always use "smart" model (Claude) from the index page
+  const modelType = "smart";
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -55,16 +56,6 @@ const Index = () => {
 
   const handleImageRemoved = () => {
     setImageUrl("");
-  };
-
-  const handleModelTypeChange = (type: string) => {
-    setModelType(type);
-    toast({
-      title: `Switched to ${type === "smart" ? "Smartest" : "Fastest"} model`,
-      description: type === "smart" 
-        ? "Using Claude for higher quality responses" 
-        : "Using Groq's Mixtral 8x7B for faster responses"
-    });
   };
 
   const handleGenerate = async () => {
@@ -176,7 +167,7 @@ const Index = () => {
             onImageUploaded={handleImageUploaded}
             onImageRemoved={handleImageRemoved}
             modelType={modelType}
-            setModelType={handleModelTypeChange}
+            showModelPreference={false} // Don't show model preference on index page
           />
         </div>
       </div>
