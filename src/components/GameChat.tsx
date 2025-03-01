@@ -559,11 +559,18 @@ export const GameChat = ({
     }
   };
 
-  return <div className="flex flex-col h-full w-full max-w-2xl mx-auto">
+  return (
+    <div className="flex flex-col h-full w-full max-w-2xl mx-auto">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {loadingHistory ? <div className="flex justify-center">
+        {loadingHistory ? (
+          <div className="flex justify-center">
             <Loader2 className="animate-spin" size={24} />
-          </div> : messages.length === 0 ? <p className="text-center text-gray-500">No messages yet. Ask me to modify!</p> : messages.map(msg => <div key={msg.id} className="space-y-2">
+          </div>
+        ) : messages.length === 0 ? (
+          <p className="text-center text-gray-500">No messages yet. Ask me to modify!</p>
+        ) : (
+          messages.map(msg => (
+            <div key={msg.id} className="space-y-2">
               <div className="bg-blue-50 p-3 rounded-lg">
                 <div className="flex justify-between items-start">
                   <p className="text-blue-800">{msg.message}</p>
@@ -584,10 +591,14 @@ export const GameChat = ({
                   </div>
                 )}
               </div>
-              {msg.response && <div className="bg-gray-50 p-3 rounded-lg ml-4">
+              {msg.response && (
+                <div className="bg-gray-50 p-3 rounded-lg ml-4">
                   <p className="text-gray-800">{msg.response}</p>
-                </div>}
-            </div>)}
+                </div>
+              )}
+            </div>
+          ))
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="p-4 border-t relative flex-shrink-0">
@@ -632,7 +643,7 @@ export const GameChat = ({
           </div>
           
           <div className="flex items-center justify-between mt-6 gap-2">
-            <div className="flex items-center gap-4">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <label
                 className={`flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-800 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
                 title="Attach"
@@ -650,19 +661,20 @@ export const GameChat = ({
               </label>
               
               <div
-                className={`flex items-center gap-2 text-gray-600 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+                className={`flex items-center gap-3 text-gray-600 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
                 title="Toggle between Smartest and Fastest"
               >
-                <Cpu size={20} />
-                <div className="flex items-center gap-2">
-                  <span className={`text-xs ${modelType === "smart" ? "font-semibold" : "text-gray-400"}`}>Smartest</span>
+                <div className="hidden sm:block">
+                  <Cpu size={20} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`text-sm ${modelType === "smart" ? "font-medium text-gray-700" : "text-gray-400"}`}>Smartest</span>
                   <Switch
                     checked={modelType === "fast"}
-                    onCheckedChange={() => toggleModelType()}
+                    onCheckedChange={toggleModelType}
                     disabled={loading || disabled}
-                    className="ml-0.5"
                   />
-                  <span className={`text-xs ${modelType === "fast" ? "font-semibold" : "text-gray-400"}`}>Fastest</span>
+                  <span className={`text-sm ${modelType === "fast" ? "font-medium text-gray-700" : "text-gray-400"}`}>Fastest</span>
                 </div>
               </div>
             </div>
@@ -693,5 +705,6 @@ export const GameChat = ({
           )}
         </div>
       </form>
-    </div>;
+    </div>
+  );
 };
