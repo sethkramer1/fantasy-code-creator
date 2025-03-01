@@ -692,30 +692,18 @@ export const GameChat = ({
                   onValueChange={handleModelChange}
                   disabled={loading || disabled}
                 >
-                  <SelectTrigger className="w-[130px] h-9 bg-white border-gray-200">
+                  <SelectTrigger className="w-[160px] h-9 bg-white border-gray-200">
                     <SelectValue placeholder="Model" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="fast">
-                      <div className="flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-                        </svg>
-                        <div>
-                          <span>Fastest</span>
-                          <span className="ml-2 text-xs text-green-600 font-medium">5x faster</span>
-                        </div>
+                      <div className="flex items-center">
+                        <span>Fastest</span>
+                        <span className="ml-2 text-xs text-green-600 font-medium whitespace-nowrap">5x faster</span>
                       </div>
                     </SelectItem>
                     <SelectItem value="smart">
-                      <div className="flex items-center gap-2">
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-                          <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4Z"></path>
-                          <circle cx="12" cy="14" r="2"></circle>
-                          <path d="M12 12v0"></path>
-                        </svg>
-                        <span>Smartest</span>
-                      </div>
+                      <span>Smartest</span>
                     </SelectItem>
                   </SelectContent>
                 </Select>
