@@ -567,17 +567,27 @@ const Play = () => {
     try {
       const messageTime = new Date(message.created_at).getTime();
       
-      const versionsAfterMessage = gameVersions
+      let versionsAfterMessage = gameVersions
         .filter(v => new Date(v.created_at).getTime() > messageTime)
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      
+      if (versionsAfterMessage.length === 0) {
+        versionsAfterMessage = [...gameVersions]
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      }
       
       if (versionsAfterMessage.length > 0) {
         await handleRevertToVersion(versionsAfterMessage[0]);
       } else {
-        throw new Error("No version found after this message");
+        throw new Error("No versions found for this game");
       }
     } catch (error) {
       console.error("Error reverting to message version:", error);
+      toast({
+        title: "Error reverting version",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive"
+      });
     }
   };
 

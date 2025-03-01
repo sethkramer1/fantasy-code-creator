@@ -72,7 +72,7 @@ export const useGameVersions = (filteredGames: Game[]) => {
     };
     
     fetchGameVersions();
-  }, [JSON.stringify(filteredGames.map(game => game.id))]);  // Use stable dependency
+  }, [filteredGames]);  // Use proper dependency without JSON.stringify
 
   return { gameCodeVersions, fetchError, loading };
 };
