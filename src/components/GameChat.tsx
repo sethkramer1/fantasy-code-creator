@@ -16,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface Message {
   id: string;
@@ -25,6 +26,7 @@ interface Message {
   version_id?: string | null;
   image_url?: string | null;
   model_type?: string | null;
+  isLoading?: boolean;
 }
 
 interface GameChatProps {
@@ -34,6 +36,7 @@ interface GameChatProps {
   disabled?: boolean;
   onRevertToVersion?: (message: Message) => Promise<void>;
   gameVersions?: any[];
+  initialMessage?: string;
 }
 
 export const GameChat = ({
@@ -42,7 +45,8 @@ export const GameChat = ({
   onTerminalStatusChange,
   disabled = false,
   onRevertToVersion,
-  gameVersions = []
+  gameVersions = [],
+  initialMessage
 }: GameChatProps) => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -55,8 +59,17 @@ export const GameChat = ({
   const [modelType, setModelType] = useState<string>("smart");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -76,7 +89,18 @@ export const GameChat = ({
           .order('created_at', { ascending: true });
           
         if (error) throw error;
-        setMessages(data || []);
+        
+        if (data.length === 0 && initialMessage) {
+          const newMessage: Message = {
+            id: 'initial-message',
+            message: initialMessage,
+            created_at: new Date().toISOString(),
+            response: "Generating initial content..."
+          };
+          setMessages([newMessage]);
+        } else {
+          setMessages(data || []);
+        }
       } catch (error) {
         toast({
           title: "Error loading chat history",
@@ -89,7 +113,7 @@ export const GameChat = ({
     };
     
     fetchMessages();
-  }, [gameId, toast]);
+  }, [gameId, toast, initialMessage]);
 
   useEffect(() => {
     if (loading) {
@@ -215,10 +239,12 @@ export const GameChat = ({
       message: message.trim(),
       created_at: new Date().toISOString(),
       image_url: imageUrl,
-      model_type: modelType
+      model_type: modelType,
+      isLoading: true
     };
     
     setMessages(prev => [...prev, tempMessage]);
+    scrollToBottom();
     
     const currentMessage = message.trim();
     const currentImageUrl = imageUrl;
@@ -261,7 +287,7 @@ export const GameChat = ({
       updateTerminalOutput("> Message saved successfully", true);
       
       setMessages(prev => 
-        prev.map(msg => msg.id === tempId ? insertedMessage : msg)
+        prev.map(msg => msg.id === tempId ? {...insertedMessage, isLoading: true} : msg)
       );
       
       console.log("Calling process-game-update function...");
@@ -527,6 +553,7 @@ export const GameChat = ({
           
         if (updatedMessages) {
           setMessages(updatedMessages);
+          scrollToBottom();
         }
         
         if (onTerminalStatusChange) {
@@ -542,6 +569,11 @@ export const GameChat = ({
         
       } catch (fetchError) {
         console.error("Fetch error:", fetchError);
+        setMessages(prev => 
+          prev.map(msg => 
+            msg.id === insertedMessage.id ? { ...msg, isLoading: false, response: "Error: Failed to process" } : msg
+          )
+        );
         throw new Error(`Failed to connect to AI service: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
       }
     } catch (error) {
@@ -575,10 +607,6 @@ export const GameChat = ({
     
     try {
       await onRevertToVersion(message);
-      toast({
-        title: "Version restored",
-        description: `Reverted to the version created after this message.`
-      });
     } catch (error) {
       toast({
         title: "Error reverting version",
@@ -632,14 +660,22 @@ export const GameChat = ({
                   </div>
                 )}
               </div>
-              {msg.response && (
+              {msg.response || msg.isLoading ? (
                 <div className="bg-gray-50 p-3 rounded-lg ml-4">
-                  <p className="text-gray-800">{msg.response}</p>
+                  {msg.isLoading ? (
+                    <div className="flex items-center space-x-2">
+                      <Loader2 size={14} className="animate-spin text-gray-400" />
+                      <p className="text-gray-500">Processing request...</p>
+                    </div>
+                  ) : (
+                    <p className="text-gray-800">{msg.response}</p>
+                  )}
                 </div>
-              )}
+              ) : null}
             </div>
           ))
         )}
+        <div ref={messagesEndRef} />
       </div>
 
       <form onSubmit={handleSubmit} className="p-4 border-t relative flex-shrink-0">

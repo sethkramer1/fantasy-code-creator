@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +39,7 @@ const Play = () => {
     "> Creating your design based on your prompt..."
   ]);
   const [thinkingTime, setThinkingTime] = useState(0);
+  const [initialPrompt, setInitialPrompt] = useState<string>("");
   const thinkingTimerRef = useRef<NodeJS.Timeout>();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const generationStartedRef = useRef(false);
@@ -382,6 +384,7 @@ const Play = () => {
       const { data, error } = await supabase.from('games').select(`
           id,
           current_version,
+          prompt,
           game_versions (
             id,
             version_number,
@@ -392,6 +395,9 @@ const Play = () => {
         `).eq('id', id).single();
       if (error) throw error;
       if (!data) throw new Error("Content not found");
+      
+      // Store the initial prompt for the GameChat component
+      setInitialPrompt(data.prompt);
       
       const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
       setGameVersions(sortedVersions);
@@ -619,6 +625,7 @@ const Play = () => {
               disabled={generationInProgress}
               onRevertToVersion={handleRevertToMessageVersion}
               gameVersions={gameVersions}
+              initialMessage={initialPrompt} // Pass the initial prompt to GameChat
             />
           </div>
         </div>
