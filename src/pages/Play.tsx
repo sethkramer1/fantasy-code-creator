@@ -357,11 +357,6 @@ const Play = () => {
       
       navigate(`/play/${id}`, { replace: true });
       
-      toast({
-        title: "Generation complete!",
-        description: "Your content has been generated successfully."
-      });
-      
     } catch (error) {
       console.error('Generation error:', error);
       
@@ -497,11 +492,6 @@ const Play = () => {
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
       
-      toast({
-        title: "Content updated successfully",
-        description: `Version ${newVersionNumber} has been created and set as current.`
-      });
-      
     } catch (error) {
       console.error("Error saving new version:", error);
       setShowGenerating(false);
@@ -560,11 +550,6 @@ const Play = () => {
       
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
-      
-      toast({
-        title: "Version created",
-        description: `Created version ${newVersionNumber} based on version ${version.version_number}.`
-      });
       
     } catch (error) {
       console.error("Error reverting version:", error);

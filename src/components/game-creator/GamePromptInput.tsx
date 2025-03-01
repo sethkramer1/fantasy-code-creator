@@ -37,6 +37,33 @@ export function GamePromptInput({
     }
   }, [value]);
 
+  // Handle paste events for automatically attaching images
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (!onImageUploaded) return;
+      
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            handleImageFile(file);
+            break;
+          }
+        }
+      }
+    };
+    
+    const textarea = textareaRef.current;
+    textarea?.addEventListener('paste', handlePaste);
+    
+    return () => {
+      textarea?.removeEventListener('paste', handlePaste);
+    };
+  }, [onImageUploaded]);
+
   const getPlaceholder = () => {
     const type = contentTypes.find(t => t.id === selectedType);
     
@@ -57,10 +84,7 @@ export function GamePromptInput({
     }
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
+  const handleImageFile = (file: File) => {
     if (file.size > 5 * 1024 * 1024) {
       toast({
         title: "File too large",
@@ -88,6 +112,12 @@ export function GamePromptInput({
       setIsUploading(false);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    handleImageFile(file);
   };
 
   const handleEnhancePrompt = async () => {
@@ -186,14 +216,19 @@ export function GamePromptInput({
       {/* Show uploaded image preview */}
       {imageUrl && (
         <div className="mt-3">
-          <div className="flex items-center gap-2">
-            <div className="text-sm text-gray-500">Image attached</div>
-            <button
-              onClick={onImageRemoved}
-              className="text-xs text-gray-500 hover:text-gray-700 underline"
-            >
-              Remove
-            </button>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="text-sm text-gray-500">Image attached</div>
+              <button
+                onClick={onImageRemoved}
+                className="text-xs text-gray-500 hover:text-gray-700 underline"
+              >
+                Remove
+              </button>
+            </div>
+            <div className="max-w-xs border border-gray-200 rounded-md overflow-hidden">
+              <img src={imageUrl} alt="Attached image" className="max-w-full h-auto" />
+            </div>
           </div>
         </div>
       )}
