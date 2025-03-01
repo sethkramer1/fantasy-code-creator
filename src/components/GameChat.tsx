@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -665,7 +664,7 @@ export const GameChat = ({
                       <p>Choose the model that best fits your needs:</p>
                       <ul className="mt-2 text-sm list-disc pl-4 space-y-1">
                         <li><strong>Fastest</strong>: Ideal for most edits - 5x faster to iterate with good results.</li>
-                        <li><strong>Smartest</strong>: Better for complex tasks but takes longer to generate.</li>
+                        <li><strong>Smartest</strong>: Better for complex tasks but takes longer to generate. Supports image uploads.</li>
                       </ul>
                     </TooltipContent>
                   </Tooltip>
