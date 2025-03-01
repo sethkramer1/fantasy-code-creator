@@ -2,7 +2,6 @@
 import { Loader2, Terminal, Wand2 } from "lucide-react";
 import { GameTypeSelector } from "./GameTypeSelector";
 import { GamePromptInput } from "./GamePromptInput";
-import { Switch } from "@/components/ui/switch";
 
 interface GenerationFormProps {
   gameType: string;
@@ -57,35 +56,41 @@ export function GenerationForm({
           <div className="space-y-3">
             <p className="font-medium text-gray-700">Model preference</p>
             <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
-              <div className="flex items-center gap-3 flex-1">
-                <div className={`p-2.5 rounded-lg ${modelType === "smart" ? 'bg-black text-white' : 'bg-gray-100'}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                    <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4Z"></path>
-                    <circle cx="12" cy="14" r="2"></circle>
-                    <path d="M12 12v0"></path>
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <h3 className="font-medium">Smartest</h3>
-                  <p className="text-xs text-gray-500">Higher quality</p>
-                </div>
-              </div>
-              
-              <Switch
-                checked={modelType === "fast"}
-                onCheckedChange={() => setModelType(modelType === "smart" ? "fast" : "smart")}
-              />
-              
-              <div className="flex items-center gap-3 flex-1">
-                <div className={`p-2.5 rounded-lg ${modelType === "fast" ? 'bg-black text-white' : 'bg-gray-100'}`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <h3 className="font-medium">Fastest</h3>
-                  <p className="text-xs text-gray-500">Quick response</p>
-                </div>
+              {/* Pill button selection */}
+              <div className="flex w-full bg-gray-100 rounded-full p-1">
+                <button
+                  onClick={() => setModelType("smart")}
+                  className={`flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-full transition-all ${
+                    modelType === "smart" 
+                      ? "bg-black text-white shadow-sm" 
+                      : "hover:bg-gray-200"
+                  }`}
+                >
+                  <div className="p-1 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                      <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4Z"></path>
+                      <circle cx="12" cy="14" r="2"></circle>
+                      <path d="M12 12v0"></path>
+                    </svg>
+                  </div>
+                  <span className="font-medium">Smartest</span>
+                </button>
+                
+                <button
+                  onClick={() => setModelType("fast")}
+                  className={`flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-full transition-all ${
+                    modelType === "fast" 
+                      ? "bg-black text-white shadow-sm" 
+                      : "hover:bg-gray-200"
+                  }`}
+                >
+                  <div className="p-1 rounded-lg">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                    </svg>
+                  </div>
+                  <span className="font-medium">Fastest</span>
+                </button>
               </div>
             </div>
           </div>
