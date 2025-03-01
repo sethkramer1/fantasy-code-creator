@@ -1,7 +1,7 @@
 
 import { Timer } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 interface GenerationTerminalProps {
   open: boolean;
@@ -23,7 +23,6 @@ export function GenerationTerminal({
   const terminalRef = useRef<HTMLDivElement>(null);
   const scrollAnchorRef = useRef<HTMLDivElement>(null);
   const previousOutputLength = useRef<number>(0);
-  const [loadingDots, setLoadingDots] = useState('');
 
   // Enhanced auto-scroll to bottom whenever output changes
   useEffect(() => {
@@ -60,36 +59,6 @@ export function GenerationTerminal({
       });
     }
   }, [output]); // React to output changes
-
-  // Animate loading dots
-  useEffect(() => {
-    if (loading) {
-      const interval = setInterval(() => {
-        setLoadingDots(prev => {
-          if (prev.length >= 3) return '';
-          return prev + '.';
-        });
-      }, 500);
-      return () => clearInterval(interval);
-    } else {
-      setLoadingDots('');
-    }
-  }, [loading]);
-
-  // Get a random "writing" message
-  const getWritingMessage = () => {
-    const messages = [
-      "Writing code...",
-      "Crafting HTML...",
-      "Building components...",
-      "Implementing layout...",
-      "Creating styles...",
-      "Coding functionality...",
-      "Designing interface...",
-      "Constructing elements..."
-    ];
-    return messages[Math.floor(Math.random() * messages.length)];
-  };
 
   // Process output lines to better format code blocks
   const processedOutput = output.map(line => {
@@ -132,8 +101,8 @@ export function GenerationTerminal({
             </div>
             
             {loading && (
-              <div className="mt-2">
-                <span className="text-green-500">{getWritingMessage()}{loadingDots}</span>
+              <div className="animate-pulse mt-2">
+                <span className="text-green-500">_</span>
               </div>
             )}
             
@@ -168,8 +137,8 @@ export function GenerationTerminal({
             </div>
             
             {loading && (
-              <div className="mt-2">
-                <span className="text-green-500">{getWritingMessage()}{loadingDots}</span>
+              <div className="animate-pulse mt-2">
+                <span className="text-green-500">_</span>
               </div>
             )}
             
