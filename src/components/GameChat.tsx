@@ -74,10 +74,7 @@ export const GameChat = ({
   }, [gameId, toast]);
 
   useEffect(() => {
-    console.log("Timer effect triggered. Loading:", loading);
-    
     if (loading) {
-      console.log("Starting thinking timer");
       setThinkingTime(0);
       
       if (timerRef.current) {
@@ -86,14 +83,9 @@ export const GameChat = ({
       }
       
       timerRef.current = setInterval(() => {
-        setThinkingTime(prev => {
-          const newTime = prev + 1;
-          console.log("Thinking time incremented to:", newTime);
-          return newTime;
-        });
+        setThinkingTime(prev => prev + 1);
       }, 1000);
     } else {
-      console.log("Clearing thinking timer");
       if (timerRef.current) {
         clearInterval(timerRef.current);
         timerRef.current = null;
@@ -110,7 +102,6 @@ export const GameChat = ({
 
   useEffect(() => {
     if (onTerminalStatusChange && loading) {
-      console.log("Notifying parent of time update:", thinkingTime);
       onTerminalStatusChange(true, terminalOutput, thinkingTime, loading);
     }
   }, [thinkingTime, terminalOutput, loading, onTerminalStatusChange]);
@@ -287,216 +278,195 @@ export const GameChat = ({
         ? 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update-with-groq'
         : 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update';
       
-      const apiResponse = await fetch(apiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
-        },
-        body: JSON.stringify(payload)
-      });
+      updateTerminalOutput(`> Connecting to ${currentModelType === "fast" ? "Groq" : "Anthropic"} API...`, true);
       
-      if (!apiResponse.ok) {
-        const errorText = await apiResponse.text();
-        try {
-          const errorJson = JSON.parse(errorText);
-          throw new Error(`HTTP error! status: ${apiResponse.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
-        } catch (e) {
-          throw new Error(`HTTP error! status: ${apiResponse.status}, response: ${errorText.substring(0, 100)}...`);
-        }
-      }
-      
-      console.log("Response received, processing...");
-      updateTerminalOutput("> Response received, generating content...", true);
-      
-      let content = '';
-      let combinedResponse = '';
-      let totalChunks = 0;
-      
-      const reader = apiResponse.body?.getReader();
-      if (!reader) throw new Error("Unable to read response stream");
-      
-      let buffer = '';
-      let currentLineContent = '';
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) {
-          console.log("Stream complete, received chunks:", totalChunks);
-          break;
+      try {
+        const apiResponse = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!apiResponse.ok) {
+          const errorText = await apiResponse.text();
+          console.error("API response error:", apiResponse.status, errorText);
+          throw new Error(`API error (${apiResponse.status}): ${errorText.substring(0, 200)}`);
         }
         
-        totalChunks++;
-        const chunk = new TextDecoder().decode(value);
-        buffer += chunk;
-        console.log(`Received chunk #${totalChunks}, size: ${chunk.length}, buffer size: ${buffer.length}`);
+        console.log("API connection established, processing response...");
+        updateTerminalOutput("> Connection established, receiving content...", true);
         
-        if (chunk.length > 0) {
-          console.log("Chunk sample:", chunk.substring(0, Math.min(200, chunk.length)));
-        }
+        const reader = apiResponse.body?.getReader();
+        if (!reader) throw new Error("Unable to read response stream");
         
-        let lineEnd;
-        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, lineEnd);
-          buffer = buffer.slice(lineEnd + 1);
+        let content = '';
+        let combinedResponse = '';
+        let totalChunks = 0;
+        let buffer = '';
+        let currentLineContent = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
           
-          if (!line) continue;
-          
-          console.log("Processing line:", line.substring(0, Math.min(100, line.length)));
-          
-          if (line.startsWith('data: ')) {
-            try {
-              const parsedData = JSON.parse(line.slice(5));
-              console.log("Anthropic data type:", parsedData.type);
-              
-              if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
-                const contentChunk = parsedData.delta.text || '';
-                if (contentChunk) {
-                  content += contentChunk;
-                  combinedResponse += contentChunk;
-                  console.log("Added Anthropic content chunk, length:", contentChunk.length);
-                  
-                  if (contentChunk.includes('\n')) {
-                    const lines = contentChunk.split('\n');
-                    if (lines[0]) {
-                      currentLineContent += lines[0];
-                      updateTerminalOutput(`> ${currentLineContent}`, false);
-                    }
-                    
-                    for (let i = 1; i < lines.length - 1; i++) {
-                      if (lines[i].trim()) {
-                        currentLineContent = lines[i];
-                        updateTerminalOutput(`> ${currentLineContent}`, true);
-                      }
-                    }
-                    
-                    if (lines.length > 1) {
-                      currentLineContent = lines[lines.length - 1];
-                      if (currentLineContent) {
-                        updateTerminalOutput(`> ${currentLineContent}`, true);
-                      } else {
-                        currentLineContent = '';
-                      }
-                    }
-                  } else {
-                    currentLineContent += contentChunk;
-                    updateTerminalOutput(`> ${currentLineContent}`, false);
-                  }
-                }
-              } else if (parsedData.type === 'thinking') {
-                const thinking = parsedData.thinking || '';
-                if (thinking && thinking.trim()) {
-                  updateTerminalOutput(`> Thinking: ${thinking}`, true);
-                }
-              } else if (parsedData.delta?.type === 'thinking_delta') {
-                const thinking = parsedData.delta.thinking || '';
-                if (thinking && thinking.trim()) {
-                  updateTerminalOutput(`> Thinking: ${thinking}`, true);
-                }
-              } else if (parsedData.type === 'message_delta' && parsedData.delta?.stop_reason) {
-                updateTerminalOutput(`> Content generation ${parsedData.delta.stop_reason}`, true);
-              } else if (parsedData.type === 'message_stop') {
-                updateTerminalOutput("> Content generation completed!", true);
-              } else if (parsedData.type) {
-                updateTerminalOutput(`> Event: ${parsedData.type}`, true);
-              }
-            } catch (e) {
-              console.warn("Error parsing Anthropic data:", e);
-              console.log("Raw data that failed to parse:", line.slice(5));
-            }
-          } else {
-            try {
-              const parsedData = JSON.parse(line);
-              console.log("Parsed Groq data with keys:", Object.keys(parsedData));
-              
-              if (parsedData.choices && parsedData.choices[0]?.delta?.content) {
-                const contentChunk = parsedData.choices[0].delta.content;
-                if (contentChunk) {
-                  content += contentChunk;
-                  combinedResponse += contentChunk;
-                  console.log("Added Groq content chunk, length:", contentChunk.length);
-                  
-                  if (contentChunk.includes('\n')) {
-                    const lines = contentChunk.split('\n');
-                    if (lines[0]) {
-                      currentLineContent += lines[0];
-                      updateTerminalOutput(`> ${currentLineContent}`, false);
-                    }
-                    
-                    for (let i = 1; i < lines.length - 1; i++) {
-                      if (lines[i].trim()) {
-                        currentLineContent = lines[i];
-                        updateTerminalOutput(`> ${currentLineContent}`, true);
-                      }
-                    }
-                    
-                    if (lines.length > 1) {
-                      currentLineContent = lines[lines.length - 1];
-                      if (currentLineContent) {
-                        updateTerminalOutput(`> ${currentLineContent}`, true);
-                      } else {
-                        currentLineContent = '';
-                      }
-                    }
-                  } else {
-                    currentLineContent += contentChunk;
-                    updateTerminalOutput(`> ${currentLineContent}`, false);
-                  }
-                }
-              } 
-              else if (parsedData.choices && parsedData.choices[0]?.finish_reason) {
-                updateTerminalOutput(`> Generation ${parsedData.choices[0].finish_reason}`, true);
-              }
-            } catch (e) {
-              console.log("Failed to parse as JSON, might be partial chunk:", line.substring(0, 50) + (line.length > 50 ? "..." : ""));
-            }
+          if (done) {
+            console.log("Stream complete after", totalChunks, "chunks");
+            break;
           }
-        }
-      }
-      
-      console.log("Total chunks received:", totalChunks);
-      console.log("Combined response length:", combinedResponse.length);
-      
-      if (combinedResponse.length > 0) {
-        console.log("Combined response sample:", combinedResponse.substring(0, 200));
-      } else {
-        console.error("No combined response content!");
-      }
-
-      if (!content || content.trim().length === 0) {
-        console.error("Empty content received");
-        throw new Error("No content received from AI. Please try again.");
-      }
-
-      updateTerminalOutput("> Processing received content...", true);
-      console.log("Processing content of length:", content.length);
-      
-      if (currentModelType === "fast") {
-        console.log("Processing Groq content");
-        
-        if (content.includes("```html")) {
-          console.log("Found HTML code block, extracting...");
-          const htmlMatch = content.match(/```html\s*([\s\S]*?)```/);
-          if (htmlMatch && htmlMatch[1] && htmlMatch[1].trim().length > 0) {
-            content = htmlMatch[1].trim();
-            console.log("Extracted HTML from code block, length:", content.length);
-            updateTerminalOutput("> Extracted HTML from code block", true);
-          }
-        }
-        
-        const isHtmlContent = content.includes('<html') || 
-                             content.includes('<!DOCTYPE') || 
-                             (content.includes('<body') && content.includes('</body>'));
-        
-        if (!isHtmlContent) {
-          updateTerminalOutput("> Content is not complete HTML, adding structure...", true);
           
-          if (content.includes('<') && content.includes('>') && 
-              (content.includes('<div') || content.includes('<p') || content.includes('<span'))) {
-            console.log("Found HTML elements but not full document, wrapping...");
-            updateTerminalOutput("> Found HTML elements, wrapping in document...", true);
+          totalChunks++;
+          const chunk = new TextDecoder().decode(value);
+          buffer += chunk;
+          
+          console.log(`Received chunk #${totalChunks}, size: ${chunk.length}`);
+          if (chunk.length > 0 && totalChunks < 3) {
+            console.log("Chunk sample:", chunk.substring(0, 200));
+          }
+          
+          let lineEnd;
+          while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, lineEnd);
+            buffer = buffer.slice(lineEnd + 1);
             
-            content = `
+            if (!line) continue;
+            
+            if (line.startsWith('data: ')) {
+              try {
+                const parsedData = JSON.parse(line.slice(5));
+                
+                if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
+                  const contentChunk = parsedData.delta.text || '';
+                  if (contentChunk) {
+                    content += contentChunk;
+                    combinedResponse += contentChunk;
+                    
+                    if (contentChunk.includes('\n')) {
+                      const lines = contentChunk.split('\n');
+                      
+                      if (lines[0]) {
+                        currentLineContent += lines[0];
+                        updateTerminalOutput(`> ${currentLineContent}`, false);
+                      }
+                      
+                      for (let i = 1; i < lines.length - 1; i++) {
+                        if (lines[i].trim()) {
+                          currentLineContent = lines[i];
+                          updateTerminalOutput(`> ${currentLineContent}`, true);
+                        }
+                      }
+                      
+                      if (lines.length > 1) {
+                        currentLineContent = lines[lines.length - 1];
+                        if (currentLineContent) {
+                          updateTerminalOutput(`> ${currentLineContent}`, true);
+                        } else {
+                          currentLineContent = '';
+                        }
+                      }
+                    } else {
+                      currentLineContent += contentChunk;
+                      updateTerminalOutput(`> ${currentLineContent}`, false);
+                    }
+                  }
+                } else if (parsedData.type === 'thinking') {
+                  const thinking = parsedData.thinking || '';
+                  if (thinking && thinking.trim()) {
+                    updateTerminalOutput(`> Thinking: ${thinking}`, true);
+                  }
+                } else if (parsedData.type === 'message_stop') {
+                  updateTerminalOutput("> Content generation completed!", true);
+                }
+              } catch (e) {
+                console.warn("Error parsing Anthropic data:", e);
+              }
+            } else {
+              try {
+                const parsedData = JSON.parse(line);
+                console.log("Parsed Groq data:", parsedData);
+                
+                if (parsedData.choices && parsedData.choices[0]?.delta?.content) {
+                  const contentChunk = parsedData.choices[0].delta.content;
+                  if (contentChunk) {
+                    content += contentChunk;
+                    combinedResponse += contentChunk;
+                    console.log("Added Groq content chunk, length:", contentChunk.length);
+                    
+                    if (contentChunk.includes('\n')) {
+                      const lines = contentChunk.split('\n');
+                      
+                      if (lines[0]) {
+                        currentLineContent += lines[0];
+                        updateTerminalOutput(`> ${currentLineContent}`, false);
+                      }
+                      
+                      for (let i = 1; i < lines.length - 1; i++) {
+                        if (lines[i].trim()) {
+                          currentLineContent = lines[i];
+                          updateTerminalOutput(`> ${currentLineContent}`, true);
+                        }
+                      }
+                      
+                      if (lines.length > 1) {
+                        currentLineContent = lines[lines.length - 1];
+                        if (currentLineContent) {
+                          updateTerminalOutput(`> ${currentLineContent}`, true);
+                        } else {
+                          currentLineContent = '';
+                        }
+                      }
+                    } else {
+                      currentLineContent += contentChunk;
+                      updateTerminalOutput(`> ${currentLineContent}`, false);
+                    }
+                  }
+                } else if (parsedData.choices && parsedData.choices[0]?.finish_reason) {
+                  updateTerminalOutput(`> Generation ${parsedData.choices[0].finish_reason}`, true);
+                }
+              } catch (e) {
+                console.log("Failed to parse as JSON, might be partial chunk:", e);
+              }
+            }
+          }
+        }
+        
+        console.log("Content collection complete. Total length:", content.length);
+        
+        if (!content || content.trim().length === 0) {
+          throw new Error("No content received from AI. Please try again.");
+        }
+        
+        updateTerminalOutput("> Processing received content...", true);
+        
+        if (currentModelType === "fast") {
+          console.log("Processing Groq content");
+          
+          if (content.includes("```html")) {
+            console.log("Found HTML code block, extracting...");
+            const htmlMatch = content.match(/```html\s*([\s\S]*?)```/);
+            if (htmlMatch && htmlMatch[1] && htmlMatch[1].trim().length > 0) {
+              content = htmlMatch[1].trim();
+              console.log("Extracted HTML from code block, length:", content.length);
+              updateTerminalOutput("> Extracted HTML from code block", true);
+            }
+          }
+          
+          const isFullHtmlDocument = 
+            content.includes('<!DOCTYPE html>') || 
+            (content.includes('<html') && content.includes('</html>'));
+          
+          const hasHtmlElements = 
+            !isFullHtmlDocument && 
+            content.includes('<') && content.includes('>') &&
+            (content.includes('<div') || content.includes('<p') || content.includes('<span'));
+          
+          if (!isFullHtmlDocument) {
+            if (hasHtmlElements) {
+              console.log("Content contains HTML elements but not full document, wrapping...");
+              updateTerminalOutput("> Content contains HTML elements, wrapping in full document...", true);
+              
+              content = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -542,11 +512,11 @@ export const GameChat = ({
   </div>
 </body>
 </html>`;
-          } else {
-            console.log("Content appears to be markdown or text, converting to HTML...");
-            updateTerminalOutput("> Converting text content to HTML...", true);
-            
-            content = `
+            } else {
+              console.log("Content appears to be plain text, converting to HTML...");
+              updateTerminalOutput("> Converting plain text to HTML...", true);
+              
+              content = `
 <!DOCTYPE html>
 <html>
 <head>
@@ -603,59 +573,57 @@ export const GameChat = ({
   </div>
 </body>
 </html>`;
+            }
           }
         }
-      }
-      
-      console.log("Final content length:", content.length);
-      console.log("Final content starts with:", content.substring(0, 100));
-      
-      const validContent = content && (
-        content.includes('<html') || 
-        content.includes('<!DOCTYPE')
-      );
-      
-      if (!validContent) {
-        console.error("Invalid content structure:", content.substring(0, 200));
-        throw new Error("Invalid content received from AI. Please try again or switch models.");
-      }
-      
-      updateTerminalOutput("> Updating content in the application...", true);
-      
-      onGameUpdate(content, "Content updated successfully");
-      
-      const { error: updateError } = await supabase
-        .from('game_messages')
-        .update({ response: "Content updated successfully" })
-        .eq('id', insertedMessage.id);
-      
-      if (updateError) {
-        console.error("Error updating message response:", updateError);
-      }
-      
-      const { data: updatedMessages } = await supabase
-        .from('game_messages')
-        .select('*')
-        .eq('game_id', gameId)
-        .order('created_at', { ascending: true });
         
-      if (updatedMessages) {
-        setMessages(updatedMessages);
+        console.log("Final content length:", content.length);
+        
+        if (!content.includes('<html') && !content.includes('<!DOCTYPE')) {
+          console.error("Invalid content structure:", content.substring(0, 200));
+          throw new Error("Invalid content structure received from AI. Please try again or switch models.");
+        }
+        
+        updateTerminalOutput("> Updating content in the application...", true);
+        
+        onGameUpdate(content, "Content updated successfully");
+        
+        const { error: updateError } = await supabase
+          .from('game_messages')
+          .update({ response: "Content updated successfully" })
+          .eq('id', insertedMessage.id);
+        
+        if (updateError) {
+          console.error("Error updating message response:", updateError);
+        }
+        
+        const { data: updatedMessages } = await supabase
+          .from('game_messages')
+          .select('*')
+          .eq('game_id', gameId)
+          .order('created_at', { ascending: true });
+          
+        if (updatedMessages) {
+          setMessages(updatedMessages);
+        }
+        
+        updateTerminalOutput("> Content updated successfully!", true);
+        
+        if (onTerminalStatusChange) {
+          setTimeout(() => {
+            onTerminalStatusChange(false, [], 0, false);
+          }, 3000);
+        }
+        
+        toast({
+          title: "Content updated successfully",
+          description: "The changes have been applied successfully."
+        });
+        
+      } catch (fetchError) {
+        console.error("Fetch error:", fetchError);
+        throw new Error(`Failed to connect to AI service: ${fetchError.message}`);
       }
-      
-      updateTerminalOutput("> Content updated successfully!", true);
-      
-      if (onTerminalStatusChange) {
-        setTimeout(() => {
-          onTerminalStatusChange(false, [], 0, false);
-        }, 3000);
-      }
-      
-      toast({
-        title: "Content updated successfully",
-        description: "The changes have been applied successfully."
-      });
-      
     } catch (error) {
       console.error("Error in handleSubmit:", error);
       
