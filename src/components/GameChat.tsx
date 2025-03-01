@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, ArrowUp, Paperclip, X, Cpu } from "lucide-react";
+import { Loader2, ArrowUp, Paperclip, X, Cpu, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -9,6 +9,12 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface Message {
   id: string;
@@ -665,6 +671,22 @@ export const GameChat = ({
                 title="Select model"
               >
                 <Cpu size={20} className="hidden sm:block" />
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="cursor-help ml-1 hidden sm:inline-block">
+                        <Info size={16} className="text-gray-400 hover:text-gray-600" />
+                      </span>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs p-3">
+                      <p>Choose the model that best fits your needs:</p>
+                      <ul className="mt-2 text-sm list-disc pl-4 space-y-1">
+                        <li><strong>Fastest</strong>: Ideal for most edits - 5x faster to iterate with good results.</li>
+                        <li><strong>Smartest</strong>: Better for complex tasks but takes longer to generate.</li>
+                      </ul>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
                 <Select
                   value={modelType}
                   onValueChange={handleModelChange}
@@ -674,8 +696,27 @@ export const GameChat = ({
                     <SelectValue placeholder="Model" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="fast">Fastest</SelectItem>
-                    <SelectItem value="smart">Smartest</SelectItem>
+                    <SelectItem value="fast">
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                          <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                        </svg>
+                        <div>
+                          <span>Fastest</span>
+                          <span className="ml-2 text-xs text-green-600 font-medium">5x faster</span>
+                        </div>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="smart">
+                      <div className="flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                          <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4Z"></path>
+                          <circle cx="12" cy="14" r="2"></circle>
+                          <path d="M12 12v0"></path>
+                        </svg>
+                        <span>Smartest</span>
+                      </div>
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
