@@ -80,6 +80,32 @@ export const GameChat = ({
   }, [message]);
 
   useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      if (modelType !== "smart" || disabled) return;
+      
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      
+      for (let i = 0; i < items.length; i++) {
+        if (items[i].type.indexOf('image') !== -1) {
+          const file = items[i].getAsFile();
+          if (file) {
+            handleImageFile(file);
+            break;
+          }
+        }
+      }
+    };
+    
+    const textarea = textareaRef.current;
+    textarea?.addEventListener('paste', handlePaste);
+    
+    return () => {
+      textarea?.removeEventListener('paste', handlePaste);
+    };
+  }, [modelType, disabled]);
+
+  useEffect(() => {
     const fetchMessages = async () => {
       try {
         const { data, error } = await supabase
@@ -148,8 +174,7 @@ export const GameChat = ({
     }
   }, [thinkingTime, terminalOutput, loading, onTerminalStatusChange]);
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleImageFile = (file: File) => {
     if (!file) return;
 
     if (file.size > 5 * 1024 * 1024) {
@@ -179,6 +204,12 @@ export const GameChat = ({
       setIsUploading(false);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    handleImageFile(file);
   };
 
   const handleRemoveImage = () => {
