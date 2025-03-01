@@ -1,339 +1,339 @@
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1'
+import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
 
+// CORS headers for browser requests
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
-Deno.serve(async (req) => {
+serve(async (req) => {
+  console.log("Request content type:", req.headers.get("content-type"));
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
     return new Response(null, {
-      headers: {
-        ...corsHeaders,
-        'Access-Control-Allow-Methods': 'POST, OPTIONS'
-      }
-    })
+      headers: corsHeaders,
+      status: 204,
+    });
   }
-  
+
   try {
-    // Validate the request
-    if (req.method !== 'POST') {
-      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-        status: 405,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      })
+    // Parse request body
+    const contentType = req.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+      throw new Error(`Expected content-type: application/json but received: ${contentType}`);
     }
     
-    // Parse the request body
-    const contentType = req.headers.get('content-type') || '';
+    const requestData = await req.json();
     
-    // Log the content type for debugging
-    console.log("Request content type:", contentType);
+    // Extract request parameters
+    const { gameId, message, imageUrl, stream = true } = requestData;
     
-    if (!contentType.includes('application/json')) {
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid content type',
-          expected: 'application/json',
-          received: contentType
-        }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+    if (!gameId) {
+      throw new Error('Missing required parameter: gameId');
     }
     
-    const body = await req.json()
-    
-    // Validate required parameters
-    const { gameId, message, modelType = 'groq' } = body
-    
-    if (!gameId || !message) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required parameters: gameId and message are required' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+    if (!message && !imageUrl) {
+      throw new Error('At least one of message or imageUrl must be provided');
     }
     
-    // Get environment variables
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY') || ''
-    const groqApiKey = Deno.env.get('GROQ_API_KEY') || ''
+    // Initialize Supabase client
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
+    const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
+    const supabase = createClient(supabaseUrl, supabaseKey);
     
-    if (!supabaseUrl || !supabaseKey) {
-      return new Response(
-        JSON.stringify({ error: 'Missing Supabase credentials' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-    
-    if (!groqApiKey) {
-      return new Response(
-        JSON.stringify({ error: 'Missing Groq API key' }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-    
-    // Create Supabase client
-    const supabase = createClient(supabaseUrl, supabaseKey)
-    
-    // Get the game's code and other data
+    // Fetch the game content
     const { data: gameData, error: gameError } = await supabase
       .from('games')
-      .select('*')
+      .select('code, prompt, current_version')
       .eq('id', gameId)
-      .single()
-      
-    if (gameError) {
-      return new Response(
-        JSON.stringify({ error: 'Game not found', details: gameError }),
-        {
-          status: 404,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
+      .single();
+    
+    if (gameError || !gameData) {
+      throw new Error(`Failed to fetch game data: ${gameError?.message || 'Game not found'}`);
     }
     
-    // Get the chat history for context
-    const { data: chatHistory, error: chatError } = await supabase
-      .from('game_messages')
-      .select('*')
-      .eq('game_id', gameId)
-      .order('created_at', { ascending: true })
-      .limit(10)
-      
-    if (chatError) {
-      return new Response(
-        JSON.stringify({ error: 'Failed to retrieve chat history', details: chatError }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
+    // Create a streaming response
+    const encoder = new TextEncoder();
+    const responseStream = new TransformStream();
+    const writer = responseStream.writable.getWriter();
     
-    // Prepare conversation history
-    const chatContext = chatHistory.map(msg => {
-      return {
-        role: 'user',
-        content: msg.message,
-        ...(msg.response ? { response: msg.response } : {})
-      }
-    }).slice(0, -1) // Exclude the latest message since we'll add it separately
-    
-    const currentCode = gameData.code || ''
-    
-    // Prepare prompt for Groq
-    const systemPrompt = `You are an expert web development AI assistant who can make changes to a game or web application's code. You will receive a current codebase and a user request to modify it.
-
-IMPORTANT OUTPUT FORMAT:
-You should respond with a single HTML document that contains the complete updated code. 
-This should be a full HTML file starting with <!DOCTYPE html> and containing all necessary CSS and JavaScript.
-Do not add any explanations, markdown formatting, or code blocks.
-Simply return the raw HTML code that should be rendered.
-
-Suggestions for creating high-quality HTML content:
-- Make sure your HTML, CSS and JavaScript are valid
-- Include viewport meta tags for responsive design
-- Use semantic HTML
-- Make designs responsive with mobile-first approach
-- Include comments to explain complex logic
-- Don't make up image URLs - use placeholder services if needed
-- Use SVG or emoji for icons where possible
-- Ensure proper indentation for readability
-- Test interactive elements and ensure they work
-- Clean up any unused CSS or JavaScript
-- Focus on modern, visually appealing design
-- Ensure content is appropriately sized for the container
-
-CURRENT CODE:
-${currentCode}
-
-USER REQUEST:
-${message}
-
-Analyze the current code carefully and apply the requested changes while maintaining overall functionality.`
-
-    const stream = body.stream === true
-
-    console.log("Making request to Groq API...")
-    console.log(`Stream mode: ${stream ? 'enabled' : 'disabled'}`)
-    
-    // Make the request to the Groq API
-    const groqRequest = {
-      model: "mixtral-8x7b-32768",
-      messages: [
-        {
-          role: "system",
-          content: systemPrompt
-        }
-      ],
-      stream: stream,
-      max_tokens: 32768,
-      temperature: 0.5
-    }
-    
-    console.log("Groq request prepared:", JSON.stringify(groqRequest).substring(0, 200) + "...")
-    
-    const groqResponse = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${groqApiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(groqRequest)
-    })
-    
-    if (!groqResponse.ok) {
-      const errorText = await groqResponse.text()
-      console.error("Groq API error:", groqResponse.status, errorText)
-      
-      return new Response(
-        JSON.stringify({ 
-          error: 'Groq API error', 
-          status: groqResponse.status,
-          details: errorText
-        }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-    
-    console.log("Groq API response received, status:", groqResponse.status)
-    
-    // For streaming responses
-    if (stream) {
-      // Initialize a TransformStream
-      const encoder = new TextEncoder()
-      const decoder = new TextDecoder()
-      
-      // Set up streaming
-      const { readable, writable } = new TransformStream()
-      const writer = writable.getWriter()
-      
-      // Process the stream
-      const processStream = async () => {
+    // Start the AI request in the background
+    processWithGroq(gameData, message, imageUrl, writer, stream)
+      .catch(async (error) => {
+        console.error('Error in AI processing:', error);
         try {
-          const reader = groqResponse.body?.getReader()
-          if (!reader) {
-            throw new Error("No reader available from Groq response")
-          }
-          
-          console.log("Processing Groq stream...")
-          
-          while (true) {
-            const { done, value } = await reader.read()
-            
-            if (done) {
-              console.log("Stream complete")
-              await writer.close()
-              break
-            }
-            
-            const chunk = decoder.decode(value, {stream: true})
-            console.log("Chunk received, size:", chunk.length)
-            
-            // Groq returns newline-delimited JSON
-            const lines = chunk.split('\n').filter(line => line.trim())
-            
-            for (const line of lines) {
-              if (line.includes('data: [DONE]')) {
-                continue
-              }
-              
-              try {
-                // Forward the raw line as-is
-                await writer.write(encoder.encode(line + '\n'))
-              } catch (e) {
-                console.error("Error processing line:", e)
-              }
-            }
-          }
-        } catch (error) {
-          console.error("Stream processing error:", error)
+          // Send error message to the client
           const errorMsg = JSON.stringify({
-            error: 'Stream processing error',
-            message: error instanceof Error ? error.message : String(error)
-          })
-          await writer.write(encoder.encode(errorMsg))
-          await writer.close()
+            error: true,
+            message: `Error: ${error.message || 'Unknown error in AI processing'}`
+          });
+          await writer.write(encoder.encode(errorMsg + '\n'));
+        } catch (e) {
+          console.error('Error sending error message to client:', e);
+        } finally {
+          await writer.close();
         }
-      }
-      
-      // Start processing in the background
-      processStream()
-      
-      // Return the stream to the client
-      return new Response(readable, {
-        headers: { 
-          ...corsHeaders,
-          'Content-Type': 'text/event-stream',
-          'Cache-Control': 'no-cache',
-          'Connection': 'keep-alive'
-        }
-      })
-    } else {
-      // Non-streaming mode
-      const data = await groqResponse.json()
-      
-      const htmlContent = data.choices[0].message.content
-      
-      // Update the game with the new content
-      const { error: updateError } = await supabase
-        .from('games')
-        .update({ code: htmlContent })
-        .eq('id', gameId)
-        
-      if (updateError) {
-        return new Response(
-          JSON.stringify({ error: 'Failed to update game', details: updateError }),
-          { 
-            status: 500,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        )
-      }
-      
-      // Return the success response
-      return new Response(
-        JSON.stringify({ 
-          success: true,
-          content: htmlContent
-        }),
-        { 
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
+      });
+    
+    // Return the stream to the client
+    return new Response(responseStream.readable, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
     
   } catch (error) {
-    console.error("Unhandled error:", error)
-    
+    console.error('Request error:', error);
     return new Response(
-      JSON.stringify({ 
-        error: 'Unhandled error',
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
+      JSON.stringify({
+        error: true,
+        message: error instanceof Error ? error.message : 'Unknown error processing request',
       }),
-      { 
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'application/json',
+        },
+        status: 400,
       }
-    )
+    );
   }
-})
+});
+
+async function processWithGroq(
+  gameData: { code: string; prompt: string; current_version: number },
+  message: string,
+  imageUrl: string | undefined,
+  writer: WritableStreamDefaultWriter<Uint8Array>,
+  stream: boolean
+) {
+  const encoder = new TextEncoder();
+  
+  try {
+    // Prepare the system prompt with context about the game
+    const systemPrompt = `You are an expert web developer specializing in HTML, CSS, and JavaScript. Help the user modify their interactive web content based on their requests.
+    
+Current web content:
+\`\`\`html
+${gameData.code.substring(0, 7500)}
+... [content truncated for brevity] ...
+\`\`\`
+
+Original prompt that created this content: "${gameData.prompt}"
+
+Instructions:
+1. Understand the user's request and make appropriate changes to the HTML/CSS/JS code.
+2. Always provide the complete updated code as an HTML file that can run standalone.
+3. Ensure your updates are fully functional and maintain or improve the existing design.
+4. If the request is unclear, make your best judgment for the changes.
+5. Only add functionality described in the user's message. Do not add anything extra.`;
+
+    let userPrompt = message;
+    
+    if (imageUrl) {
+      userPrompt = `I'm sharing a screenshot/image for reference. ${message}`;
+    }
+    
+    // Construct the request to Groq
+    const messages = [
+      { 
+        role: "system", 
+        content: systemPrompt
+      },
+      { 
+        role: "user", 
+        content: [
+          { type: "text", text: userPrompt },
+        ]
+      }
+    ];
+    
+    // Add image to user message if provided
+    if (imageUrl) {
+      messages[1].content.push({
+        type: "image_url",
+        image_url: { url: imageUrl }
+      });
+    }
+    
+    const groqRequest = {
+      messages: messages,
+      model: "mixtral-8x7b-32768",
+      temperature: 0.7,
+      max_tokens: 32000,
+      top_p: 1,
+      stream: true, // Always stream for better UX
+      stop: null
+    };
+    
+    // Get GROQ API key
+    const GROQ_API_KEY = Deno.env.get('GROQ_API_KEY');
+    if (!GROQ_API_KEY) {
+      throw new Error('GROQ_API_KEY environment variable is not set');
+    }
+    
+    // Call the Groq API
+    console.log("Calling Groq API with streaming:", stream);
+    
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${GROQ_API_KEY}`
+      },
+      body: JSON.stringify(groqRequest)
+    });
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API error (${response.status}): ${errorText}`);
+    }
+    
+    if (!response.body) {
+      throw new Error("Response body is null");
+    }
+    
+    // Process the streaming response
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    
+    let completeResponse = '';
+    let buffer = '';
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          console.log("Stream complete");
+          break;
+        }
+        
+        // Decode the chunk and add to buffer
+        const chunk = decoder.decode(value, { stream: true });
+        buffer += chunk;
+        
+        // Process complete lines from buffer
+        let lineEnd;
+        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, lineEnd);
+          buffer = buffer.slice(lineEnd + 1);
+          
+          if (!line || line.trim() === '') continue;
+          
+          try {
+            // Parse the line as JSON (Groq format)
+            const data = JSON.parse(line);
+            
+            // Extract content from Groq response (if available)
+            if (data.choices && data.choices[0]?.delta?.content) {
+              const content = data.choices[0].delta.content;
+              completeResponse += content;
+              
+              // Stream the chunk to the client
+              if (stream) {
+                await writer.write(encoder.encode(line + '\n'));
+              }
+            }
+            
+            // Check for completion
+            if (data.choices && data.choices[0]?.finish_reason) {
+              console.log(`Generation ${data.choices[0].finish_reason}`);
+            }
+          } catch (e) {
+            console.warn('Error parsing JSON:', e);
+            console.log('Raw line:', line);
+          }
+        }
+      }
+      
+      // Send any remaining buffer if not empty
+      if (buffer.trim().length > 0) {
+        try {
+          const data = JSON.parse(buffer);
+          if (data.choices && data.choices[0]?.delta?.content) {
+            const content = data.choices[0].delta.content;
+            completeResponse += content;
+            
+            if (stream) {
+              await writer.write(encoder.encode(buffer + '\n'));
+            }
+          }
+        } catch (e) {
+          console.warn('Error parsing remaining buffer:', e);
+        }
+      }
+      
+      console.log("Received complete response, length:", completeResponse.length);
+      
+      // If not streaming, send the complete response at once
+      if (!stream && completeResponse) {
+        const finalResponse = {
+          choices: [{
+            message: { content: completeResponse },
+            finish_reason: "stop"
+          }]
+        };
+        await writer.write(encoder.encode(JSON.stringify(finalResponse) + '\n'));
+      }
+      
+      // Update game version in Supabase
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') as string;
+      const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') as string;
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      
+      // Extract HTML content
+      let htmlContent = completeResponse;
+      
+      // Check if the response contains a code block
+      if (htmlContent.includes('```html')) {
+        const match = htmlContent.match(/```html\s*([\s\S]*?)```/);
+        if (match && match[1]) {
+          htmlContent = match[1].trim();
+        }
+      }
+      
+      // Create a new version of the game
+      const newVersionNumber = gameData.current_version + 1;
+      
+      // First, update the games table with new current_version
+      const { error: gameUpdateError } = await supabase
+        .from('games')
+        .update({ current_version: newVersionNumber, code: htmlContent })
+        .eq('id', gameId);
+      
+      if (gameUpdateError) {
+        throw new Error(`Failed to update game: ${gameUpdateError.message}`);
+      }
+      
+      // Then create a new version record
+      const { error: versionError } = await supabase
+        .from('game_versions')
+        .insert([{
+          game_id: gameId,
+          version_number: newVersionNumber,
+          code: htmlContent,
+          instructions: "Updated via Groq API"
+        }]);
+      
+      if (versionError) {
+        throw new Error(`Failed to create version: ${versionError.message}`);
+      }
+      
+      console.log(`Successfully updated game to version ${newVersionNumber}`);
+      
+    } finally {
+      // Always close the writer when done
+      await writer.close();
+    }
+  } catch (error) {
+    console.error('Error in processWithGroq:', error);
+    throw error;
+  }
+}

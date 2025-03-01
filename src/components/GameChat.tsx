@@ -275,6 +275,7 @@ export const GameChat = ({
       
       console.log("Request payload:", payload);
       
+      // Select appropriate API endpoint based on model type
       const apiUrl = currentModelType === "fast" 
         ? 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update-with-groq'
         : 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update';
@@ -282,7 +283,7 @@ export const GameChat = ({
       updateTerminalOutput(`> Connecting to ${currentModelType === "fast" ? "Groq" : "Anthropic"} API...`, true);
       
       try {
-        // Here's the fix: Ensure the Content-Type header is explicitly set to application/json
+        // Ensure Content-Type header is explicitly set to application/json
         const apiResponse = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -335,6 +336,7 @@ export const GameChat = ({
             if (!line) continue;
             
             if (line.startsWith('data: ')) {
+              // Anthropic format
               try {
                 const parsedData = JSON.parse(line.slice(5));
                 
@@ -384,10 +386,12 @@ export const GameChat = ({
                 console.warn("Error parsing Anthropic data:", e);
               }
             } else {
+              // This should be Groq format
               try {
                 const parsedData = JSON.parse(line);
                 console.log("Parsed Groq data:", parsedData);
                 
+                // Handle Groq format (based on their streaming API)
                 if (parsedData.choices && parsedData.choices[0]?.delta?.content) {
                   const contentChunk = parsedData.choices[0].delta.content;
                   if (contentChunk) {
@@ -441,9 +445,11 @@ export const GameChat = ({
         
         updateTerminalOutput("> Processing received content...", true);
         
+        // Process content based on model type
         if (currentModelType === "fast") {
           console.log("Processing Groq content");
           
+          // Extract HTML from code block if present
           if (content.includes("```html")) {
             console.log("Found HTML code block, extracting...");
             const htmlMatch = content.match(/```html\s*([\s\S]*?)```/);
@@ -454,6 +460,7 @@ export const GameChat = ({
             }
           }
           
+          // Check if content is already a full HTML document or needs to be wrapped
           const isFullHtmlDocument = 
             content.includes('<!DOCTYPE html>') || 
             (content.includes('<html') && content.includes('</html>'));
