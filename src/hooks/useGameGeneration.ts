@@ -255,7 +255,6 @@ ENSURE INTERACTION CAPABILITIES:
 - Users should be able to scroll the content if it extends beyond the viewport
 - All interactive elements (buttons, links, inputs) should be clickable and functional
 - Touch events should work properly on the content within the frame
-- Do not add any elements that block or prevent interaction with the content
 - Test that the scrolling works by adding sufficient content to require scrolling
 - Make sure to use proper overflow settings to enable scrolling
 `;
@@ -284,7 +283,9 @@ ENSURE INTERACTION CAPABILITIES:
       let response;
       
       if (modelType === "fast") {
-        // Use Groq API for "fast" model
+        // Use Groq API for "fast" model - now with non-streaming mode
+        setTerminalOutput(prev => [...prev, `> Using non-streaming mode for Groq API...`]);
+        
         response = await fetch(
           'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-with-groq',
           {
@@ -297,12 +298,106 @@ ENSURE INTERACTION CAPABILITIES:
               prompt: finalPrompt,
               imageUrl: imageUrl,
               contentType: gameType,
-              stream: true // Enable streaming for Groq
+              stream: false // Disable streaming for Groq
             }),
           }
         );
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
+          } catch (e) {
+            throw new Error(`HTTP error! status: ${response.status}, response: ${errorText.substring(0, 100)}...`);
+          }
+        }
+        
+        setTerminalOutput(prev => [...prev, `> Received complete response from Groq API`]);
+        
+        // Process the complete response from Groq
+        const responseData = await response.json();
+        
+        if (responseData && responseData.content) {
+          gameContent = responseData.content;
+          setTerminalOutput(prev => [...prev, `> Successfully extracted content from Groq response`]);
+          
+          // Check if the content is HTML or needs to be processed
+          if (gameContent.includes("```html")) {
+            setTerminalOutput(prev => [...prev, `> Extracting HTML from code block...`]);
+            const htmlMatch = gameContent.match(/```html\s*([\s\S]*?)```/);
+            if (htmlMatch && htmlMatch[1] && htmlMatch[1].trim().length > 0) {
+              gameContent = htmlMatch[1].trim();
+              setTerminalOutput(prev => [...prev, `> Successfully extracted HTML from code block`]);
+            }
+          }
+          
+          // Ensure content is properly formatted as HTML
+          if (!gameContent.includes('<html') && !gameContent.includes('<!DOCTYPE')) {
+            setTerminalOutput(prev => [...prev, `> Wrapping content in HTML document structure...`]);
+            
+            // If it contains HTML elements but not a full document
+            if (gameContent.includes('<') && gameContent.includes('>') &&
+                (gameContent.includes('<div') || gameContent.includes('<p') || gameContent.includes('<span'))) {
+              
+              gameContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generated Content</title>
+  <style>
+    body { font-family: system-ui, sans-serif; line-height: 1.6; margin: 0; padding: 20px; }
+    pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
+    code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="content">
+    ${gameContent}
+  </div>
+</body>
+</html>`;
+            } else {
+              // If it's plain text
+              gameContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generated Content</title>
+  <style>
+    body { font-family: system-ui, sans-serif; line-height: 1.6; margin: 0; padding: 20px; }
+    pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
+    code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
+  </style>
+</head>
+<body>
+  <div class="content">
+    ${gameContent
+      .split('\n')
+      .map(line => {
+        if (line.trim().length === 0) return '';
+        if (line.startsWith('#')) {
+          const level = line.match(/^#+/)[0].length;
+          const text = line.replace(/^#+\s*/, '');
+          return `<h${level}>${text}</h${level}>`;
+        }
+        return `<p>${line}</p>`;
+      })
+      .join('\n')}
+  </div>
+</body>
+</html>`;
+            }
+          }
+        } else {
+          throw new Error("No valid content in Groq response");
+        }
       } else {
-        // Use default Anthropic API for "smart" model
+        // Use default Anthropic API for "smart" model - keep streaming
         response = await fetch(
           'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
           {
@@ -318,240 +413,151 @@ ENSURE INTERACTION CAPABILITIES:
             }),
           }
         );
-      }
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        try {
-          const errorJson = JSON.parse(errorText);
-          throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
-        } catch (e) {
-          throw new Error(`HTTP error! status: ${response.status}, response: ${errorText.substring(0, 100)}...`);
-        }
-      }
-
-      setTerminalOutput(prev => [...prev, `> Connected to generation service, receiving stream...`]);
-
-      const reader = response.body?.getReader();
-      if (!reader) throw new Error("No reader available");
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        totalChunks++;
-        // Decode the chunk and add it to our buffer
-        const text = new TextDecoder().decode(value);
-        buffer += text;
         
-        console.log("Received chunk size:", text.length, "Buffer size:", buffer.length);
-        if (text.length > 0) {
-          console.log("Chunk sample:", text.substring(0, Math.min(100, text.length)));
+        if (!response.ok) {
+          const errorText = await response.text();
+          try {
+            const errorJson = JSON.parse(errorText);
+            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
+          } catch (e) {
+            throw new Error(`HTTP error! status: ${response.status}, response: ${errorText.substring(0, 100)}...`);
+          }
         }
-        
-        // Process complete lines from the buffer
-        let lineEnd;
-        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, lineEnd);
-          buffer = buffer.slice(lineEnd + 1);
+
+        setTerminalOutput(prev => [...prev, `> Connected to generation service, receiving stream...`]);
+
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No reader available");
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          totalChunks++;
+          // Decode the chunk and add it to our buffer
+          const text = new TextDecoder().decode(value);
+          buffer += text;
           
-          // Skip empty lines
-          if (!line) continue;
+          console.log("Received chunk size:", text.length, "Buffer size:", buffer.length);
+          if (text.length > 0) {
+            console.log("Chunk sample:", text.substring(0, Math.min(100, text.length)));
+          }
           
-          // Handle both Anthropic and Groq streaming formats
-          if (line.startsWith('data: ')) {
-            // Anthropic format
-            try {
-              const data = JSON.parse(line.slice(5));
+          // Process complete lines from the buffer
+          let lineEnd;
+          while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+            const line = buffer.slice(0, lineEnd);
+            buffer = buffer.slice(lineEnd + 1);
+            
+            // Skip empty lines
+            if (!line) continue;
+            
+            // Handle both Anthropic and Groq streaming formats
+            if (line.startsWith('data: ')) {
+              // Anthropic format
+              try {
+                const data = JSON.parse(line.slice(5));
 
-              switch (data.type) {
-                case 'message_start':
-                  setTerminalOutput(prev => [...prev, "> AI is analyzing your request..."]);
-                  break;
+                switch (data.type) {
+                  case 'message_start':
+                    setTerminalOutput(prev => [...prev, "> AI is analyzing your request..."]);
+                    break;
 
-                case 'content_block_start':
-                  if (data.content_block?.type === 'thinking') {
-                    setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
-                  }
-                  break;
-
-                case 'content_block_delta':
-                  if (data.delta?.type === 'thinking_delta') {
-                    const thinking = data.delta.thinking || '';
-                    if (thinking && thinking.trim()) {
-                      setTerminalOutput(prev => [...prev, `> ${thinking}`]);
+                  case 'content_block_start':
+                    if (data.content_block?.type === 'thinking') {
+                      setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
                     }
-                  } else if (data.delta?.type === 'text_delta') {
-                    const content = data.delta.text || '';
-                    if (content) {
-                      gameContent += content;
-                      combinedResponse += content;
-                      
-                      // Display the content in smaller chunks for better visibility
-                      if (content.includes('\n')) {
-                        // If it contains newlines, split it and display each line
-                        const contentLines = content.split('\n');
-                        for (const contentLine of contentLines) {
-                          if (contentLine.trim()) {
-                            setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                    break;
+
+                  case 'content_block_delta':
+                    if (data.delta?.type === 'thinking_delta') {
+                      const thinking = data.delta.thinking || '';
+                      if (thinking && thinking.trim()) {
+                        setTerminalOutput(prev => [...prev, `> ${thinking}`]);
+                      }
+                    } else if (data.delta?.type === 'text_delta') {
+                      const content = data.delta.text || '';
+                      if (content) {
+                        gameContent += content;
+                        combinedResponse += content;
+                        
+                        // Display the content in smaller chunks for better visibility
+                        if (content.includes('\n')) {
+                          // If it contains newlines, split it and display each line
+                          const contentLines = content.split('\n');
+                          for (const contentLine of contentLines) {
+                            if (contentLine.trim()) {
+                              setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                            }
                           }
+                        } else {
+                          // Otherwise display the chunk directly
+                          setTerminalOutput(prev => [...prev, `> ${content}`]);
                         }
-                      } else {
-                        // Otherwise display the chunk directly
-                        setTerminalOutput(prev => [...prev, `> ${content}`]);
                       }
                     }
-                  }
-                  break;
+                    break;
 
-                case 'content_block_stop':
-                  if (data.content_block?.type === 'thinking') {
-                    setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
-                  }
-                  break;
-
-                case 'message_delta':
-                  if (data.delta?.stop_reason) {
-                    setTerminalOutput(prev => [...prev, `> Generation ${data.delta.stop_reason}`]);
-                  }
-                  break;
-
-                case 'message_stop':
-                  setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
-                  break;
-
-                case 'error':
-                  throw new Error(data.error?.message || 'Unknown error in stream');
-              }
-            } catch (e) {
-              console.error('Error parsing SSE line:', e);
-              console.log('Raw data that failed to parse:', line.slice(5));
-              setTerminalOutput(prev => [...prev, `> Error: ${e instanceof Error ? e.message : 'Unknown error'}`]);
-            }
-          } else {
-            // Try to parse as Groq streaming format
-            try {
-              const data = JSON.parse(line);
-              console.log("Received Groq data chunk:", data);
-              
-              // Check if it's a Groq delta chunk with content
-              if (data.choices && data.choices[0]?.delta?.content) {
-                const content = data.choices[0].delta.content;
-                if (content) {
-                  gameContent += content;
-                  combinedResponse += content;
-                  console.log("Adding Groq content chunk, length:", content.length);
-                  
-                  // Display content in chunks similar to Anthropic format
-                  if (content.includes('\n')) {
-                    const contentLines = content.split('\n');
-                    for (const contentLine of contentLines) {
-                      if (contentLine.trim()) {
-                        setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
-                      }
+                  case 'content_block_stop':
+                    if (data.content_block?.type === 'thinking') {
+                      setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
                     }
-                  } else {
-                    setTerminalOutput(prev => [...prev, `> ${content}`]);
-                  }
+                    break;
+
+                  case 'message_delta':
+                    if (data.delta?.stop_reason) {
+                      setTerminalOutput(prev => [...prev, `> Generation ${data.delta.stop_reason}`]);
+                    }
+                    break;
+
+                  case 'message_stop':
+                    setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
+                    break;
+
+                  case 'error':
+                    throw new Error(data.error?.message || 'Unknown error in stream');
                 }
-              } 
-              // Check if it's the final Groq message
-              else if (data.choices && data.choices[0]?.finish_reason) {
-                setTerminalOutput(prev => [...prev, `> Generation ${data.choices[0].finish_reason}`]);
+              } catch (e) {
+                console.error('Error parsing SSE line:', e);
+                console.log('Raw data that failed to parse:', line.slice(5));
+                setTerminalOutput(prev => [...prev, `> Error: ${e instanceof Error ? e.message : 'Unknown error'}`]);
               }
-            } catch (e) {
-              // Not valid JSON or not expected format, might be a partial chunk
-              console.warn('Invalid JSON in stream or unexpected format:', line.substring(0, 50) + '...');
+            } else {
+              // Try to parse as Groq streaming format
+              try {
+                const data = JSON.parse(line);
+                console.log("Received Groq data chunk:", data);
+                
+                // Check if it's a Groq delta chunk with content
+                if (data.choices && data.choices[0]?.delta?.content) {
+                  const content = data.choices[0].delta.content;
+                  if (content) {
+                    gameContent += content;
+                    combinedResponse += content;
+                    console.log("Adding Groq content chunk, length:", content.length);
+                    
+                    // Display content in chunks similar to Anthropic format
+                    if (content.includes('\n')) {
+                      const contentLines = content.split('\n');
+                      for (const contentLine of contentLines) {
+                        if (contentLine.trim()) {
+                          setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                        }
+                      }
+                    } else {
+                      setTerminalOutput(prev => [...prev, `> ${content}`]);
+                    }
+                  }
+                } 
+                // Check if it's the final Groq message
+                else if (data.choices && data.choices[0]?.finish_reason) {
+                  setTerminalOutput(prev => [...prev, `> Generation ${data.choices[0].finish_reason}`]);
+                }
+              } catch (e) {
+                // Not valid JSON or not expected format, might be a partial chunk
+                console.warn('Invalid JSON in stream or unexpected format:', line.substring(0, 50) + '...');
+              }
             }
-          }
-        }
-      }
-
-      console.log("Total chunks received:", totalChunks);
-      console.log("Combined response length:", combinedResponse.length);
-      if (combinedResponse.length > 0) {
-        console.log("Combined response sample:", combinedResponse.substring(0, 200));
-      } else {
-        console.error("No combined response content!");
-      }
-
-      // Check if we have any content at all
-      if (!gameContent || gameContent.trim().length === 0) {
-        throw new Error("No content received from AI");
-      }
-
-      // Process and validate Groq content
-      if (modelType === "fast") {
-        console.log("Processing Groq content...");
-        
-        // Check for code blocks - Groq often returns code blocks instead of direct HTML
-        if (gameContent.includes("```html")) {
-          console.log("Found HTML code block, extracting...");
-          const htmlMatch = gameContent.match(/```html\s*([\s\S]*?)```/);
-          if (htmlMatch && htmlMatch[1] && htmlMatch[1].trim().length > 0) {
-            gameContent = htmlMatch[1].trim();
-            console.log("Extracted HTML from code block, length:", gameContent.length);
-          }
-        }
-        
-        // For Groq, we need to check if the content needs to be wrapped in HTML
-        const isHtmlContent = gameContent.includes('<html') || 
-                             gameContent.includes('<!DOCTYPE') || 
-                             (gameContent.includes('<body') && gameContent.includes('</body>'));
-        
-        if (!isHtmlContent) {
-          // Check if it's HTML fragments without full document structure
-          if (gameContent.includes('<') && gameContent.includes('>') && 
-              (gameContent.includes('<div') || gameContent.includes('<p') || gameContent.includes('<span'))) {
-            console.log("Found HTML elements but not full document, wrapping...");
-            gameContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generated Content</title>
-  <style>
-    body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; }
-    code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
-    pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
-  </style>
-</head>
-<body>
-  ${gameContent}
-</body>
-</html>`;
-          } else {
-            // Fallback - wrap in HTML if it's probably markdown or plain text
-            console.log("Wrapping Groq content in HTML");
-            gameContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generated Content</title>
-  <style>
-    body { margin: 0; padding: 20px; font-family: system-ui, sans-serif; }
-    code { background: #f5f5f5; padding: 2px 4px; border-radius: 3px; }
-    pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow: auto; }
-  </style>
-</head>
-<body>
-  ${gameContent
-    .split('\n')
-    .map(line => {
-      if (line.trim().length === 0) return '';
-      if (line.startsWith('#')) {
-        const level = line.match(/^#+/)[0].length;
-        const text = line.replace(/^#+\s*/, '');
-        return `<h${level}>${text}</h${level}>`;
-      }
-      return `<p>${line}</p>`;
-    })
-    .join('\n')}
-</body>
-</html>`;
           }
         }
       }

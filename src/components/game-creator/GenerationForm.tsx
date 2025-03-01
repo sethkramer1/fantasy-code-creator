@@ -2,7 +2,7 @@
 import { Loader2, Terminal, Wand2 } from "lucide-react";
 import { GameTypeSelector } from "./GameTypeSelector";
 import { GamePromptInput } from "./GamePromptInput";
-import { useState } from "react";
+import { Switch } from "@/components/ui/switch";
 
 interface GenerationFormProps {
   gameType: string;
@@ -53,66 +53,37 @@ export function GenerationForm({
         
         <div className="space-y-3">
           <p className="font-medium text-gray-700">Model preference</p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={() => setModelType("smart")}
-              className={`relative p-3 rounded-xl border transition-all duration-200 hover-scale focus-ring ${
-                modelType === "smart" 
-                  ? 'border-gray-400 bg-black text-white shadow-md' 
-                  : 'border-gray-200 bg-white hover:border-gray-400 hover:shadow-sm'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${
-                  modelType === "smart" 
-                    ? 'bg-white/20' 
-                    : 'bg-gray-50 group-hover:bg-gray-100'
-                }`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-5 h-5 ${modelType === "smart" ? 'text-white' : 'text-gray-700'}`}>
-                    <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4Z"></path>
-                    <circle cx="12" cy="14" r="2"></circle>
-                    <path d="M12 12v0"></path>
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <h3 className={`font-medium ${modelType === "smart" ? 'text-white' : ''}`}>Smartest</h3>
-                  <p className={`text-xs ${modelType === "smart" ? 'text-white/70' : 'text-gray-500'}`}>Higher quality, may take longer</p>
-                </div>
+          <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="flex items-center gap-3 flex-1">
+              <div className={`p-2.5 rounded-lg ${modelType === "smart" ? 'bg-black text-white' : 'bg-gray-100'}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                  <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4Z"></path>
+                  <circle cx="12" cy="14" r="2"></circle>
+                  <path d="M12 12v0"></path>
+                </svg>
               </div>
-              
-              {modelType === "smart" && (
-                <div className="absolute inset-0 border-2 border-gray-400 rounded-xl pointer-events-none"></div>
-              )}
-            </button>
+              <div className="text-left">
+                <h3 className="font-medium">Smartest</h3>
+                <p className="text-xs text-gray-500">Higher quality</p>
+              </div>
+            </div>
             
-            <button
-              onClick={() => setModelType("fast")}
-              className={`relative p-3 rounded-xl border transition-all duration-200 hover-scale focus-ring ${
-                modelType === "fast" 
-                  ? 'border-gray-400 bg-black text-white shadow-md' 
-                  : 'border-gray-200 bg-white hover:border-gray-400 hover:shadow-sm'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${
-                  modelType === "fast" 
-                    ? 'bg-white/20' 
-                    : 'bg-gray-50 group-hover:bg-gray-100'
-                }`}>
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-5 h-5 ${modelType === "fast" ? 'text-white' : 'text-gray-700'}`}>
-                    <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-                  </svg>
-                </div>
-                <div className="text-left">
-                  <h3 className={`font-medium ${modelType === "fast" ? 'text-white' : ''}`}>Fastest</h3>
-                  <p className={`text-xs ${modelType === "fast" ? 'text-white/70' : 'text-gray-500'}`}>Quick response, good quality</p>
-                </div>
+            <Switch
+              checked={modelType === "fast"}
+              onCheckedChange={() => setModelType(modelType === "smart" ? "fast" : "smart")}
+            />
+            
+            <div className="flex items-center gap-3 flex-1">
+              <div className={`p-2.5 rounded-lg ${modelType === "fast" ? 'bg-black text-white' : 'bg-gray-100'}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+                  <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                </svg>
               </div>
-              
-              {modelType === "fast" && (
-                <div className="absolute inset-0 border-2 border-gray-400 rounded-xl pointer-events-none"></div>
-              )}
-            </button>
+              <div className="text-left">
+                <h3 className="font-medium">Fastest</h3>
+                <p className="text-xs text-gray-500">Quick response</p>
+              </div>
+            </div>
           </div>
         </div>
       </div>

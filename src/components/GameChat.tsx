@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X, Cpu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
 
 interface Message {
   id: string;
@@ -271,14 +272,12 @@ export const GameChat = ({
         payload.imageUrl = currentImageUrl;
       }
       
-      // Enable streaming only for Anthropic model, not for Groq
       if (currentModelType === "smart") {
         payload.stream = true;
       }
       
       console.log("Request payload:", payload);
       
-      // Select appropriate API endpoint based on model type
       const apiUrl = currentModelType === "fast" 
         ? 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update-with-groq'
         : 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update';
@@ -286,7 +285,6 @@ export const GameChat = ({
       updateTerminalOutput(`> Connecting to ${currentModelType === "fast" ? "Groq" : "Anthropic"} API...`, true);
       
       try {
-        // Ensure Content-Type header is explicitly set to application/json
         const apiResponse = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -305,20 +303,16 @@ export const GameChat = ({
         console.log("API connection established, processing response...");
         updateTerminalOutput("> Connection established, receiving content...", true);
         
-        // For Groq (fast model), handle the complete response without streaming
         if (currentModelType === "fast") {
           updateTerminalOutput("> Using non-streaming mode for Groq API...", true);
           
-          // Read the entire response at once
           const responseData = await apiResponse.json();
           console.log("Complete Groq response received:", responseData);
           
-          // Process the complete response
           if (responseData && responseData.content) {
             let content = responseData.content;
             updateTerminalOutput("> Received complete content from Groq", true);
             
-            // Check if the content is HTML or needs to be processed
             if (content.includes("```html")) {
               console.log("Found HTML code block, extracting...");
               const htmlMatch = content.match(/```html\s*([\s\S]*?)```/);
@@ -329,9 +323,7 @@ export const GameChat = ({
               }
             }
             
-            // Ensure content is properly formatted as HTML
             if (!content.includes('<html') && !content.includes('<!DOCTYPE')) {
-              // If it contains HTML elements but not a full document
               if (content.includes('<') && content.includes('>') &&
                   (content.includes('<div') || content.includes('<p') || content.includes('<span'))) {
                 
@@ -356,7 +348,6 @@ export const GameChat = ({
 </body>
 </html>`;
               } else {
-                // If it's plain text
                 updateTerminalOutput("> Converting plain text to HTML document...", true);
                 content = `
 <!DOCTYPE html>
@@ -408,7 +399,6 @@ export const GameChat = ({
             throw new Error("No valid content in Groq response");
           }
         } else {
-          // For Anthropic (smart model), keep the existing streaming approach
           const reader = apiResponse.body?.getReader();
           if (!reader) throw new Error("Unable to read response stream");
           
@@ -659,16 +649,23 @@ export const GameChat = ({
                 />
               </label>
               
-              <button
-                type="button"
-                onClick={toggleModelType}
-                className={`flex items-center gap-2 text-gray-600 hover:text-gray-800 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
-                disabled={loading || disabled}
-                title={`Using ${modelType === "smart" ? "Smartest" : "Fastest"} model. Click to toggle.`}
+              <div
+                className={`flex items-center gap-2 text-gray-600 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+                title={`Toggle between Smartest and Fastest models`}
               >
                 <Cpu size={20} />
-                <span className="text-sm font-medium">{modelType === "smart" ? "Smartest" : "Fastest"}</span>
-              </button>
+                <span className="text-sm font-medium mr-1">Model:</span>
+                <div className="flex items-center gap-2">
+                  <span className={`text-xs ${modelType === "smart" ? "font-semibold" : "text-gray-400"}`}>Smart</span>
+                  <Switch
+                    checked={modelType === "fast"}
+                    onCheckedChange={() => toggleModelType()}
+                    disabled={loading || disabled}
+                    className="ml-0.5"
+                  />
+                  <span className={`text-xs ${modelType === "fast" ? "font-semibold" : "text-gray-400"}`}>Fast</span>
+                </div>
+              </div>
             </div>
             
             <button 
