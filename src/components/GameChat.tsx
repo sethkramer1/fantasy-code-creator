@@ -310,24 +310,30 @@ export const GameChat = ({
       updateTerminalOutput("> Response received, generating content...", true);
       
       let content = '';
+      let combinedResponse = '';
+      let totalChunks = 0;
       
-      // Handle streaming response for both models
       const reader = apiResponse.body?.getReader();
       if (!reader) throw new Error("Unable to read response stream");
       
       let buffer = '';
       let currentLineContent = '';
-      let combinedResponse = '';
-      let totalChunks = 0;
       
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log("Stream complete, received chunks:", totalChunks);
+          break;
+        }
         
         totalChunks++;
         const chunk = new TextDecoder().decode(value);
         buffer += chunk;
-        console.log("Received chunk:", chunk.substring(0, 100) + (chunk.length > 100 ? "..." : ""));
+        console.log(`Received chunk #${totalChunks}, size: ${chunk.length}, buffer size: ${buffer.length}`);
+        
+        if (chunk.length > 0) {
+          console.log("Chunk sample:", chunk.substring(0, Math.min(200, chunk.length)));
+        }
         
         let lineEnd;
         while ((lineEnd = buffer.indexOf('\n')) >= 0) {
@@ -336,19 +342,20 @@ export const GameChat = ({
           
           if (!line) continue;
           
-          // Handle both formats: Anthropic SSE and Groq streaming
+          console.log("Processing line:", line.substring(0, Math.min(100, line.length)));
+          
           if (line.startsWith('data: ')) {
-            // Anthropic format
             try {
               const parsedData = JSON.parse(line.slice(5));
+              console.log("Anthropic data type:", parsedData.type);
               
               if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
                 const contentChunk = parsedData.delta.text || '';
                 if (contentChunk) {
                   content += contentChunk;
                   combinedResponse += contentChunk;
+                  console.log("Added Anthropic content chunk, length:", contentChunk.length);
                   
-                  // Handle streaming UI updates
                   if (contentChunk.includes('\n')) {
                     const lines = contentChunk.split('\n');
                     if (lines[0]) {
@@ -394,17 +401,14 @@ export const GameChat = ({
                 updateTerminalOutput(`> Event: ${parsedData.type}`, true);
               }
             } catch (e) {
-              console.warn("Error parsing streaming data:", e);
+              console.warn("Error parsing Anthropic data:", e);
               console.log("Raw data that failed to parse:", line.slice(5));
-              // Don't throw here, just log and continue
             }
           } else {
-            // Try to parse as Groq streaming format
             try {
               const parsedData = JSON.parse(line);
-              console.log("Parsed Groq data:", parsedData);
+              console.log("Parsed Groq data with keys:", Object.keys(parsedData));
               
-              // Check if it's a Groq delta chunk
               if (parsedData.choices && parsedData.choices[0]?.delta?.content) {
                 const contentChunk = parsedData.choices[0].delta.content;
                 if (contentChunk) {
@@ -412,7 +416,6 @@ export const GameChat = ({
                   combinedResponse += contentChunk;
                   console.log("Added Groq content chunk, length:", contentChunk.length);
                   
-                  // Display content chunks in same format as Anthropic
                   if (contentChunk.includes('\n')) {
                     const lines = contentChunk.split('\n');
                     if (lines[0]) {
@@ -441,14 +444,11 @@ export const GameChat = ({
                   }
                 }
               } 
-              // Check if it's a final Groq message
               else if (parsedData.choices && parsedData.choices[0]?.finish_reason) {
-                updateTerminalOutput(`> Content generation ${parsedData.choices[0].finish_reason}`, true);
+                updateTerminalOutput(`> Generation ${parsedData.choices[0].finish_reason}`, true);
               }
             } catch (e) {
-              // Not valid JSON or unexpected format - might be partial chunk
-              // Just continue processing
-              console.log("Failed to parse as JSON:", line.substring(0, 50) + (line.length > 50 ? "..." : ""));
+              console.log("Failed to parse as JSON, might be partial chunk:", line.substring(0, 50) + (line.length > 50 ? "..." : ""));
             }
           }
         }
@@ -456,48 +456,46 @@ export const GameChat = ({
       
       console.log("Total chunks received:", totalChunks);
       console.log("Combined response length:", combinedResponse.length);
+      
       if (combinedResponse.length > 0) {
         console.log("Combined response sample:", combinedResponse.substring(0, 200));
       } else {
         console.error("No combined response content!");
       }
 
-      // Enhanced validation and processing for all model content
-      let validContent = false;
-      
-      // Log the first bit of content to help debug
-      console.log("Content sample:", content.substring(0, 200));
-      
-      // Check if we have any content at all first
       if (!content || content.trim().length === 0) {
         console.error("Empty content received");
         throw new Error("No content received from AI. Please try again.");
       }
 
-      // For Groq model (fast), we need special processing
+      updateTerminalOutput("> Processing received content...", true);
+      console.log("Processing content of length:", content.length);
+      
       if (currentModelType === "fast") {
         console.log("Processing Groq content");
         
-        // Check for code blocks - Groq often returns code blocks instead of direct HTML
         if (content.includes("```html")) {
           console.log("Found HTML code block, extracting...");
           const htmlMatch = content.match(/```html\s*([\s\S]*?)```/);
           if (htmlMatch && htmlMatch[1] && htmlMatch[1].trim().length > 0) {
             content = htmlMatch[1].trim();
             console.log("Extracted HTML from code block, length:", content.length);
+            updateTerminalOutput("> Extracted HTML from code block", true);
           }
         }
         
-        // Check if content is already valid HTML
         const isHtmlContent = content.includes('<html') || 
                              content.includes('<!DOCTYPE') || 
                              (content.includes('<body') && content.includes('</body>'));
         
         if (!isHtmlContent) {
-          // If it's just HTML fragments without full document structure, wrap it
+          updateTerminalOutput("> Content is not complete HTML, adding structure...", true);
+          
           if (content.includes('<') && content.includes('>') && 
               (content.includes('<div') || content.includes('<p') || content.includes('<span'))) {
             console.log("Found HTML elements but not full document, wrapping...");
+            updateTerminalOutput("> Found HTML elements, wrapping in document...", true);
+            
             content = `
 <!DOCTYPE html>
 <html>
@@ -545,8 +543,9 @@ export const GameChat = ({
 </body>
 </html>`;
           } else {
-            // It's probably markdown or plain text, convert to HTML
             console.log("Content appears to be markdown or text, converting to HTML...");
+            updateTerminalOutput("> Converting text content to HTML...", true);
+            
             content = `
 <!DOCTYPE html>
 <html>
@@ -606,30 +605,23 @@ export const GameChat = ({
 </html>`;
           }
         }
-        
-        // Check content validity again after processing
-        console.log("Final content length after processing:", content.length);
-        console.log("Final content sample:", content.substring(0, 200));
-        
-        // Mark as valid if we have HTML content
-        validContent = content && (
-          content.includes('<html') || 
-          content.includes('<!DOCTYPE')
-        );
-      } else {
-        // For Anthropic (smart) model, check for HTML content
-        validContent = content && (
-          content.includes('<html') || 
-          content.includes('<!DOCTYPE')
-        );
       }
       
+      console.log("Final content length:", content.length);
+      console.log("Final content starts with:", content.substring(0, 100));
+      
+      const validContent = content && (
+        content.includes('<html') || 
+        content.includes('<!DOCTYPE')
+      );
+      
       if (!validContent) {
-        console.error("Invalid content after processing:", content ? content.substring(0, 200) : "No content");
+        console.error("Invalid content structure:", content.substring(0, 200));
         throw new Error("Invalid content received from AI. Please try again or switch models.");
       }
       
-      updateTerminalOutput("> Updating content...", true);
+      updateTerminalOutput("> Updating content in the application...", true);
+      
       onGameUpdate(content, "Content updated successfully");
       
       const { error: updateError } = await supabase
