@@ -744,10 +744,10 @@ export const GameChat = ({
                 }
               }} 
               placeholder={disabled ? "Chat will be enabled once generation is complete..." : "Request a change"} 
-              className="w-full bg-transparent text-gray-800 border-none outline-none focus:outline-none focus:ring-0 focus:border-none focus:shadow-none resize-none min-h-[24px] max-h-[200px] py-0 px-0 placeholder-gray-500 !ring-0 !ring-offset-0" 
+              className="w-full bg-transparent text-gray-800 border-none outline-none focus:outline-none focus:ring-0 focus:border-none focus:shadow-none resize-none min-h-[24px] max-h-[200px] py-0 px-0 placeholder-gray-500 !ring-0 !ring-offset-0 rounded-none" 
               disabled={loading || disabled}
               rows={1}
-              style={{ boxShadow: 'none' }}
+              style={{ boxShadow: 'none', borderRadius: '0' }}
             />
           </div>
           
