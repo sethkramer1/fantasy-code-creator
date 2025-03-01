@@ -30,7 +30,7 @@ export const useGameVersions = (filteredGames: Game[]) => {
         // Fetch the latest version for each game
         const { data, error } = await supabase
           .from('game_versions')
-          .select('id, game_id, code, version_number')
+          .select('id, game_id, code, version_number, created_at')
           .in('game_id', gameIds)
           .order('version_number', { ascending: false });
           
@@ -72,7 +72,7 @@ export const useGameVersions = (filteredGames: Game[]) => {
     };
     
     fetchGameVersions();
-  }, [filteredGames]);  // Use proper dependency without JSON.stringify
+  }, [filteredGames]);  // Use filteredGames as dependency without JSON.stringify
 
   return { gameCodeVersions, fetchError, loading };
 };

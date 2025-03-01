@@ -572,15 +572,19 @@ const Play = () => {
         .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
       
       if (versionsAfterMessage.length === 0) {
-        versionsAfterMessage = [...gameVersions]
+        const sortedVersions = [...gameVersions]
           .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+        
+        if (sortedVersions.length > 0) {
+          await handleRevertToVersion(sortedVersions[0]);
+          return;
+        }
+      } else if (versionsAfterMessage.length > 0) {
+        await handleRevertToVersion(versionsAfterMessage[0]);
+        return;
       }
       
-      if (versionsAfterMessage.length > 0) {
-        await handleRevertToVersion(versionsAfterMessage[0]);
-      } else {
-        throw new Error("No versions found for this game");
-      }
+      throw new Error("No suitable version found for this game");
     } catch (error) {
       console.error("Error reverting to message version:", error);
       toast({
