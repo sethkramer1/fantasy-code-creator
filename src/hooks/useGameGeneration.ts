@@ -286,8 +286,8 @@ ENSURE INTERACTION CAPABILITIES:
       let response;
       
       if (modelType === "fast") {
-        // Use Groq API for "fast" model - now with streaming mode enabled
-        setTerminalOutput(prev => [...prev, `> Using streaming mode for Groq API...`]);
+        // Use Groq API for "fast" model - now with streaming mode DISABLED
+        setTerminalOutput(prev => [...prev, `> Using non-streaming mode for Groq API...`]);
         
         response = await fetch(
           'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-with-groq',
@@ -301,7 +301,7 @@ ENSURE INTERACTION CAPABILITIES:
               prompt: finalPrompt,
               imageUrl: imageUrl,
               contentType: gameType,
-              stream: true // Enable streaming for Groq to get faster feedback
+              stream: false // Disable streaming for Groq
             }),
           }
         );
@@ -316,64 +316,31 @@ ENSURE INTERACTION CAPABILITIES:
           }
         }
         
-        setTerminalOutput(prev => [...prev, `> Connected to Groq API, receiving stream...`]);
+        setTerminalOutput(prev => [...prev, `> Connected to Groq API, waiting for complete response...`]);
         
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error("No reader available");
+        // Handle non-streaming response
+        const data = await response.json();
+        if (data.error) {
+          throw new Error(`Groq API error: ${data.error}`);
+        }
         
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+        // Extract the content from the non-streaming response
+        if (data.choices && data.choices[0] && data.choices[0].message) {
+          const content = data.choices[0].message.content;
+          gameContent = content;
+          combinedResponse = content;
           
-          // Decode the chunk and add it to our buffer
-          const text = new TextDecoder().decode(value);
-          buffer += text;
-          
-          // Process chunks directly from the Groq stream
-          try {
-            // Process complete lines from the buffer
-            let lineEnd;
-            while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-              const line = buffer.slice(0, lineEnd);
-              buffer = buffer.slice(lineEnd + 1);
-              
-              if (!line) continue;
-              
-              try {
-                const data = JSON.parse(line);
-                
-                // Check if it's a Groq delta chunk with content
-                if (data.choices && data.choices[0]?.delta?.content) {
-                  const content = data.choices[0].delta.content;
-                  if (content) {
-                    gameContent += content;
-                    combinedResponse += content;
-                    
-                    // Display content in chunks
-                    if (content.includes('\n')) {
-                      const contentLines = content.split('\n');
-                      for (const contentLine of contentLines) {
-                        if (contentLine.trim()) {
-                          setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
-                        }
-                      }
-                    } else {
-                      setTerminalOutput(prev => [...prev, `> ${content}`]);
-                    }
-                  }
-                } 
-                // Check if it's the final Groq message
-                else if (data.choices && data.choices[0]?.finish_reason) {
-                  setTerminalOutput(prev => [...prev, `> Generation ${data.choices[0].finish_reason}`]);
-                }
-              } catch (e) {
-                // Not valid JSON or not expected format, might be a partial chunk
-                console.warn('Invalid JSON in stream or unexpected format:', line.substring(0, 50) + '...');
-              }
+          // Display content in chunks for better visibility
+          const contentLines = content.split('\n');
+          for (const contentLine of contentLines) {
+            if (contentLine.trim()) {
+              setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
             }
-          } catch (e) {
-            console.error('Error processing Groq chunk:', e);
           }
+          
+          setTerminalOutput(prev => [...prev, `> Generation completed: ${data.choices[0].finish_reason || 'complete'}`]);
+        } else {
+          throw new Error("Invalid response format from Groq API");
         }
       } else {
         // Use default Anthropic API for "smart" model - keep streaming

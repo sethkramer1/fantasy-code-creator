@@ -2,6 +2,7 @@
 import { Loader2, Terminal, Wand2 } from "lucide-react";
 import { GameTypeSelector } from "./GameTypeSelector";
 import { GamePromptInput } from "./GamePromptInput";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface GenerationFormProps {
   gameType: string;
@@ -32,7 +33,7 @@ export function GenerationForm({
   imageUrl,
   onImageUploaded,
   onImageRemoved,
-  modelType = "smart",
+  modelType = "fast", // Default to "fast" as requested
   setModelType = () => {},
   showModelPreference = false
 }: GenerationFormProps) {
@@ -55,44 +56,31 @@ export function GenerationForm({
         {showModelPreference && (
           <div className="space-y-3">
             <p className="font-medium text-gray-700">Model preference</p>
-            <div className="flex items-center gap-4 p-4 bg-white rounded-xl border border-gray-200 shadow-sm">
-              {/* Pill button selection */}
-              <div className="flex w-full bg-gray-100 rounded-full p-1">
-                <button
-                  onClick={() => setModelType("smart")}
-                  className={`flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-full transition-all ${
-                    modelType === "smart" 
-                      ? "bg-black text-white shadow-sm" 
-                      : "hover:bg-gray-200"
-                  }`}
-                >
-                  <div className="p-1 rounded-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
+            <Select value={modelType} onValueChange={setModelType}>
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="Select model" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="fast">
+                  <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
+                    </svg>
+                    <span>Fastest (Groq)</span>
+                  </div>
+                </SelectItem>
+                <SelectItem value="smart">
+                  <div className="flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                       <path d="M12 2a4 4 0 0 0-4 4v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2h-2V6a4 4 0 0 0-4-4Z"></path>
                       <circle cx="12" cy="14" r="2"></circle>
                       <path d="M12 12v0"></path>
                     </svg>
+                    <span>Smartest (Claude)</span>
                   </div>
-                  <span className="font-medium">Smartest</span>
-                </button>
-                
-                <button
-                  onClick={() => setModelType("fast")}
-                  className={`flex items-center justify-center gap-2 flex-1 py-2 px-4 rounded-full transition-all ${
-                    modelType === "fast" 
-                      ? "bg-black text-white shadow-sm" 
-                      : "hover:bg-gray-200"
-                  }`}
-                >
-                  <div className="p-1 rounded-lg">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-5 h-5">
-                      <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
-                    </svg>
-                  </div>
-                  <span className="font-medium">Fastest</span>
-                </button>
-              </div>
-            </div>
+                </SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         )}
       </div>
@@ -119,7 +107,7 @@ export function GenerationForm({
           {hasTerminalOutput && (
             <button
               onClick={showTerminalOutput}
-              className="p-3 rounded-xl bg-white border border-gray-200 hover:bg-gray-50 transition-colors hover:border-gray-300 shadow-sm focus-ring"
+              className="p-3 rounded-full bg-white border border-gray-200 hover:bg-gray-50 transition-colors hover:border-gray-300 shadow-sm focus-ring aspect-square flex items-center justify-center"
               title="Show generation progress"
             >
               <Terminal size={20} className="text-gray-600" />
