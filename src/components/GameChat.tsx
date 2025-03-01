@@ -2,7 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X, Cpu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Switch } from "@/components/ui/switch";
+import { 
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue
+} from "@/components/ui/select";
 
 interface Message {
   id: string;
@@ -35,7 +41,7 @@ export const GameChat = ({
   const [thinkingTime, setThinkingTime] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
-  const [modelType, setModelType] = useState<string>("smart");
+  const [modelType, setModelType] = useState<string>("fast");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -172,14 +178,8 @@ export const GameChat = ({
     });
   };
 
-  const toggleModelType = () => {
-    setModelType(prev => prev === "smart" ? "fast" : "smart");
-    toast({
-      title: `Switched to ${modelType === "smart" ? "Fastest" : "Smartest"}`,
-      description: modelType === "smart" 
-        ? "Using Groq's Mixtral 8x7B for faster responses" 
-        : "Using Claude for higher quality responses"
-    });
+  const handleModelChange = (value: string) => {
+    setModelType(value);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -661,33 +661,35 @@ export const GameChat = ({
               </label>
               
               <div
-                className={`flex items-center gap-3 text-gray-600 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
-                title="Toggle between Smartest and Fastest"
+                className={`flex items-center gap-2 text-gray-600 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
+                title="Select model"
               >
-                <div className="hidden sm:block">
-                  <Cpu size={20} />
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className={`text-sm ${modelType === "smart" ? "font-medium text-gray-700" : "text-gray-400"}`}>Smartest</span>
-                  <Switch
-                    checked={modelType === "fast"}
-                    onCheckedChange={toggleModelType}
-                    disabled={loading || disabled}
-                  />
-                  <span className={`text-sm ${modelType === "fast" ? "font-medium text-gray-700" : "text-gray-400"}`}>Fastest</span>
-                </div>
+                <Cpu size={20} className="hidden sm:block" />
+                <Select
+                  value={modelType}
+                  onValueChange={handleModelChange}
+                  disabled={loading || disabled}
+                >
+                  <SelectTrigger className="w-[130px] h-9 bg-white border-gray-200">
+                    <SelectValue placeholder="Model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="fast">Fastest</SelectItem>
+                    <SelectItem value="smart">Smartest</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
             
             <button 
               type="submit" 
               disabled={loading || (!message.trim() && !imageUrl) || isUploading || disabled} 
-              className="h-10 w-10 rounded-full bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
+              className="h-12 w-12 rounded-full bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center shadow-sm"
               aria-label="Send message"
             >
               {loading ? 
-                <Loader2 className="animate-spin" size={18} /> : 
-                <ArrowUp size={18} />
+                <Loader2 className="animate-spin" size={20} /> : 
+                <ArrowUp size={20} />
               }
             </button>
           </div>
