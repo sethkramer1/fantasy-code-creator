@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, ArrowUp, Paperclip, X, Cpu, Info } from "lucide-react";
+import { Loader2, ArrowUp, Paperclip, X, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -566,7 +566,7 @@ export const GameChat = ({
   };
 
   return (
-    <div className="flex flex-col h-full w-full max-w-2xl mx-auto">
+    <div className="flex flex-col h-full w-full max-w-[400px] mx-auto">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loadingHistory ? (
           <div className="flex justify-center">
@@ -581,8 +581,7 @@ export const GameChat = ({
                 <div className="flex justify-between items-start">
                   <p className="text-blue-800">{msg.message}</p>
                   {msg.model_type && (
-                    <span className="text-xs text-blue-500 flex items-center ml-2 px-2 py-0.5 rounded-full bg-blue-100">
-                      <Cpu size={12} className="mr-1" />
+                    <span className="text-xs text-blue-500 ml-2 px-2 py-0.5 rounded-full bg-blue-100">
                       {msg.model_type === "smart" ? "Smartest" : "Fast"}
                     </span>
                   )}
@@ -670,11 +669,10 @@ export const GameChat = ({
                 className={`flex items-center gap-2 text-gray-600 transition-colors ${disabled ? 'pointer-events-none opacity-50' : ''}`}
                 title="Select model"
               >
-                <Cpu size={20} className="hidden sm:block" />
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <span className="cursor-help ml-1 hidden sm:inline-block">
+                      <span className="cursor-help ml-1">
                         <Info size={16} className="text-gray-400 hover:text-gray-600" />
                       </span>
                     </TooltipTrigger>

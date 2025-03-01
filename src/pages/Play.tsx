@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -46,7 +45,6 @@ const Play = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
 
-  // Start timer for thinking time for initial generation
   useEffect(() => {
     console.log("Initial generation timer effect, in progress:", generationInProgress);
     
@@ -77,7 +75,6 @@ const Play = () => {
     };
   }, [generationInProgress]);
 
-  // Start generation if we're in generating mode
   useEffect(() => {
     if (isGenerating && id && !generationStartedRef.current) {
       generationStartedRef.current = true;
@@ -85,7 +82,6 @@ const Play = () => {
     }
   }, [isGenerating, id]);
 
-  // Prevent keyboard events from being captured by the iframe
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
@@ -101,10 +97,8 @@ const Play = () => {
     };
   }, []);
 
-  // Helper function to update terminal output without always creating new lines
   const updateTerminalOutput = (newContent: string, isNewMessage = false) => {
     setTerminalOutput(prev => {
-      // Handle special case content that should always be on a new line
       if (isNewMessage || 
           newContent.startsWith("> Thinking:") || 
           newContent.startsWith("> Generation") || 
@@ -114,22 +108,17 @@ const Play = () => {
         return [...prev, newContent];
       }
       
-      // Otherwise, try to append to the last line if it's code content
       if (prev.length > 0) {
         const lastLine = prev[prev.length - 1];
         
-        // If both are code content (indicated by ">"), combine them
         if (lastLine.startsWith("> ") && !lastLine.startsWith("> Thinking:") && 
             newContent.startsWith("> ") && !newContent.startsWith("> Thinking:")) {
-          
-          // Strip the ">" prefix from the new content when combining
           const updatedLastLine = lastLine + newContent.slice(1);
           lastOutputRef.current = updatedLastLine;
           return [...prev.slice(0, -1), updatedLastLine];
         }
       }
       
-      // Default: add as new line
       lastOutputRef.current = newContent;
       return [...prev, newContent];
     });
@@ -139,11 +128,9 @@ const Play = () => {
     try {
       if (!id) return;
       
-      // Reset thinking time when starting generation
       setThinkingTime(0);
       setGenerationInProgress(true);
       
-      // Get game details to get the prompt
       const { data: gameData, error: gameError } = await supabase
         .from('games')
         .select('prompt, type')
@@ -156,7 +143,6 @@ const Play = () => {
       const prompt = gameData.prompt;
       const contentType = gameData.type || gameType;
       
-      // Update terminal with prompt info
       updateTerminalOutput(`> Generating content with prompt: "${prompt}"`, true);
       updateTerminalOutput(`> Content type: ${contentType}`, true);
       
@@ -164,7 +150,6 @@ const Play = () => {
         updateTerminalOutput("> Including image with request", true);
       }
       
-      // Call the generation API directly
       updateTerminalOutput("> Connecting to AI service...", true);
       
       const response = await fetch(
@@ -205,11 +190,9 @@ const Play = () => {
         const { done, value } = await reader.read();
         if (done) break;
         
-        // Decode the chunk and add it to our buffer
         const text = new TextDecoder().decode(value);
         buffer += text;
         
-        // Process complete lines from the buffer
         let lineEnd;
         while ((lineEnd = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, lineEnd);
@@ -242,18 +225,14 @@ const Play = () => {
                   if (contentChunk) {
                     content += contentChunk;
                     
-                    // Handle newlines in content specially
                     if (contentChunk.includes('\n')) {
-                      // Split by newlines and process each part
                       const lines = contentChunk.split('\n');
                       
-                      // Add first part to current line
                       if (lines[0]) {
                         currentLineContent += lines[0];
                         updateTerminalOutput(`> ${currentLineContent}`, false);
                       }
                       
-                      // Handle middle parts - each gets its own line
                       for (let i = 1; i < lines.length - 1; i++) {
                         if (lines[i].trim()) {
                           currentLineContent = lines[i];
@@ -261,7 +240,6 @@ const Play = () => {
                         }
                       }
                       
-                      // Start a new current line with the last part
                       if (lines.length > 1) {
                         currentLineContent = lines[lines.length - 1];
                         if (currentLineContent) {
@@ -271,7 +249,6 @@ const Play = () => {
                         }
                       }
                     } else {
-                      // No newlines, append to current line
                       currentLineContent += contentChunk;
                       updateTerminalOutput(`> ${currentLineContent}`, false);
                     }
@@ -311,7 +288,6 @@ const Play = () => {
 
       updateTerminalOutput("> Saving to database...", true);
       
-      // For SVG content type, wrap the SVG in basic HTML if it's just raw SVG
       if (contentType === 'svg' && !content.includes('<!DOCTYPE html>')) {
         content = `
 <!DOCTYPE html>
@@ -328,7 +304,6 @@ const Play = () => {
 </html>`;
       }
       
-      // Update the database with generated content
       const { error: updateGameError } = await supabase
         .from('games')
         .update({ 
@@ -339,7 +314,6 @@ const Play = () => {
         
       if (updateGameError) throw updateGameError;
       
-      // Update the version with the generated content
       const { error: updateVersionError } = await supabase
         .from('game_versions')
         .update({
@@ -351,7 +325,6 @@ const Play = () => {
         
       if (updateVersionError) throw updateVersionError;
       
-      // Add initial message if it doesn't exist
       const { data: existingMessages } = await supabase
         .from('game_messages')
         .select('id')
@@ -377,13 +350,10 @@ const Play = () => {
       
       updateTerminalOutput("> Generation complete! Displaying result...", true);
       
-      // Set generation as complete and load the result
       setGenerationInProgress(false);
       
-      // Refresh data to show the generated content
       fetchGame();
       
-      // Remove the generating parameter from URL
       navigate(`/play/${id}`, { replace: true });
       
       toast({
@@ -397,7 +367,6 @@ const Play = () => {
       updateTerminalOutput(`> Error: ${error instanceof Error ? error.message : "Generation failed"}`, true);
       updateTerminalOutput("> Attempting to recover...", true);
       
-      // Even if there's an error, try to load the content
       fetchGame();
       
       toast({
@@ -424,16 +393,13 @@ const Play = () => {
       if (error) throw error;
       if (!data) throw new Error("Content not found");
       
-      // Sort versions by version_number in descending order (latest first)
       const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
       setGameVersions(sortedVersions);
       
-      // Always select the latest version (first in the sorted array)
       if (sortedVersions.length > 0) {
         setSelectedVersion(sortedVersions[0].id);
         console.log("Selected latest version:", sortedVersions[0].version_number);
         
-        // If the code is no longer "Generating...", hide the generation UI
         if (sortedVersions[0].code !== "Generating...") {
           setShowGenerating(false);
           setGenerationInProgress(false);
@@ -458,7 +424,6 @@ const Play = () => {
     if (!loading && iframeRef.current) {
       iframeRef.current.focus();
       
-      // Set up message event listener for communication with iframe
       const handleIframeMessage = (event: MessageEvent) => {
         if (event.source === iframeRef.current?.contentWindow) {
           console.log('Message from iframe:', event.data);
@@ -472,7 +437,6 @@ const Play = () => {
     }
   }, [loading, selectedVersion]);
 
-  // Handle terminal status updates from GameChat
   const handleTerminalStatusChange = (showing: boolean, output: string[], thinking: number, isLoading: boolean) => {
     console.log("Terminal status change:", { showing, thinking, isLoading });
     
@@ -489,13 +453,10 @@ const Play = () => {
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     try {
-      // Show generation UI
       setShowGenerating(true);
       
-      // Create a new version with incremented version number
       const newVersionNumber = gameVersions.length > 0 ? gameVersions[0].version_number + 1 : 1;
       
-      // Insert the new version into database
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .insert({
@@ -510,7 +471,6 @@ const Play = () => {
       if (versionError) throw versionError;
       if (!versionData) throw new Error("Failed to save new version");
       
-      // Update the current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -522,7 +482,6 @@ const Play = () => {
         
       if (gameError) throw gameError;
       
-      // Add the new version to state and select it
       const newVersion: GameVersion = {
         id: versionData.id,
         version_number: versionData.version_number,
@@ -572,7 +531,6 @@ const Play = () => {
       });
       if (error) throw error;
       
-      // Update the current version
       const { error: gameError } = await supabase
         .from('games')
         .update({ 
@@ -599,7 +557,6 @@ const Play = () => {
     }
   };
 
-  // Compute currentVersion and isLatestVersion
   const currentVersion = gameVersions.find(v => v.id === selectedVersion);
   const isLatestVersion = currentVersion?.version_number === gameVersions[0]?.version_number;
 
@@ -613,7 +570,6 @@ const Play = () => {
 
   return (
     <div className="flex flex-col h-screen bg-white">
-      {/* Navbar */}
       <PlayNavbar>
         <GameActions 
           currentVersion={currentVersion}
@@ -623,9 +579,8 @@ const Play = () => {
         />
       </PlayNavbar>
       
-      {/* Main content */}
       <div className="flex flex-1 overflow-hidden">
-        <div className="w-[320px] flex flex-col bg-white border-r border-gray-100">
+        <div className="w-[380px] flex flex-col bg-white border-r border-gray-100">
           <div className="p-4 border-b border-gray-100 flex-shrink-0">
             <div className="flex items-center">
               <h2 className="text-lg font-medium text-black">Modify Content</h2>
@@ -636,7 +591,7 @@ const Play = () => {
               gameId={id!} 
               onGameUpdate={handleGameUpdate} 
               onTerminalStatusChange={handleTerminalStatusChange}
-              disabled={generationInProgress} // Disable chat during initial generation
+              disabled={generationInProgress}
             />
           </div>
         </div>
@@ -661,7 +616,6 @@ const Play = () => {
               </div>
 
               <div className="flex-1 bg-white rounded-lg overflow-hidden">
-                {/* Show generation terminal when generating */}
                 {showGenerating ? (
                   <GenerationTerminal
                     open={true}
@@ -687,4 +641,3 @@ const Play = () => {
 };
 
 export default Play;
-
