@@ -182,6 +182,44 @@ Please modify the document according to the user's request and return the comple
       throw new Error("No valid content in Groq response");
     }
 
+    // Store the generated content as a new version
+    const { data: currentVersion } = await supabaseAdmin
+      .from('game_versions')
+      .select('version_number')
+      .eq('game_id', gameId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .single();
+
+    const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1;
+
+    // Create a new version with the generated content
+    const { error: newVersionError } = await supabaseAdmin
+      .from('game_versions')
+      .insert([{
+        game_id: gameId,
+        code: content,
+        version_number: newVersionNumber,
+        instructions: "Generated with Groq model"
+      }]);
+
+    if (newVersionError) {
+      throw new Error(`Error creating new version: ${newVersionError.message}`);
+    }
+
+    // Update the game with the latest version
+    const { error: updateGameError } = await supabaseAdmin
+      .from('games')
+      .update({
+        code: content,
+        current_version: newVersionNumber
+      })
+      .eq('id', gameId);
+
+    if (updateGameError) {
+      throw new Error(`Error updating game: ${updateGameError.message}`);
+    }
+
     // Return the generated content
     return new Response(
       JSON.stringify({ 
