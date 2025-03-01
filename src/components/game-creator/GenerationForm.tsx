@@ -37,6 +37,22 @@ export function GenerationForm({
   setModelType = () => {},
   showModelPreference = false
 }: GenerationFormProps) {
+  // Get random loading message
+  const getLoadingMessage = () => {
+    const messages = [
+      "Generating code...",
+      "Creating your design...",
+      "Crafting your content...",
+      "Building your application...",
+      "Writing code...",
+      "Processing your request...",
+      "Assembling components...",
+      "Constructing your project..."
+    ];
+    // Return a random message from the array
+    return messages[Math.floor(Math.random() * messages.length)];
+  };
+
   return (
     <div className="glass-panel p-8 space-y-6 card-shadow">
       <div className="space-y-6">
@@ -95,7 +111,7 @@ export function GenerationForm({
             {loading ? (
               <>
                 <Loader2 className="animate-spin" size={20} />
-                <span>Generating...</span>
+                <span>{getLoadingMessage()}</span>
               </>
             ) : (
               <>
