@@ -13,42 +13,50 @@ type ToastProps = {
 
 type Toast = ToastProps;
 
+// Store for managing toasts outside of React components
+let toasts: Toast[] = [];
+let listeners: Array<(toasts: Toast[]) => void> = [];
+
+const emitChange = () => {
+  listeners.forEach(listener => listener(toasts));
+};
+
+// Module-level toast function that can be used anywhere
+const toast = (props: Omit<Toast, "id">): string => {
+  const id = Math.random().toString(36).substring(2, 9);
+  toasts = [...toasts, { id, ...props }];
+  
+  // Set timeout to remove the toast
+  setTimeout(() => {
+    toasts = toasts.filter(t => t.id !== id);
+    emitChange();
+  }, TOAST_TIMEOUT);
+  
+  emitChange();
+  return id;
+};
+
+// Hook for React components
 const useToast = () => {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [localToasts, setLocalToasts] = useState<Toast[]>(toasts);
 
   useEffect(() => {
-    const timers: Record<string, NodeJS.Timeout> = {};
-
-    toasts.forEach((toast) => {
-      if (!timers[toast.id]) {
-        timers[toast.id] = setTimeout(() => {
-          setToasts((toasts) => toasts.filter((t) => t.id !== toast.id));
-          delete timers[toast.id];
-        }, TOAST_TIMEOUT);
-      }
-    });
-
+    // Subscribe to changes
+    listeners.push(setLocalToasts);
+    
     return () => {
-      Object.values(timers).forEach(clearTimeout);
+      // Unsubscribe on cleanup
+      listeners = listeners.filter(listener => listener !== setLocalToasts);
     };
-  }, [toasts]);
-
-  const addToast = (toast: Omit<Toast, "id">) => {
-    const id = Math.random().toString(36).substring(2, 9);
-    setToasts((toasts) => [...toasts, { id, ...toast }]);
-    return id;
-  };
+  }, []);
 
   const removeToast = (id: string) => {
-    setToasts((toasts) => toasts.filter((t) => t.id !== id));
-  };
-
-  const toast = (props: Omit<Toast, "id">) => {
-    return addToast(props);
+    toasts = toasts.filter(t => t.id !== id);
+    emitChange();
   };
 
   return {
-    toasts,
+    toasts: localToasts,
     toast,
     removeToast,
   };
