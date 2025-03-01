@@ -12,6 +12,7 @@ export const useGameGeneration = () => {
   const [modelType, setModelType] = useState<string>("smart"); // Default to smart (Anthropic) model
   const timerRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
+  const maxRetries = 2; // Maximum number of retry attempts for network errors
 
   const generateGame = async (prompt: string, gameType: string, imageUrl?: string, existingGameId?: string) => {
     if (!prompt.trim()) {
@@ -39,6 +40,8 @@ export const useGameGeneration = () => {
     let buffer = '';
     let combinedResponse = '';
     let totalChunks = 0;
+    let retryCount = 0;
+    let lastSuccessfulChunk = ''; // Store the last successful chunk for resumption
 
     try {
       const selectedType = contentTypes.find(type => type.id === gameType);
@@ -285,229 +288,291 @@ ENSURE INTERACTION CAPABILITIES:
 
       let response;
       
-      if (modelType === "fast") {
-        // Use Groq API for "fast" model - now with streaming mode DISABLED
-        setTerminalOutput(prev => [...prev, `> Using non-streaming mode for Groq API...`]);
-        
-        response = await fetch(
-          'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-with-groq',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
-            },
-            body: JSON.stringify({ 
-              prompt: finalPrompt,
-              imageUrl: imageUrl,
-              contentType: gameType,
-              stream: false // Disable streaming for Groq
-            }),
-          }
-        );
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          try {
-            const errorJson = JSON.parse(errorText);
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
-          } catch (e) {
-            throw new Error(`HTTP error! status: ${response.status}, response: ${errorText.substring(0, 100)}...`);
-          }
-        }
-        
-        setTerminalOutput(prev => [...prev, `> Connected to Groq API, waiting for complete response...`]);
-        
-        // Handle non-streaming response
-        const data = await response.json();
-        if (data.error) {
-          throw new Error(`Groq API error: ${data.error}`);
-        }
-        
-        // Extract the content from the non-streaming response
-        if (data.choices && data.choices[0] && data.choices[0].message) {
-          const content = data.choices[0].message.content;
-          gameContent = content;
-          combinedResponse = content;
+      // Function to handle API calls with retries for both models
+      const makeApiCallWithRetry = async () => {
+        if (modelType === "fast") {
+          // Use Groq API for "fast" model - now with streaming mode DISABLED
+          setTerminalOutput(prev => [...prev, `> Using non-streaming mode for Groq API${retryCount > 0 ? ` (retry attempt ${retryCount})` : ''}...`]);
           
-          // Display content in chunks for better visibility
-          const contentLines = content.split('\n');
-          for (const contentLine of contentLines) {
-            if (contentLine.trim()) {
-              setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+          const groqResponse = await fetch(
+            'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-with-groq',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
+              },
+              body: JSON.stringify({ 
+                prompt: finalPrompt,
+                imageUrl: imageUrl,
+                contentType: gameType,
+                stream: false // Disable streaming for Groq
+              }),
+              // Add timeout signal
+              signal: AbortSignal.timeout(180000), // 3 minute timeout
+            }
+          );
+          
+          return groqResponse;
+        } else {
+          // Use default Anthropic API for "smart" model
+          setTerminalOutput(prev => [...prev, `> Connecting to Anthropic API${retryCount > 0 ? ` (retry attempt ${retryCount})` : ''}...`]);
+          
+          const anthropicResponse = await fetch(
+            'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
+              },
+              body: JSON.stringify({ 
+                prompt: finalPrompt,
+                imageUrl: imageUrl,
+                contentType: gameType,
+                // If retrying, include partial response to attempt continuation
+                partialResponse: retryCount > 0 ? combinedResponse : undefined
+              }),
+              // Add timeout signal
+              signal: AbortSignal.timeout(300000), // 5 minute timeout for Anthropic
+            }
+          );
+          
+          return anthropicResponse;
+        }
+      };
+
+      // Attempt API call with retries
+      const processResponse = async () => {
+        try {
+          response = await makeApiCallWithRetry();
+          
+          if (!response.ok) {
+            const errorText = await response.text();
+            try {
+              const errorJson = JSON.parse(errorText);
+              throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
+            } catch (e) {
+              throw new Error(`HTTP error! status: ${response.status}, response: ${errorText.substring(0, 100)}...`);
             }
           }
           
-          setTerminalOutput(prev => [...prev, `> Generation completed: ${data.choices[0].finish_reason || 'complete'}`]);
-        } else {
-          throw new Error("Invalid response format from Groq API");
-        }
-      } else {
-        // Use default Anthropic API for "smart" model - keep streaming
-        response = await fetch(
-          'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game',
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo',
-            },
-            body: JSON.stringify({ 
-              prompt: finalPrompt,
-              imageUrl: imageUrl,
-              contentType: gameType
-            }),
-          }
-        );
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          try {
-            const errorJson = JSON.parse(errorText);
-            throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
-          } catch (e) {
-            throw new Error(`HTTP error! status: ${response.status}, response: ${errorText.substring(0, 100)}...`);
-          }
-        }
-
-        setTerminalOutput(prev => [...prev, `> Connected to generation service, receiving stream...`]);
-
-        const reader = response.body?.getReader();
-        if (!reader) throw new Error("No reader available");
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-
-          totalChunks++;
-          // Decode the chunk and add it to our buffer
-          const text = new TextDecoder().decode(value);
-          buffer += text;
-          
-          console.log("Received chunk size:", text.length, "Buffer size:", buffer.length);
-          if (text.length > 0) {
-            console.log("Chunk sample:", text.substring(0, Math.min(100, text.length)));
-          }
-          
-          // Process complete lines from the buffer
-          let lineEnd;
-          while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-            const line = buffer.slice(0, lineEnd);
-            buffer = buffer.slice(lineEnd + 1);
+          // Process response based on model type
+          if (modelType === "fast") {
+            // Handle non-streaming Groq response
+            setTerminalOutput(prev => [...prev, `> Connected to Groq API, waiting for complete response...`]);
             
-            // Skip empty lines
-            if (!line) continue;
+            const data = await response.json();
+            if (data.error) {
+              throw new Error(`Groq API error: ${data.error}`);
+            }
             
-            // Handle both Anthropic and Groq streaming formats
-            if (line.startsWith('data: ')) {
-              // Anthropic format
+            // Extract the content from the non-streaming response
+            if (data.choices && data.choices[0] && data.choices[0].message) {
+              const content = data.choices[0].message.content;
+              gameContent = content;
+              combinedResponse = content;
+              
+              // Display content in chunks for better visibility
+              const contentLines = content.split('\n');
+              for (const contentLine of contentLines) {
+                if (contentLine.trim()) {
+                  setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                }
+              }
+              
+              setTerminalOutput(prev => [...prev, `> Generation completed: ${data.choices[0].finish_reason || 'complete'}`]);
+            } else {
+              throw new Error("Invalid response format from Groq API");
+            }
+          } else {
+            // Handle streaming Anthropic response
+            setTerminalOutput(prev => [...prev, `> Connected to generation service, receiving stream...`]);
+
+            const reader = response.body?.getReader();
+            if (!reader) throw new Error("No reader available");
+
+            while (true) {
               try {
-                const data = JSON.parse(line.slice(5));
+                const { done, value } = await reader.read();
+                if (done) break;
 
-                switch (data.type) {
-                  case 'message_start':
-                    setTerminalOutput(prev => [...prev, "> AI is analyzing your request..."]);
-                    break;
+                totalChunks++;
+                // Decode the chunk and add it to our buffer
+                const text = new TextDecoder().decode(value);
+                buffer += text;
+                lastSuccessfulChunk = text; // Store the last chunk we successfully processed
+                
+                console.log("Received chunk size:", text.length, "Buffer size:", buffer.length);
+                if (text.length > 0) {
+                  console.log("Chunk sample:", text.substring(0, Math.min(100, text.length)));
+                }
+                
+                // Process complete lines from the buffer
+                let lineEnd;
+                while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+                  const line = buffer.slice(0, lineEnd);
+                  buffer = buffer.slice(lineEnd + 1);
+                  
+                  // Skip empty lines
+                  if (!line) continue;
+                  
+                  // Handle Anthropic streaming format
+                  if (line.startsWith('data: ')) {
+                    try {
+                      const data = JSON.parse(line.slice(5));
 
-                  case 'content_block_start':
-                    if (data.content_block?.type === 'thinking') {
-                      setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
-                    }
-                    break;
+                      switch (data.type) {
+                        case 'message_start':
+                          setTerminalOutput(prev => [...prev, "> AI is analyzing your request..."]);
+                          break;
 
-                  case 'content_block_delta':
-                    if (data.delta?.type === 'thinking_delta') {
-                      const thinking = data.delta.thinking || '';
-                      if (thinking && thinking.trim()) {
-                        setTerminalOutput(prev => [...prev, `> ${thinking}`]);
-                      }
-                    } else if (data.delta?.type === 'text_delta') {
-                      const content = data.delta.text || '';
-                      if (content) {
-                        gameContent += content;
-                        combinedResponse += content;
-                        
-                        // Display the content in smaller chunks for better visibility
-                        if (content.includes('\n')) {
-                          // If it contains newlines, split it and display each line
-                          const contentLines = content.split('\n');
-                          for (const contentLine of contentLines) {
-                            if (contentLine.trim()) {
-                              setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                        case 'content_block_start':
+                          if (data.content_block?.type === 'thinking') {
+                            setTerminalOutput(prev => [...prev, "\n> Thinking phase started..."]);
+                          }
+                          break;
+
+                        case 'content_block_delta':
+                          if (data.delta?.type === 'thinking_delta') {
+                            const thinking = data.delta.thinking || '';
+                            if (thinking && thinking.trim()) {
+                              setTerminalOutput(prev => [...prev, `> ${thinking}`]);
+                            }
+                          } else if (data.delta?.type === 'text_delta') {
+                            const content = data.delta.text || '';
+                            if (content) {
+                              gameContent += content;
+                              combinedResponse += content;
+                              
+                              // Display the content in smaller chunks for better visibility
+                              if (content.includes('\n')) {
+                                // If it contains newlines, split it and display each line
+                                const contentLines = content.split('\n');
+                                for (const contentLine of contentLines) {
+                                  if (contentLine.trim()) {
+                                    setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                                  }
+                                }
+                              } else {
+                                // Otherwise display the chunk directly
+                                setTerminalOutput(prev => [...prev, `> ${content}`]);
+                              }
                             }
                           }
-                        } else {
-                          // Otherwise display the chunk directly
-                          setTerminalOutput(prev => [...prev, `> ${content}`]);
-                        }
+                          break;
+
+                        case 'content_block_stop':
+                          if (data.content_block?.type === 'thinking') {
+                            setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
+                          }
+                          break;
+
+                        case 'message_delta':
+                          if (data.delta?.stop_reason) {
+                            setTerminalOutput(prev => [...prev, `> Generation ${data.delta.stop_reason}`]);
+                          }
+                          break;
+
+                        case 'message_stop':
+                          setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
+                          break;
+
+                        case 'error':
+                          throw new Error(data.error?.message || 'Unknown error in stream');
                       }
+                    } catch (e) {
+                      console.error('Error parsing SSE line:', e);
+                      console.log('Raw data that failed to parse:', line.slice(5));
+                      setTerminalOutput(prev => [...prev, `> Warning: Error parsing stream data: ${e instanceof Error ? e.message : 'Unknown error'}`]);
+                      // Continue even if we can't parse a line - don't throw here
                     }
-                    break;
-
-                  case 'content_block_stop':
-                    if (data.content_block?.type === 'thinking') {
-                      setTerminalOutput(prev => [...prev, "> Thinking phase completed"]);
-                    }
-                    break;
-
-                  case 'message_delta':
-                    if (data.delta?.stop_reason) {
-                      setTerminalOutput(prev => [...prev, `> Generation ${data.delta.stop_reason}`]);
-                    }
-                    break;
-
-                  case 'message_stop':
-                    setTerminalOutput(prev => [...prev, "> Game generation completed!"]);
-                    break;
-
-                  case 'error':
-                    throw new Error(data.error?.message || 'Unknown error in stream');
-                }
-              } catch (e) {
-                console.error('Error parsing SSE line:', e);
-                console.log('Raw data that failed to parse:', line.slice(5));
-                setTerminalOutput(prev => [...prev, `> Error: ${e instanceof Error ? e.message : 'Unknown error'}`]);
-              }
-            } else {
-              // Try to parse as Groq streaming format
-              try {
-                const data = JSON.parse(line);
-                console.log("Received Groq data chunk:", data);
-                
-                // Check if it's a Groq delta chunk with content
-                if (data.choices && data.choices[0]?.delta?.content) {
-                  const content = data.choices[0].delta.content;
-                  if (content) {
-                    gameContent += content;
-                    combinedResponse += content;
-                    console.log("Adding Groq content chunk, length:", content.length);
-                    
-                    // Display content in chunks similar to Anthropic format
-                    if (content.includes('\n')) {
-                      const contentLines = content.split('\n');
-                      for (const contentLine of contentLines) {
-                        if (contentLine.trim()) {
-                          setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                  } else {
+                    // Try to parse as Groq streaming format
+                    try {
+                      const data = JSON.parse(line);
+                      console.log("Received Groq data chunk:", data);
+                      
+                      // Check if it's a Groq delta chunk with content
+                      if (data.choices && data.choices[0]?.delta?.content) {
+                        const content = data.choices[0].delta.content;
+                        if (content) {
+                          gameContent += content;
+                          combinedResponse += content;
+                          console.log("Adding Groq content chunk, length:", content.length);
+                          
+                          // Display content in chunks similar to Anthropic format
+                          if (content.includes('\n')) {
+                            const contentLines = content.split('\n');
+                            for (const contentLine of contentLines) {
+                              if (contentLine.trim()) {
+                                setTerminalOutput(prev => [...prev, `> ${contentLine}`]);
+                              }
+                            }
+                          } else {
+                            setTerminalOutput(prev => [...prev, `> ${content}`]);
+                          }
                         }
+                      } 
+                      // Check if it's the final Groq message
+                      else if (data.choices && data.choices[0]?.finish_reason) {
+                        setTerminalOutput(prev => [...prev, `> Generation ${data.choices[0].finish_reason}`]);
                       }
-                    } else {
-                      setTerminalOutput(prev => [...prev, `> ${content}`]);
+                    } catch (e) {
+                      // Not valid JSON or not expected format, might be a partial chunk
+                      console.warn('Invalid JSON in stream or unexpected format:', line.substring(0, 50) + '...');
                     }
                   }
-                } 
-                // Check if it's the final Groq message
-                else if (data.choices && data.choices[0]?.finish_reason) {
-                  setTerminalOutput(prev => [...prev, `> Generation ${data.choices[0].finish_reason}`]);
                 }
-              } catch (e) {
-                // Not valid JSON or not expected format, might be a partial chunk
-                console.warn('Invalid JSON in stream or unexpected format:', line.substring(0, 50) + '...');
+              } catch (streamError) {
+                console.error("Stream reading error:", streamError);
+                setTerminalOutput(prev => [...prev, `> Network interruption detected: ${streamError.message}`]);
+                
+                // Check if we have enough content to proceed
+                if (gameContent.length > 1000) {
+                  setTerminalOutput(prev => [...prev, `> We have sufficient content to proceed despite the network error.`]);
+                  break; // Exit the loop and use what we have if we got enough content
+                } else if (retryCount < maxRetries) {
+                  throw new Error("Network interruption - will retry"); // This will be caught by the retry mechanism
+                } else {
+                  throw new Error("Stream reading failed after multiple attempts"); // Give up after max retries
+                }
               }
             }
           }
+        } catch (error) {
+          // Handle retryable errors
+          if ((error.message.includes('network') || error.message.includes('Network') || 
+               error.message.includes('timeout') || error.message.includes('interrupted') ||
+               error.message.includes('abort') || error.message.includes('connection')) && 
+              retryCount < maxRetries) {
+            
+            retryCount++;
+            setTerminalOutput(prev => [...prev, `> Network error: ${error.message}. Retrying (attempt ${retryCount} of ${maxRetries})...`]);
+            console.error(`Network error occurred, retrying (${retryCount}/${maxRetries}):`, error);
+            
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // Try again
+            return processResponse();
+          } else {
+            // If we've collected some content, try to use that even if we hit an error
+            if (gameContent.length > 500) {
+              setTerminalOutput(prev => [...prev, `> Error: ${error.message}, but using partial content collected so far.`]);
+              console.warn("Using partial content despite error:", error);
+            } else {
+              // Otherwise, propagate the error
+              throw error;
+            }
+          }
         }
-      }
-
+      };
+      
+      // Process the response with retry capability
+      await processResponse();
+      
+      // Handle content specific formatting after successful generation
       // For SVG content type, wrap the SVG in basic HTML if it's just raw SVG
       if (selectedType?.id === 'svg' && !gameContent.includes('<!DOCTYPE html>')) {
         gameContent = `
@@ -527,8 +592,25 @@ ENSURE INTERACTION CAPABILITIES:
 
       // Final check to ensure we have valid HTML content
       if (!gameContent.includes('<html') && !gameContent.includes('<!DOCTYPE')) {
-        console.error("Final content is not valid HTML");
-        throw new Error("Generated content is invalid. Please try again or switch models.");
+        // If we've collected enough content, try to make it valid HTML
+        if (gameContent.length > 500) {
+          console.warn("Content missing proper HTML structure, attempting to fix");
+          setTerminalOutput(prev => [...prev, "> Content format issue detected, attempting to repair..."]);
+          gameContent = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generated Content</title>
+</head>
+<body>
+  ${gameContent}
+</body>
+</html>`;
+        } else {
+          console.error("Final content is not valid HTML and too short to fix");
+          throw new Error("Generated content is invalid. Please try again or switch models.");
+        }
       }
 
       setTerminalOutput(prev => [...prev, "> Saving to database..."]);
@@ -626,9 +708,32 @@ ENSURE INTERACTION CAPABILITIES:
 
     } catch (error) {
       console.error('Generation error:', error);
+      
+      // If we have some usable content even after error, try to save it
+      if (gameContent.length > 500 && existingGameId) {
+        setTerminalOutput(prev => [...prev, `> Error occurred, but trying to save partial content: ${error.message}`]);
+        try {
+          // Attempt to save the partial game content
+          await supabase
+            .from('games')
+            .update({ 
+              code: gameContent,
+              instructions: `Partial content (network error: ${error.message})`
+            })
+            .eq('id', existingGameId);
+          
+          setTerminalOutput(prev => [...prev, "> Saved partial content to database"]);
+          
+          // Return the existing game ID to avoid losing progress
+          return { id: existingGameId };
+        } catch (saveError) {
+          console.error("Failed to save partial content:", saveError);
+        }
+      }
+      
       toast({
         title: "Error generating content",
-        description: error instanceof Error ? error.message : "Please try again",
+        description: `${error instanceof Error ? error.message : "Please try again"}${gameContent.length > 500 ? " (partial content may be available)" : ""}`,
         variant: "destructive",
       });
       setTerminalOutput(prev => [...prev, `> Error: ${error instanceof Error ? error.message : "Generation failed"}`]);
