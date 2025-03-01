@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -396,7 +395,6 @@ const Play = () => {
       if (error) throw error;
       if (!data) throw new Error("Content not found");
       
-      // Store the initial prompt for the GameChat component
       setInitialPrompt(data.prompt);
       
       const sortedVersions = data.game_versions.sort((a, b) => b.version_number - a.version_number);
@@ -563,8 +561,18 @@ const Play = () => {
       setGameVersions(prev => [newVersion, ...prev]);
       setSelectedVersion(newVersion.id);
       
+      toast({
+        title: "Version created",
+        description: `Created version ${newVersionNumber} based on version ${version.version_number}.`
+      });
+      
     } catch (error) {
       console.error("Error reverting version:", error);
+      toast({
+        title: "Error reverting to version",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive"
+      });
     }
   };
 
@@ -625,7 +633,7 @@ const Play = () => {
               disabled={generationInProgress}
               onRevertToVersion={handleRevertToMessageVersion}
               gameVersions={gameVersions}
-              initialMessage={initialPrompt} // Pass the initial prompt to GameChat
+              initialMessage={initialPrompt}
             />
           </div>
         </div>
