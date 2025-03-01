@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X, Info, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,6 +58,8 @@ export const GameChat = ({
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [modelType, setModelType] = useState<string>("smart");
+  const [initialMessageId, setInitialMessageId] = useState<string | null>(null);
+  const [previousDisabledState, setPreviousDisabledState] = useState<boolean>(disabled);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -124,6 +127,7 @@ export const GameChat = ({
             response: "Generating initial content..."
           };
           setMessages([newMessage]);
+          setInitialMessageId('initial-message');
         } else {
           setMessages(data || []);
         }
@@ -140,6 +144,27 @@ export const GameChat = ({
     
     fetchMessages();
   }, [gameId, toast, initialMessage]);
+
+  // Add new effect to detect when generation completes and update the initial message
+  useEffect(() => {
+    // Check if disabled state changed from true to false (generation completed)
+    if (previousDisabledState === true && disabled === false && initialMessageId === 'initial-message') {
+      // Update the message to show content was generated successfully
+      setMessages(prev => 
+        prev.map(msg => 
+          msg.id === 'initial-message' 
+            ? { ...msg, response: "Content generated successfully" } 
+            : msg
+        )
+      );
+      
+      // Clear the initialMessageId so this only happens once
+      setInitialMessageId(null);
+    }
+    
+    // Update previous disabled state for next comparison
+    setPreviousDisabledState(disabled);
+  }, [disabled, initialMessageId, previousDisabledState]);
 
   useEffect(() => {
     if (loading) {
