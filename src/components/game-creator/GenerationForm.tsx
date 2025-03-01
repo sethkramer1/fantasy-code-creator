@@ -1,8 +1,14 @@
 
-import { Loader2, Terminal, Wand2 } from "lucide-react";
+import { Loader2, Terminal, Wand2, Info } from "lucide-react";
 import { GameTypeSelector } from "./GameTypeSelector";
 import { GamePromptInput } from "./GamePromptInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface GenerationFormProps {
   gameType: string;
@@ -55,7 +61,25 @@ export function GenerationForm({
         
         {showModelPreference && (
           <div className="space-y-3">
-            <p className="font-medium text-gray-700">Model preference</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-gray-700">Model preference</p>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="cursor-help">
+                      <Info size={16} className="text-gray-400 hover:text-gray-600" />
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs p-3">
+                    <p>Choose the model that best fits your needs:</p>
+                    <ul className="mt-2 text-sm list-disc pl-4 space-y-1">
+                      <li><strong>Fastest</strong>: Ideal for most edits - 5x faster to iterate with good results.</li>
+                      <li><strong>Smartest</strong>: Better for complex tasks but takes longer to generate.</li>
+                    </ul>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
             <Select value={modelType} onValueChange={setModelType}>
               <SelectTrigger className="w-full">
                 <SelectValue placeholder="Select model" />
@@ -66,7 +90,10 @@ export function GenerationForm({
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
                       <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"></path>
                     </svg>
-                    <span>Fastest (Groq)</span>
+                    <div>
+                      <span>Fastest (Groq)</span>
+                      <span className="ml-2 text-xs text-green-600 font-medium">5x faster</span>
+                    </div>
                   </div>
                 </SelectItem>
                 <SelectItem value="smart">
