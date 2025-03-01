@@ -515,45 +515,33 @@ const Play = () => {
 
   const handleRevertToVersion = async (version: GameVersion) => {
     try {
-      const newVersion: GameVersion = {
-        id: crypto.randomUUID(),
-        version_number: gameVersions[0].version_number + 1,
-        code: version.code,
-        instructions: version.instructions,
-        created_at: new Date().toISOString()
-      };
-      const { error } = await supabase.from('game_versions').insert({
-        id: newVersion.id,
-        game_id: id,
-        version_number: newVersion.version_number,
-        code: newVersion.code,
-        instructions: newVersion.instructions
-      });
-      if (error) throw error;
-      
-      const { error: gameError } = await supabase
-        .from('games')
-        .update({ 
-          current_version: newVersion.version_number,
-          code: newVersion.code,
-          instructions: newVersion.instructions
-        })
-        .eq('id', id);
-        
-      if (gameError) throw gameError;
-      
-      setGameVersions(prev => [newVersion, ...prev]);
-      setSelectedVersion(newVersion.id);
-      toast({
-        title: "Version reverted",
-        description: `Created new version ${newVersion.version_number} based on version ${version.version_number}`
-      });
+      await onRevertToVersion(version);
     } catch (error) {
       toast({
         title: "Error reverting version",
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
+    }
+  };
+
+  const handleRevertToMessageVersion = async (message: any) => {
+    if (!gameVersions.length) return;
+    
+    try {
+      const messageTime = new Date(message.created_at).getTime();
+      
+      const versionsAfterMessage = gameVersions
+        .filter(v => new Date(v.created_at).getTime() > messageTime)
+        .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      
+      if (versionsAfterMessage.length > 0) {
+        await handleRevertToVersion(versionsAfterMessage[0]);
+      } else {
+        throw new Error("No version found after this message");
+      }
+    } catch (error) {
+      throw error;
     }
   };
 
@@ -592,6 +580,8 @@ const Play = () => {
               onGameUpdate={handleGameUpdate} 
               onTerminalStatusChange={handleTerminalStatusChange}
               disabled={generationInProgress}
+              onRevertToVersion={handleRevertToMessageVersion}
+              gameVersions={gameVersions}
             />
           </div>
         </div>
@@ -611,6 +601,8 @@ const Play = () => {
                     gameVersions={gameVersions}
                     selectedVersion={selectedVersion}
                     onVersionChange={handleVersionChange}
+                    onRevertToVersion={handleRevertToVersion}
+                    isLatestVersion={isLatestVersion}
                   />
                 )}
               </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Loader2, ArrowUp, Paperclip, X, Info } from "lucide-react";
+import { Loader2, ArrowUp, Paperclip, X, Info, RotateCcw } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { 
@@ -9,6 +9,7 @@ import {
   SelectTrigger,
   SelectValue
 } from "@/components/ui/select";
+import { Button } from "@/components/ui/button";
 import {
   Tooltip,
   TooltipContent,
@@ -31,13 +32,17 @@ interface GameChatProps {
   onGameUpdate: (newCode: string, newInstructions: string) => void;
   onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
   disabled?: boolean;
+  onRevertToVersion?: (message: Message) => Promise<void>;
+  gameVersions?: any[];
 }
 
 export const GameChat = ({
   gameId,
   onGameUpdate,
   onTerminalStatusChange,
-  disabled = false
+  disabled = false,
+  onRevertToVersion,
+  gameVersions = []
 }: GameChatProps) => {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -565,6 +570,24 @@ export const GameChat = ({
     }
   };
 
+  const handleRevertToVersion = async (message: Message) => {
+    if (!onRevertToVersion) return;
+    
+    try {
+      await onRevertToVersion(message);
+      toast({
+        title: "Version restored",
+        description: `Reverted to the version created after this message.`
+      });
+    } catch (error) {
+      toast({
+        title: "Error reverting version",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive"
+      });
+    }
+  };
+
   return (
     <div className="flex flex-col h-full w-full max-w-[400px] mx-auto">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -593,6 +616,19 @@ export const GameChat = ({
                       alt="User uploaded image" 
                       className="rounded-md max-h-48 object-contain"
                     />
+                  </div>
+                )}
+                {onRevertToVersion && gameVersions.length > 1 && (
+                  <div className="mt-2">
+                    <Button
+                      variant="subtle"
+                      size="xs"
+                      className="flex items-center gap-1"
+                      onClick={() => handleRevertToVersion(msg)}
+                    >
+                      <RotateCcw size={12} />
+                      Revert to this version
+                    </Button>
                   </div>
                 )}
               </div>

@@ -1,5 +1,5 @@
 
-import { RotateCcw, Download } from "lucide-react";
+import { Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import JSZip from 'jszip';
@@ -92,15 +92,6 @@ export function GameActions({
 
   return (
     <div className="flex items-center gap-2">
-      {!isLatestVersion && (
-        <button 
-          onClick={() => onRevertToVersion(currentVersion)} 
-          className="flex items-center gap-1 px-3 py-1.5 text-sm text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors"
-        >
-          <RotateCcw size={16} />
-          <span>Revert to this version</span>
-        </button>
-      )}
       <Button
         variant="outline"
         size="sm"
