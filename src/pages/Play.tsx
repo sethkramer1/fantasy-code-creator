@@ -515,7 +515,23 @@ const Play = () => {
 
   const handleRevertToVersion = async (version: GameVersion) => {
     try {
-      await onRevertToVersion(version);
+      setSelectedVersion(version.id);
+      
+      const { error: updateError } = await supabase
+        .from('games')
+        .update({
+          current_version: version.version_number,
+          code: version.code,
+          instructions: version.instructions
+        })
+        .eq('id', id);
+        
+      if (updateError) throw updateError;
+      
+      toast({
+        title: "Version restored",
+        description: `Reverted to version ${version.version_number}.`
+      });
     } catch (error) {
       toast({
         title: "Error reverting version",
