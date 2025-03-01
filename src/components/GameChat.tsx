@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { Loader2, ArrowUp, Paperclip, X, Cpu } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -281,6 +282,7 @@ export const GameChat = ({
       updateTerminalOutput(`> Connecting to ${currentModelType === "fast" ? "Groq" : "Anthropic"} API...`, true);
       
       try {
+        // Here's the fix: Ensure the Content-Type header is explicitly set to application/json
         const apiResponse = await fetch(apiUrl, {
           method: 'POST',
           headers: {
@@ -622,7 +624,7 @@ export const GameChat = ({
         
       } catch (fetchError) {
         console.error("Fetch error:", fetchError);
-        throw new Error(`Failed to connect to AI service: ${fetchError.message}`);
+        throw new Error(`Failed to connect to AI service: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
       }
     } catch (error) {
       console.error("Error in handleSubmit:", error);
