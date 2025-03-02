@@ -37,11 +37,25 @@ export function PlayContent({
 }: PlayContentProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
+  // Ensure the iframe gets focus and is visible
   useEffect(() => {
-    if (iframeRef.current) {
+    if (iframeRef.current && currentVersion) {
       iframeRef.current.focus();
     }
   }, [currentVersion]);
+
+  // This effect handles the transition from generation to preview
+  useEffect(() => {
+    if (!showGenerating && !generationInProgress && currentVersion) {
+      console.log("Generation complete, focusing iframe");
+      // Small timeout to ensure DOM is updated before focusing
+      setTimeout(() => {
+        if (iframeRef.current) {
+          iframeRef.current.focus();
+        }
+      }, 100);
+    }
+  }, [showGenerating, generationInProgress, currentVersion]);
 
   return (
     <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
@@ -79,6 +93,7 @@ export function PlayContent({
               <GamePreview 
                 currentVersion={currentVersion} 
                 showCode={showCode} 
+                ref={iframeRef}
               />
             )}
           </div>
