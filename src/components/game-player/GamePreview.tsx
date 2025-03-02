@@ -1,5 +1,7 @@
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CodePlus, FileCode, FileText, Pencil } from "lucide-react";
 
 interface GameVersion {
   id: string;
@@ -14,8 +16,67 @@ interface GamePreviewProps {
   showCode: boolean;
 }
 
+// Helper function to extract different parts of the code
+function parseCodeSections(code: string = "") {
+  // Basic extraction of CSS and JavaScript
+  const htmlParts: string[] = [];
+  const cssParts: string[] = [];
+  const jsParts: string[] = [];
+  
+  // Extract CSS
+  const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+  let styleMatch;
+  while ((styleMatch = styleRegex.exec(code)) !== null) {
+    cssParts.push(styleMatch[1]);
+  }
+  
+  // Extract JavaScript
+  const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+  let scriptMatch;
+  while ((scriptMatch = scriptRegex.exec(code)) !== null) {
+    jsParts.push(scriptMatch[1]);
+  }
+  
+  // Process HTML (removing script and style tags)
+  let htmlContent = code
+    .replace(/<style[^>]*>([\s\S]*?)<\/style>/gi, '')
+    .replace(/<script[^>]*>([\s\S]*?)<\/script>/gi, '')
+    .trim();
+  
+  htmlParts.push(htmlContent);
+  
+  return {
+    html: htmlParts.join('\n\n'),
+    css: cssParts.join('\n\n'),
+    js: jsParts.join('\n\n')
+  };
+}
+
+// Component to display code with line numbers
+const CodeWithLineNumbers = ({ code, language }: { code: string, language: string }) => {
+  const lines = code.split('\n');
+  
+  return (
+    <div className="flex text-xs font-mono">
+      <div className="bg-gray-800 text-gray-500 pr-4 pl-2 text-right select-none">
+        {lines.map((_, i) => (
+          <div key={i} className="leading-5">
+            {i + 1}
+          </div>
+        ))}
+      </div>
+      <pre className="flex-1 overflow-auto pl-4 text-gray-100">
+        <code className="language-{language} whitespace-pre">
+          {code}
+        </code>
+      </pre>
+    </div>
+  );
+};
+
 export function GamePreview({ currentVersion, showCode }: GamePreviewProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [activeTab, setActiveTab] = useState<string>("html");
 
   useEffect(() => {
     if (iframeRef.current) {
@@ -256,12 +317,85 @@ export function GamePreview({ currentVersion, showCode }: GamePreviewProps) {
       </div>
     );
   } else {
+    // Parse the code into sections
+    const { html, css, js } = parseCodeSections(currentVersion?.code || "");
+    
     return (
       <div className="h-full relative">
-        <div className="absolute inset-0 overflow-auto">
-          <pre className="p-4 bg-gray-50 rounded-lg h-full">
-            <code className="text-sm whitespace-pre-wrap break-words">{currentVersion?.code}</code>
-          </pre>
+        <div className="absolute inset-0 overflow-hidden flex flex-col bg-gray-900 text-white rounded-lg">
+          <div className="border-b border-gray-700 flex">
+            <div className="flex items-center pl-3">
+              <FileCode size={16} className="text-gray-500 mr-2" />
+              <div className="flex overflow-auto">
+                <div className="flex">
+                  <div className="flex px-3 py-2 items-center gap-1 bg-gray-800 text-gray-300 text-xs">
+                    <FileText size={14} />
+                    <span>index.html</span>
+                  </div>
+                  {css && (
+                    <div className="flex px-3 py-2 items-center gap-1 text-gray-300 text-xs">
+                      <Pencil size={14} />
+                      <span>styles.css</span>
+                    </div>
+                  )}
+                  {js && (
+                    <div className="flex px-3 py-2 items-center gap-1 text-gray-300 text-xs">
+                      <CodePlus size={14} />
+                      <span>script.js</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <Tabs 
+            defaultValue="html" 
+            value={activeTab} 
+            onValueChange={setActiveTab}
+            className="flex-1 flex flex-col overflow-hidden"
+          >
+            <div className="flex items-center px-2 bg-gray-800 border-b border-gray-700">
+              <TabsList className="flex gap-1 bg-transparent h-9">
+                <TabsTrigger 
+                  value="html" 
+                  className={`px-3 py-1 text-xs rounded data-[state=active]:bg-gray-700 data-[state=active]:text-white`}
+                >
+                  HTML
+                </TabsTrigger>
+                {css && (
+                  <TabsTrigger 
+                    value="css" 
+                    className={`px-3 py-1 text-xs rounded data-[state=active]:bg-gray-700 data-[state=active]:text-white`}
+                  >
+                    CSS
+                  </TabsTrigger>
+                )}
+                {js && (
+                  <TabsTrigger 
+                    value="js" 
+                    className={`px-3 py-1 text-xs rounded data-[state=active]:bg-gray-700 data-[state=active]:text-white`}
+                  >
+                    JavaScript
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
+            
+            <div className="flex-1 overflow-auto">
+              <TabsContent value="html" className="m-0 h-full">
+                <CodeWithLineNumbers code={html} language="html" />
+              </TabsContent>
+              
+              <TabsContent value="css" className="m-0 h-full">
+                <CodeWithLineNumbers code={css} language="css" />
+              </TabsContent>
+              
+              <TabsContent value="js" className="m-0 h-full">
+                <CodeWithLineNumbers code={js} language="javascript" />
+              </TabsContent>
+            </div>
+          </Tabs>
         </div>
       </div>
     );
