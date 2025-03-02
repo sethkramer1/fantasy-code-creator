@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Code, FileCode, FileText, Pencil } from "lucide-react";
+import { Code, FileText, Pencil } from "lucide-react";
 
 interface GameVersion {
   id: string;
@@ -59,7 +59,7 @@ const CodeWithLineNumbers = ({ code, language }: { code: string, language: strin
         ))}
       </div>
       <pre className="flex-1 overflow-auto pl-4 text-gray-100">
-        <code className="language-{language} whitespace-pre">
+        <code className={`language-${language} whitespace-pre`}>
           {code}
         </code>
       </pre>
@@ -279,32 +279,6 @@ export function GamePreview({ currentVersion, showCode }: GamePreviewProps) {
     return (
       <div className="h-full relative">
         <div className="absolute inset-0 overflow-hidden flex flex-col bg-gray-900 text-white rounded-lg">
-          <div className="border-b border-gray-700 flex">
-            <div className="flex items-center pl-3">
-              <FileCode size={16} className="text-gray-500 mr-2" />
-              <div className="flex overflow-auto">
-                <div className="flex">
-                  <div className="flex px-3 py-2 items-center gap-1 bg-gray-800 text-gray-300 text-xs">
-                    <FileText size={14} />
-                    <span>index.html</span>
-                  </div>
-                  {css && (
-                    <div className="flex px-3 py-2 items-center gap-1 text-gray-300 text-xs">
-                      <Pencil size={14} />
-                      <span>styles.css</span>
-                    </div>
-                  )}
-                  {js && (
-                    <div className="flex px-3 py-2 items-center gap-1 text-gray-300 text-xs">
-                      <Code size={14} />
-                      <span>script.js</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          </div>
-          
           <Tabs 
             defaultValue="html" 
             value={activeTab} 
@@ -312,42 +286,45 @@ export function GamePreview({ currentVersion, showCode }: GamePreviewProps) {
             className="flex-1 flex flex-col overflow-hidden"
           >
             <div className="flex items-center px-2 bg-gray-800 border-b border-gray-700">
-              <TabsList className="flex gap-1 bg-transparent h-9">
+              <TabsList className="flex gap-1 bg-transparent h-10">
                 <TabsTrigger 
                   value="html" 
-                  className={`px-3 py-1 text-xs rounded data-[state=active]:bg-gray-700 data-[state=active]:text-white`}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded data-[state=active]:bg-gray-700 data-[state=active]:text-white"
                 >
-                  HTML
+                  <FileText size={14} />
+                  <span>index.html</span>
                 </TabsTrigger>
                 {css && (
                   <TabsTrigger 
                     value="css" 
-                    className={`px-3 py-1 text-xs rounded data-[state=active]:bg-gray-700 data-[state=active]:text-white`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded data-[state=active]:bg-gray-700 data-[state=active]:text-white"
                   >
-                    CSS
+                    <Pencil size={14} />
+                    <span>styles.css</span>
                   </TabsTrigger>
                 )}
                 {js && (
                   <TabsTrigger 
                     value="js" 
-                    className={`px-3 py-1 text-xs rounded data-[state=active]:bg-gray-700 data-[state=active]:text-white`}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded data-[state=active]:bg-gray-700 data-[state=active]:text-white"
                   >
-                    JavaScript
+                    <Code size={14} />
+                    <span>script.js</span>
                   </TabsTrigger>
                 )}
               </TabsList>
             </div>
             
             <div className="flex-1 overflow-auto">
-              <TabsContent value="html" className="m-0 h-full">
+              <TabsContent value="html" className="m-0 h-full p-0">
                 <CodeWithLineNumbers code={html} language="html" />
               </TabsContent>
               
-              <TabsContent value="css" className="m-0 h-full">
+              <TabsContent value="css" className="m-0 h-full p-0">
                 <CodeWithLineNumbers code={css} language="css" />
               </TabsContent>
               
-              <TabsContent value="js" className="m-0 h-full">
+              <TabsContent value="js" className="m-0 h-full p-0">
                 <CodeWithLineNumbers code={js} language="javascript" />
               </TabsContent>
             </div>
