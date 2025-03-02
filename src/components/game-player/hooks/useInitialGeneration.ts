@@ -246,11 +246,15 @@ export function useInitialGeneration() {
       
       updateTerminalOutput("> Generation complete! Displaying result...", true);
       
+      // Ensure generation progress is marked as complete before transitioning
       setGenerationInProgress(false);
       
-      fetchGame();
-      
-      navigate(`/play/${id}`, { replace: true });
+      // Add a small delay before fetching the game and navigating
+      // This ensures the terminal output is fully shown before transition
+      setTimeout(async () => {
+        await fetchGame();
+        navigate(`/play/${id}`, { replace: true });
+      }, 1000);
       
     } catch (error) {
       console.error('Generation error:', error);

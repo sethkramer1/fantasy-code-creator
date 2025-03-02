@@ -23,15 +23,24 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       console.log("GamePreview received currentVersion update", currentVersion?.id);
     }, [currentVersion]);
 
+    // Handle case when no version is available yet
+    if (!currentVersion) {
+      return (
+        <div className="h-full flex items-center justify-center bg-gray-50">
+          <p className="text-gray-500">Loading content...</p>
+        </div>
+      );
+    }
+
     if (!showCode) {
       return (
         <IframePreview 
-          code={currentVersion?.code || ""} 
+          code={currentVersion.code || ""} 
           ref={ref} 
         />
       );
     } else {
-      const { html, css, js } = parseCodeSections(currentVersion?.code || "");
+      const { html, css, js } = parseCodeSections(currentVersion.code || "");
       
       return (
         <div className="h-full relative">

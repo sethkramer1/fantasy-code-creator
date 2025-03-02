@@ -37,23 +37,39 @@ export function PlayContent({
 }: PlayContentProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  // Ensure the iframe gets focus and is visible
+  // Log state changes for debugging
   useEffect(() => {
-    if (iframeRef.current && currentVersion) {
-      iframeRef.current.focus();
+    console.log("PlayContent state:", { 
+      showGenerating, 
+      generationInProgress, 
+      hasCurrentVersion: !!currentVersion,
+      versionId: currentVersion?.id 
+    });
+  }, [showGenerating, generationInProgress, currentVersion]);
+
+  // Ensure the iframe gets focus when it becomes visible
+  useEffect(() => {
+    if (!showGenerating && currentVersion && iframeRef.current) {
+      console.log("Generation view hidden, focusing iframe");
+      // Use a slightly longer timeout to ensure everything is ready
+      setTimeout(() => {
+        if (iframeRef.current) {
+          iframeRef.current.focus();
+        }
+      }, 250);
     }
-  }, [currentVersion]);
+  }, [showGenerating, currentVersion]);
 
   // This effect handles the transition from generation to preview
   useEffect(() => {
     if (!showGenerating && !generationInProgress && currentVersion) {
       console.log("Generation complete, focusing iframe");
-      // Small timeout to ensure DOM is updated before focusing
+      // Ensure DOM is updated before focusing
       setTimeout(() => {
         if (iframeRef.current) {
           iframeRef.current.focus();
         }
-      }, 100);
+      }, 250);
     }
   }, [showGenerating, generationInProgress, currentVersion]);
 

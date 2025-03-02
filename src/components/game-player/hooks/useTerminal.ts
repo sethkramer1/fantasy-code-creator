@@ -28,6 +28,15 @@ export function useTerminal(initialGenerating: boolean) {
       if (thinkingTimerRef.current) {
         clearInterval(thinkingTimerRef.current);
       }
+      
+      // When generation is complete, ensure we transition to showing the iframe
+      // after a small delay to allow final terminal messages to be seen
+      if (showGenerating) {
+        console.log("Generation complete, transitioning to iframe view...");
+        setTimeout(() => {
+          setShowGenerating(false);
+        }, 1500);
+      }
     }
     
     return () => {
@@ -35,7 +44,7 @@ export function useTerminal(initialGenerating: boolean) {
         clearInterval(thinkingTimerRef.current);
       }
     };
-  }, [generationInProgress]);
+  }, [generationInProgress, showGenerating]);
 
   const updateTerminalOutput = (newContent: string, isNewMessage = false) => {
     setTerminalOutput(prev => {
