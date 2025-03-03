@@ -16,15 +16,18 @@ interface VersionHistoryProps {
   gameVersions: GameVersion[];
   currentVersionId: string | undefined;
   onRevertToVersion: (versionId: string) => Promise<void>;
+  onVersionSelect: (versionId: string | null) => void;
+  selectedVersionId: string | null;
 }
 
 export function VersionHistory({ 
   gameVersions, 
   currentVersionId,
-  onRevertToVersion 
+  onRevertToVersion,
+  onVersionSelect,
+  selectedVersionId
 }: VersionHistoryProps) {
   const [isReverting, setIsReverting] = useState(false);
-  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
 
   const handleRevert = async () => {
     if (!selectedVersionId) return;
@@ -32,7 +35,7 @@ export function VersionHistory({
     setIsReverting(true);
     try {
       await onRevertToVersion(selectedVersionId);
-      setSelectedVersionId(null);
+      onVersionSelect(null); // Clear selection after revert
     } catch (error) {
       console.error("Error reverting to version:", error);
     } finally {
@@ -58,7 +61,7 @@ export function VersionHistory({
       
       <Select
         value={selectedVersionId || undefined}
-        onValueChange={setSelectedVersionId}
+        onValueChange={onVersionSelect}
       >
         <SelectTrigger className="h-9 w-[180px] bg-zinc-800 border-zinc-700 text-zinc-200">
           <SelectValue placeholder="Select version" />

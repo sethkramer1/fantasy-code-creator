@@ -1,3 +1,4 @@
+
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -16,6 +17,7 @@ const Play = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [showCode, setShowCode] = useState(false);
+  const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
   const contentInitializedRef = useRef(false);
@@ -56,15 +58,26 @@ const Play = () => {
     generationError
   } = usePlayTerminal(gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl);
 
+  // Get the currently displayed version (either selected or current)
+  const displayedVersion = useCallback(() => {
+    if (selectedVersionId) {
+      const selectedVersion = gameVersions.find(v => v.id === selectedVersionId);
+      return selectedVersion || currentVersion;
+    }
+    return currentVersion;
+  }, [selectedVersionId, gameVersions, currentVersion]);
+
   const hasValidContent = useCallback(() => {
-    return currentVersion?.code && 
-           currentVersion.code !== "Generating..." && 
-           currentVersion.code.length > 100;
-  }, [currentVersion]);
+    const version = displayedVersion();
+    return version?.code && 
+           version.code !== "Generating..." && 
+           version.code.length > 100;
+  }, [displayedVersion]);
 
   useEffect(() => {
     generationHandledRef.current = false;
     contentInitializedRef.current = false;
+    setSelectedVersionId(null); // Reset selected version when game changes
   }, [gameId]);
 
   useEffect(() => {
@@ -169,13 +182,15 @@ const Play = () => {
                 <VersionHistory 
                   gameVersions={gameVersions} 
                   currentVersionId={currentVersion?.id}
-                  onRevertToVersion={revertToVersion} 
+                  onRevertToVersion={revertToVersion}
+                  onVersionSelect={setSelectedVersionId}
+                  selectedVersionId={selectedVersionId}
                 />
               </div>
               <div className="flex-1 overflow-hidden">
                 <GamePreview
-                  key={`preview-${currentVersion?.id || 'loading'}`}
-                  currentVersion={currentVersion}
+                  key={`preview-${displayedVersion()?.id || 'loading'}`}
+                  currentVersion={displayedVersion()}
                   showCode={showCode}
                   ref={iframeRef}
                 />
