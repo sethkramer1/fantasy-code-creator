@@ -60,7 +60,10 @@ export function PlayNavbar({
 
       <div className="flex items-center space-x-2">
         <GameActions
-          gameId={gameId}
+          currentVersion={undefined}
+          showGenerating={false}
+          isLatestVersion={true}
+          onRevertToVersion={() => Promise.resolve()}
           onExport={onExport}
           onDownload={onDownload}
           onFork={onFork}

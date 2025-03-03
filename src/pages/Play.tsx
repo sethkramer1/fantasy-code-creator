@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -45,7 +46,7 @@ const Play = () => {
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [showTerminal, setShowTerminal] = useState(false);
   const [thinkingTime, setThinkingTime] = useState(0);
-  const timerRef = useRef<number | null>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
 
@@ -314,7 +315,6 @@ const Play = () => {
     setGenerationInProgress(isLoading);
   };
 
-  // Fix the revertToMessageVersion function to use the correct type
   const revertToMessageVersion = async (message: Message) => {
     try {
       if (!message.version_id) {
