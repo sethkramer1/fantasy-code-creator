@@ -1,5 +1,5 @@
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
 import { PlayNavbar } from "@/components/game-player/PlayNavbar";
@@ -17,6 +17,7 @@ const Play = () => {
   const [showCode, setShowCode] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
+  const contentInitializedRef = useRef(false);
   
   // Get search params for generation
   const generating = searchParams.get("generating") === "true";
@@ -25,10 +26,10 @@ const Play = () => {
   const initialImageUrl = searchParams.get("imageUrl") || "";
   const promptFromUrl = searchParams.get("prompt") || "";
   
-  // Single flag to track if we need to handle post-generation actions
-  const [postGenerationHandled, setPostGenerationHandled] = useState(false);
+  // Use a single ref to track generation handling
+  const generationHandledRef = useRef(false);
   
-  // Use custom hooks for data fetching and game updates
+  // Use custom hooks for data loading
   const { 
     game, 
     currentVersion, 
@@ -41,7 +42,7 @@ const Play = () => {
     gameId, game, gameVersions, fetchGame
   );
   
-  // Set the initial prompt prioritizing URL param over database value
+  // Set the initial prompt
   const initialPrompt = promptFromUrl || (game?.prompt || "Loading...");
   
   // Terminal state management
@@ -55,71 +56,56 @@ const Play = () => {
     generationError
   } = usePlayTerminal(gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl);
 
-  // Function to check if we have valid content
-  const hasValidContent = () => {
+  // Check if content is valid
+  const hasValidContent = useCallback(() => {
     return currentVersion?.code && 
            currentVersion.code !== "Generating..." && 
            currentVersion.code.length > 100;
-  };
+  }, [currentVersion]);
 
-  // Reset post-generation handling flag when gameId changes
+  // Reset when gameId changes
   useEffect(() => {
-    setPostGenerationHandled(false);
+    generationHandledRef.current = false;
+    contentInitializedRef.current = false;
   }, [gameId]);
 
-  // Handle post-generation actions only once
+  // Handle post-generation logic once
   useEffect(() => {
     // Only proceed if we're in generating mode and generation has completed
-    if (generating && !generationInProgress && !postGenerationHandled) {
-      // Set a one-time refresh attempt
-      const refreshTimer = setTimeout(async () => {
+    if (generating && !generationInProgress && !generationHandledRef.current) {
+      // Mark as handled immediately to prevent multiple executions
+      generationHandledRef.current = true;
+      
+      // Try to fetch the updated game data
+      const loadContent = async () => {
         try {
           await fetchGame();
           
-          // Check if we received valid content
-          if (hasValidContent()) {
-            // Remove generating param from URL
-            navigate(`/play/${gameId}`, { replace: true });
-            setPostGenerationHandled(true);
-          } else {
-            // If we didn't get valid content yet, try once more after a delay
-            const secondAttemptTimer = setTimeout(async () => {
-              await fetchGame();
-              
-              // Regardless of outcome, mark as handled to prevent infinite loop
-              setPostGenerationHandled(true);
-              
-              // Remove generating param from URL
-              navigate(`/play/${gameId}`, { replace: true });
-            }, 2000);
-            
-            return () => clearTimeout(secondAttemptTimer);
-          }
+          // Remove generating param after content is loaded (successful or not)
+          navigate(`/play/${gameId}`, { replace: true });
         } catch (error) {
           console.error("Error refreshing game data after generation:", error);
           
-          // Mark as handled to prevent loops
-          setPostGenerationHandled(true);
-          
-          // Remove generating param from URL
-          navigate(`/play/${gameId}`, { replace: true });
-          
+          // Show error toast
           toast({
             title: "Error loading content",
             description: "Failed to load the generated content. Please try refreshing the page.",
             variant: "destructive"
           });
+          
+          // Remove generating param even if there was an error
+          navigate(`/play/${gameId}`, { replace: true });
         }
-      }, 1000); // Small initial delay
+      };
       
-      return () => clearTimeout(refreshTimer);
+      loadContent();
     }
     
     // Handle generation error
-    if (generationError && !postGenerationHandled) {
-      setPostGenerationHandled(true);
+    if (generationError && !generationHandledRef.current) {
+      generationHandledRef.current = true;
       
-      // Remove the generating parameter if there was an error
+      // Remove the generating parameter
       if (generating) {
         navigate(`/play/${gameId}`, { replace: true });
       }
@@ -130,17 +116,15 @@ const Play = () => {
         variant: "destructive"
       });
     }
-  }, [
-    generating, 
-    generationInProgress, 
-    gameId, 
-    postGenerationHandled, 
-    fetchGame, 
-    hasValidContent, 
-    navigate, 
-    toast, 
-    generationError
-  ]);
+  }, [generationInProgress, gameId, fetchGame, navigate, toast, generating, generationError]);
+
+  // Mark content as initialized when valid content is available
+  useEffect(() => {
+    if (hasValidContent() && !contentInitializedRef.current) {
+      contentInitializedRef.current = true;
+      console.log("Content initialized successfully");
+    }
+  }, [hasValidContent]);
 
   // Handle missing gameId
   if (!gameId) {
@@ -151,8 +135,8 @@ const Play = () => {
     );
   }
 
-  // Show loading state
-  if (gameDataLoading && !generationInProgress) {
+  // Show loading state for initial load
+  if (gameDataLoading && !generationInProgress && !contentInitializedRef.current) {
     return (
       <div className="h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mr-3"></div>
@@ -197,7 +181,7 @@ const Play = () => {
             />
           ) : (
             <GamePreview
-              key={currentVersion?.id || 'loading'}
+              key={`preview-${currentVersion?.id || 'loading'}`}
               currentVersion={currentVersion}
               showCode={showCode}
               ref={iframeRef}

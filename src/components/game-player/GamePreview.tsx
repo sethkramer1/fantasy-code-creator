@@ -1,5 +1,5 @@
 
-import { useEffect, forwardRef, useState, useCallback, useRef } from "react";
+import { useEffect, forwardRef, useState, useCallback, useRef, memo } from "react";
 import { parseCodeSections } from "./utils/CodeParser";
 import { CodeEditor } from "./components/CodeEditor";
 import { IframePreview } from "./components/IframePreview";
@@ -17,10 +17,13 @@ interface GamePreviewProps {
   showCode: boolean;
 }
 
+// Create a memoized version to prevent unnecessary rerenders
+const MemoizedIframePreview = memo(IframePreview);
+
 export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
   ({ currentVersion, showCode }, ref) => {
     const [processedCode, setProcessedCode] = useState<string | null>(null);
-    const processedVersionId = useRef<string | null>(null);
+    const currentVersionIdRef = useRef<string | null>(null);
     
     // Validate code function
     const isValidCode = useCallback((code: string | undefined): boolean => {
@@ -36,24 +39,24 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       return hasHtmlStructure;
     }, []);
     
-    // Process the code when currentVersion changes - only if version ID is different
+    // Process the code only when version changes
     useEffect(() => {
       // Skip if no version is available
       if (!currentVersion?.code || !currentVersion?.id) {
         return;
       }
       
-      // Skip if we've already processed this exact version and have valid processed code
-      if (processedVersionId.current === currentVersion.id && processedCode) {
+      // Skip if this version has already been processed
+      if (currentVersionIdRef.current === currentVersion.id && processedCode) {
         return;
       }
       
-      // Process the code based on validation
+      // Process the code
       if (isValidCode(currentVersion.code)) {
         setProcessedCode(currentVersion.code);
-        processedVersionId.current = currentVersion.id;
+        currentVersionIdRef.current = currentVersion.id;
       } 
-      // Handle short HTML snippets by wrapping them
+      // Handle code fragments by wrapping them in HTML
       else if (currentVersion.code.length > 0 && 
                currentVersion.code.includes('<') && 
                currentVersion.code.includes('>')) {
@@ -70,11 +73,11 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
 </html>`;
         
         setProcessedCode(wrappedCode);
-        processedVersionId.current = currentVersion.id;
+        currentVersionIdRef.current = currentVersion.id;
       }
     }, [currentVersion, isValidCode, processedCode]);
 
-    // Handle case when no version is available yet
+    // Handle case when no version is available
     if (!currentVersion) {
       return (
         <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">
@@ -89,7 +92,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       if (!showCode) {
         return (
           <div className="h-full relative">
-            <IframePreview code={processedCode} ref={ref} />
+            <MemoizedIframePreview code={processedCode} ref={ref} />
           </div>
         );
       } else {
@@ -103,7 +106,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       }
     }
 
-    // Show loading state only if we don't have processed code
+    // Show loading state
     return (
       <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
