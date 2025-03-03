@@ -122,7 +122,8 @@ Do not include any explanations, markdown formatting or code blocks - only retur
       ];
     }
 
-    console.log('Sending request to Anthropic API...');
+    console.log('Sending request to Anthropic API with properly structured body');
+    console.log('System message is:', systemMessage.substring(0, 50) + '...');
 
     // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {

@@ -1,6 +1,6 @@
 
 import { useRef, useState, useEffect } from "react";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
 import { PlayNavbar } from "@/components/game-player/PlayNavbar";
 import { SidebarChat } from "@/components/game-player/SidebarChat";
@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/use-toast";
 const Play = () => {
   const { id: gameId } = useParams();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [showCode, setShowCode] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
@@ -73,6 +74,12 @@ const Play = () => {
                 currentVersion.code !== "Generating..." && 
                 currentVersion.code.length > 100) {
               console.log("Valid game code found after refresh");
+              
+              // Remove the generating parameter from URL after successful generation
+              if (generating) {
+                navigate(`/play/${gameId}`, { replace: true });
+              }
+              
               break;
             }
             
@@ -115,7 +122,8 @@ const Play = () => {
     hasRefreshedAfterGeneration, 
     currentVersion, 
     toast,
-    generationError
+    generationError,
+    navigate
   ]);
 
   // Log when currentVersion changes
