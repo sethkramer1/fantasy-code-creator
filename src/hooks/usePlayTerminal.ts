@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { processGameUpdate } from "@/components/game-chat/api-service";
 
@@ -63,6 +64,7 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
             }
           );
 
+          // Always handle streaming for Claude/smart model
           if (apiResponse && modelType === "smart") {
             const reader = apiResponse.body?.getReader();
             if (!reader) {
@@ -75,6 +77,8 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
             const processStream = async () => {
               try {
                 let result;
+                let processingComplete = false;
+                
                 do {
                   result = await reader.read();
                   if (result.value) {
@@ -98,6 +102,12 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
                           } else if (data.delta?.text) {
                             setTerminalOutput(prev => [...prev, `> ${data.delta.text}`]);
                           }
+                          
+                          // Check if we're done
+                          if (data.type === 'message_stop' || 
+                             (data.delta && data.delta.stop_reason)) {
+                            processingComplete = true;
+                          }
                         } catch (e) {
                           console.error("Error parsing data:", e, "Line:", line);
                         }
@@ -107,15 +117,16 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
                     // Keep the last line which might be incomplete
                     partialResponse = lines[lines.length - 1];
                   }
-                } while (!result.done);
+                } while (!result.done && !processingComplete);
 
                 setTerminalOutput(prev => [...prev, "> Generation completed successfully!"]);
                 console.log("Stream processing completed");
+                setGenerationInProgress(false);
               } catch (e) {
                 console.error("Streaming error:", e);
                 setTerminalOutput(prev => [...prev, `> Error: ${e.message}`]);
-              } finally {
                 setGenerationInProgress(false);
+              } finally {
                 reader.releaseLock();
               }
             };
@@ -123,7 +134,6 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
             processStream();
           } else {
             // Non-streaming case (Groq/fast model)
-            const responseData = await apiResponse.json();
             setTerminalOutput(prev => [...prev, "> Received complete response from fast model"]);
             setGenerationInProgress(false);
           }

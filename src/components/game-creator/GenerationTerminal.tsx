@@ -109,8 +109,8 @@ export function GenerationTerminal({
   // If asModal is false, render the terminal directly
   if (!asModal) {
     return (
-      <div className="bg-black text-green-400 font-mono p-6 flex flex-col overflow-hidden border border-green-500/20 rounded-lg h-full" 
-           style={{ maxHeight: "70vh" }}>
+      <div className="bg-black text-green-400 font-mono p-6 flex flex-col overflow-hidden border border-green-500/20 rounded-lg h-full w-full" 
+           style={{ maxHeight: "100vh" }}>
         {terminalContent}
       </div>
     );

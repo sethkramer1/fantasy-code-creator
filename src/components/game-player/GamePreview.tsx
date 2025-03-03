@@ -46,6 +46,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       );
     }
 
+    // Determine which view to show based on showCode flag
     if (!showCode) {
       return (
         <IframePreview 
