@@ -34,11 +34,12 @@ export function usePlayGameData(gameId: string | undefined) {
     setIsLoading(true);
     
     try {
+      // First, check if the game exists
       const { data: gameData, error: gameError } = await supabase
         .from('games')
         .select('*')
         .eq('id', gameId)
-        .single();
+        .maybeSingle(); // Use maybeSingle instead of single to avoid errors
 
       if (gameError) {
         console.error("Error fetching game:", gameError);
@@ -52,6 +53,7 @@ export function usePlayGameData(gameId: string | undefined) {
       }
 
       if (!gameData) {
+        console.log("Game not found:", gameId);
         toast({
           title: "Game not found",
           description: "The requested game does not exist.",
@@ -63,7 +65,9 @@ export function usePlayGameData(gameId: string | undefined) {
       }
 
       setGame(gameData);
+      console.log("Game data fetched successfully:", gameData.id);
 
+      // Then, fetch the game versions
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .select('*')
@@ -81,8 +85,25 @@ export function usePlayGameData(gameId: string | undefined) {
         return;
       }
 
-      setGameVersions(versionData);
-      setCurrentVersion(versionData[0]);
+      if (!versionData || versionData.length === 0) {
+        console.warn("No versions found for game:", gameId);
+        // Create a default version from the game data to avoid UI issues
+        const defaultVersion: GameVersion = {
+          id: 'default-version',
+          version_number: gameData.current_version || 1,
+          code: gameData.code || "No content available",
+          instructions: gameData.instructions || "No instructions available",
+          created_at: gameData.created_at
+        };
+        
+        setGameVersions([defaultVersion]);
+        setCurrentVersion(defaultVersion);
+      } else {
+        console.log(`Found ${versionData.length} versions for game:`, gameId);
+        setGameVersions(versionData);
+        setCurrentVersion(versionData[0]);
+      }
+      
       setIsLoading(false);
     } catch (error) {
       console.error("Error fetching game data:", error);
@@ -96,8 +117,10 @@ export function usePlayGameData(gameId: string | undefined) {
   };
 
   useEffect(() => {
-    fetchGame();
-  }, [gameId, navigate, toast]);
+    if (gameId) {
+      fetchGame();
+    }
+  }, [gameId]);
 
   return {
     game,

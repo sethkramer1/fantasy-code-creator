@@ -68,58 +68,110 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
     if (existingGameId) {
       console.log(`Updating existing game: ${existingGameId}`);
       
-      // Check if game exists
+      // Check if game exists - using maybeSingle() instead of single() to handle no results gracefully
       const { data: gameCheck, error: checkError } = await supabase
         .from('games')
         .select('id')
         .eq('id', existingGameId)
-        .single();
+        .maybeSingle();
         
-      if (checkError || !gameCheck) {
+      if (checkError) {
         console.error("Failed to find game to update:", checkError);
-        throw new Error(`Game with ID ${existingGameId} not found`);
+        throw new Error(`Error checking game existence: ${checkError.message}`);
       }
+      
+      if (!gameCheck) {
+        console.error(`Game with ID ${existingGameId} not found, creating new game instead`);
+        // Fall through to the creation logic below with existingGameId set to undefined
+        // to create a new game instead
+        const { data: newGameData, error: gameError } = await supabase
+          .from('games')
+          .insert([{ 
+            prompt: prompt,
+            code: formattedContent,
+            instructions: instructions,
+            current_version: 1,
+            type: gameType,
+            model_type: modelType,
+            user_id: userId
+          }])
+          .select()
+          .single();
 
-      // Update the game record
-      const { data: updateData, error: updateError } = await supabase
-        .from('games')
-        .update({ 
-          code: formattedContent,
-          instructions: instructions,
-          user_id: userId
-        })
-        .eq('id', existingGameId)
-        .select()
-        .single();
-      
-      if (updateError) {
-        console.error("Failed to update game:", updateError);
-        throw updateError;
+        if (gameError) {
+          console.error("Failed to create new game after update failed:", gameError);
+          throw gameError;
+        }
+        
+        gameData = newGameData;
+        
+        // Create initial version record
+        const { error: versionError } = await supabase
+          .from('game_versions')
+          .insert([{
+            game_id: newGameData.id,
+            code: formattedContent,
+            instructions: instructions,
+            version_number: 1
+          }]);
+
+        if (versionError) {
+          console.error("Failed to save game version:", versionError);
+        }
+      } else {
+        // Game exists, proceed with update
+        const { data: updateData, error: updateError } = await supabase
+          .from('games')
+          .update({ 
+            code: formattedContent,
+            instructions: instructions,
+            user_id: userId
+          })
+          .eq('id', existingGameId)
+          .select()
+          .single();
+        
+        if (updateError) {
+          console.error("Failed to update game:", updateError);
+          throw updateError;
+        }
+        
+        gameData = updateData;
+        
+        // Get the latest version number to ensure we don't create conflicts
+        const { data: versionData, error: versionQueryError } = await supabase
+          .from('game_versions')
+          .select('version_number')
+          .eq('game_id', existingGameId)
+          .order('version_number', { ascending: false })
+          .limit(1);
+          
+        if (versionQueryError) {
+          console.error("Error fetching version data:", versionQueryError);
+          // Continue without throwing, we'll use a default version number
+        }
+        
+        const latestVersionNumber = versionData && versionData.length > 0 
+          ? versionData[0].version_number 
+          : 0;
+        
+        // Update the game version with the generated content
+        const { error: versionError } = await supabase
+          .from('game_versions')
+          .insert([{
+            game_id: existingGameId,
+            code: formattedContent,
+            instructions: instructions,
+            version_number: latestVersionNumber + 1
+          }]);
+        
+        if (versionError) {
+          console.error("Failed to create new game version:", versionError);
+          // Don't throw here, as the game was already updated
+        }
       }
       
-      if (!updateData) {
-        console.error("No data returned after game update");
-        throw new Error("Failed to update game - no data returned");
-      }
-      
-      gameData = updateData;
-      
-      // Update the game version with the generated content
-      const { error: versionError } = await supabase
-        .from('game_versions')
-        .update({
-          code: formattedContent,
-          instructions: instructions
-        })
-        .eq('game_id', existingGameId)
-        .eq('version_number', 1);
-      
-      if (versionError) {
-        console.error("Failed to update game version:", versionError);
-        // Don't throw here, as the game was already updated
-      }
-      
-      console.log("Game updated successfully:", gameData.id);
+      console.log("Game updated successfully:", gameData?.id);
     } else {
       console.log("Creating new game", userId ? "for user" : "without user");
       
@@ -143,12 +195,6 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
         throw gameError;
       }
       
-      if (!newGameData) {
-        console.error("No data returned after game creation");
-        throw new Error("Failed to save new game - no data returned");
-      }
-
-      console.log("New game created:", newGameData.id);
       gameData = newGameData;
 
       // Create initial version record
@@ -175,21 +221,25 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
   
   // Add initial message to game_messages
   try {
-    const { error: messageError } = await supabase
-      .from('game_messages')
-      .insert([{
-        game_id: gameData.id,
-        message: prompt,
-        response: instructions,
-        image_url: imageUrl,
-        model_type: modelType
-      }]);
-      
-    if (messageError) {
-      console.error("Error saving initial message:", messageError);
-      // We don't throw here since the game was already saved
+    if (gameData) {
+      const { error: messageError } = await supabase
+        .from('game_messages')
+        .insert([{
+          game_id: gameData.id,
+          message: prompt,
+          response: instructions,
+          image_url: imageUrl,
+          model_type: modelType
+        }]);
+        
+      if (messageError) {
+        console.error("Error saving initial message:", messageError);
+        // We don't throw here since the game was already saved
+      } else {
+        console.log("Initial message saved successfully");
+      }
     } else {
-      console.log("Initial message saved successfully");
+      console.error("Cannot save game message - game data is undefined");
     }
   } catch (error) {
     console.error("Error saving game message:", error);

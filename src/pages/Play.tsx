@@ -18,6 +18,7 @@ const Play = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
   const [hasRefreshedAfterGeneration, setHasRefreshedAfterGeneration] = useState(false);
+  const [refreshAttempts, setRefreshAttempts] = useState(0);
 
   // Get search params
   const generating = searchParams.get("generating") === "true";
@@ -60,34 +61,48 @@ const Play = () => {
       
       // Use multiple attempts to ensure we get the latest data
       const refreshData = async () => {
-        console.log("Attempting to refresh game data");
-        setHasRefreshedAfterGeneration(true);
+        console.log(`Attempting to refresh game data (attempt ${refreshAttempts + 1})`);
         
         try {
-          // Make multiple attempts to fetch the updated data
-          for (let i = 0; i < 3; i++) {
-            await fetchGame();
-            console.log(`Game data refresh attempt ${i+1} completed`);
+          await fetchGame();
+          console.log(`Game data refresh attempt ${refreshAttempts + 1} completed`);
+          setRefreshAttempts(prev => prev + 1);
+          
+          // Check if we have valid code
+          if (currentVersion?.code && 
+              currentVersion.code !== "Generating..." && 
+              currentVersion.code.length > 100) {
+            console.log("Valid game code found after refresh");
             
-            // Check if we have valid code
-            if (currentVersion?.code && 
-                currentVersion.code !== "Generating..." && 
-                currentVersion.code.length > 100) {
-              console.log("Valid game code found after refresh");
-              
-              // Remove the generating parameter from URL after successful generation
-              if (generating) {
-                navigate(`/play/${gameId}`, { replace: true });
-              }
-              
-              break;
+            // Remove the generating parameter from URL after successful generation
+            if (generating) {
+              navigate(`/play/${gameId}`, { replace: true });
+              setHasRefreshedAfterGeneration(true);
             }
             
-            if (i < 2) {
-              // Wait before trying again
-              await new Promise(resolve => setTimeout(resolve, 1500));
-            }
+            return; // Success, exit the refresh cycle
           }
+          
+          // If we've made too many attempts, give up
+          if (refreshAttempts >= 5) {
+            console.log("Maximum refresh attempts reached, giving up");
+            setHasRefreshedAfterGeneration(true);
+            toast({
+              title: "Generation completed",
+              description: "However, we couldn't load the latest content. Try refreshing the page.",
+              variant: "destructive"
+            });
+            
+            // Remove the generating parameter even if we failed
+            if (generating) {
+              navigate(`/play/${gameId}`, { replace: true });
+            }
+            
+            return;
+          }
+          
+          // Schedule another attempt
+          refreshTimer = setTimeout(refreshData, 1500);
         } catch (error) {
           console.error("Error refreshing game data:", error);
           toast({
@@ -95,6 +110,13 @@ const Play = () => {
             description: "Failed to load the generated content. Please try refreshing the page.",
             variant: "destructive"
           });
+          
+          setHasRefreshedAfterGeneration(true);
+          
+          // Remove the generating parameter even if we failed
+          if (generating) {
+            navigate(`/play/${gameId}`, { replace: true });
+          }
         }
       };
       
@@ -109,6 +131,11 @@ const Play = () => {
         description: generationError || "Failed to generate content. Please try again.",
         variant: "destructive"
       });
+      
+      // Remove the generating parameter if there was an error
+      if (generating) {
+        navigate(`/play/${gameId}`, { replace: true });
+      }
     }
     
     return () => {
@@ -119,7 +146,8 @@ const Play = () => {
     gameId, 
     generating, 
     fetchGame, 
-    hasRefreshedAfterGeneration, 
+    hasRefreshedAfterGeneration,
+    refreshAttempts, 
     currentVersion, 
     toast,
     generationError,
@@ -136,25 +164,31 @@ const Play = () => {
   // Reset the refresh state if gameId changes
   useEffect(() => {
     setHasRefreshedAfterGeneration(false);
+    setRefreshAttempts(0);
   }, [gameId]);
 
   // Manually attempt to refresh game data if no code is loaded after a timeout
   useEffect(() => {
     let checkTimer: NodeJS.Timeout;
     
-    if (!generating && gameId && !gameDataLoading && currentVersion?.code === "Generating...") {
+    if (!generating && gameId && !gameDataLoading && currentVersion?.code === "Generating..." && !hasRefreshedAfterGeneration) {
       console.log("Content still shows 'Generating...', scheduling additional refresh");
       
       checkTimer = setTimeout(async () => {
         console.log("Executing additional refresh for game data");
         await fetchGame();
+        
+        // Remove generating param if it's still there
+        if (searchParams.get("generating") === "true") {
+          navigate(`/play/${gameId}`, { replace: true });
+        }
       }, 3000);
     }
     
     return () => {
       if (checkTimer) clearTimeout(checkTimer);
     };
-  }, [gameId, generating, gameDataLoading, currentVersion, fetchGame]);
+  }, [gameId, generating, gameDataLoading, currentVersion, fetchGame, hasRefreshedAfterGeneration, navigate, searchParams]);
 
   if (!gameId) {
     return (
