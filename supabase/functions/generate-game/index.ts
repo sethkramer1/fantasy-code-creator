@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -21,7 +22,7 @@ serve(async (req) => {
       gameType, 
       modelType, 
       stream,
-      imageLength: prompt?.length || 0,
+      promptLength: prompt?.length || 0,
       hasImage: !!imageUrl,
       hasUserId: !!userId
     });
@@ -35,10 +36,13 @@ serve(async (req) => {
     }
 
     // Choose the appropriate API service based on modelType
-    let apiService;
+    let response;
+    let content;
+    
     if (modelType === "smart") {
       // Use Anthropic (Claude)
-      const response = await callAnthropicApi(prompt, gameType, imageUrl, stream);
+      console.log("Calling Anthropic API for smart model generation");
+      response = await callAnthropicApi(prompt, gameType, imageUrl, stream);
       
       // If streaming, return the response directly
       if (stream) {
@@ -53,22 +57,86 @@ serve(async (req) => {
       
       // Otherwise, get the response content
       const responseData = await response.json();
-      return new Response(
-        JSON.stringify({ content: responseData.content }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+      content = responseData.content;
+      
     } else {
       // Use Groq LLM API (faster)
-      const content = await callGroqApi(prompt, gameType);
+      console.log("Calling Groq API for fast model generation");
+      content = await callGroqApi(prompt, gameType, imageUrl);
+    }
+    
+    // Validate content before returning
+    if (!content || content.length < 100) {
+      console.error("Generated content validation failed:", content?.substring(0, 100));
       return new Response(
-        JSON.stringify({ content }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ 
+          error: "Received empty or invalid content from generation",
+          details: "Content is either empty or too short"
+        }),
+        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    
+    // Create a Supabase client to update game record
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+    
+    // Create or update game record
+    try {
+      if (gameId) {
+        console.log(`Updating existing game ${gameId} via edge function`);
+        
+        const { error: updateError } = await supabaseAdmin
+          .from('games')
+          .update({ 
+            code: content,
+            instructions: "Content generated successfully",
+            user_id: userId || null
+          })
+          .eq('id', gameId);
+        
+        if (updateError) {
+          console.error("Error updating game record:", updateError);
+        } else {
+          console.log("Game record updated successfully");
+        }
+        
+        // Also update the game version
+        const { error: versionError } = await supabaseAdmin
+          .from('game_versions')
+          .update({
+            code: content,
+            instructions: "Content generated successfully"
+          })
+          .eq('game_id', gameId)
+          .eq('version_number', 1);
+        
+        if (versionError) {
+          console.error("Error updating game version:", versionError);
+        } else {
+          console.log("Game version updated successfully");
+        }
+      }
+    } catch (dbError) {
+      console.error("Database operation error:", dbError);
+      // We'll still return the content even if DB operations fail
+    }
+    
+    console.log("Generation successful, returning content");
+    
+    return new Response(
+      JSON.stringify({ content }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+    );
   } catch (error) {
     console.error("Error in generate-game function:", error);
     return new Response(
-      JSON.stringify({ error: error.message || "An unexpected error occurred" }),
+      JSON.stringify({ 
+        error: error.message || "An unexpected error occurred",
+        details: error.stack || "No stack trace available"
+      }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
@@ -81,7 +149,12 @@ async function callAnthropicApi(prompt: string, gameType: string, imageUrl?: str
     throw new Error("ANTHROPIC_API_KEY is not set");
   }
 
-  console.log("Image URL provided:", imageUrl ? "Yes" : "No");
+  console.log("Calling Anthropic API:", {
+    hasImage: !!imageUrl,
+    promptLength: prompt?.length || 0,
+    streaming: stream,
+    gameType
+  });
 
   // Construct the messages array with appropriate content
   const messages = [];
@@ -135,14 +208,57 @@ async function callAnthropicApi(prompt: string, gameType: string, imageUrl?: str
     })
   };
 
-  return fetch("https://api.anthropic.com/v1/messages", requestOptions);
+  try {
+    const response = await fetch("https://api.anthropic.com/v1/messages", requestOptions);
+    
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("Anthropic API error response:", errorData);
+      throw new Error(`Anthropic API error: ${response.status} - ${errorData}`);
+    }
+    
+    return response;
+  } catch (error) {
+    console.error("Error calling Anthropic API:", error);
+    throw error;
+  }
 }
 
 // Function to call Groq's API
-async function callGroqApi(prompt: string, gameType: string) {
+async function callGroqApi(prompt: string, gameType: string, imageUrl?: string) {
   const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
   if (!GROQ_API_KEY) {
     throw new Error("GROQ_API_KEY is not set");
+  }
+
+  console.log("Calling Groq API:", {
+    hasImage: !!imageUrl,
+    promptLength: prompt?.length || 0,
+    gameType
+  });
+
+  // Enhanced messages array with image if provided
+  const messages = [
+    {
+      role: "system",
+      content: getSystemInstructions(gameType)
+    }
+  ];
+
+  // Add user message with image if provided
+  if (imageUrl) {
+    messages.push({
+      role: "user",
+      content: [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: imageUrl } }
+      ]
+    });
+  } else {
+    messages.push({
+      role: "user",
+      content: prompt
+    });
   }
 
   const requestOptions = {
@@ -153,30 +269,40 @@ async function callGroqApi(prompt: string, gameType: string) {
     },
     body: JSON.stringify({
       model: "llama3-70b-8192",
-      messages: [
-        {
-          role: "system",
-          content: getSystemInstructions(gameType)
-        },
-        {
-          role: "user",
-          content: prompt
-        }
-      ],
+      messages,
       temperature: 0.7,
       max_tokens: 4000
     })
   };
 
-  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", requestOptions);
-  const data = await response.json();
-  
-  if (!response.ok) {
-    console.error("Groq API error:", data);
-    throw new Error(data.error?.message || "Error calling Groq API");
+  try {
+    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", requestOptions);
+    
+    if (!response.ok) {
+      const errorData = await response.text();
+      console.error("Groq API error response:", errorData);
+      throw new Error(`Groq API error: ${response.status} - ${errorData}`);
+    }
+    
+    const data = await response.json();
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      console.error("Invalid response format from Groq API:", data);
+      throw new Error("Invalid response format from Groq API");
+    }
+    
+    const content = data.choices[0].message.content;
+    
+    if (!content || content.length < 100) {
+      console.error("Groq API returned invalid content:", content?.substring(0, 100));
+      throw new Error("Received empty or invalid content from Groq");
+    }
+    
+    return content;
+  } catch (error) {
+    console.error("Error calling Groq API:", error);
+    throw error;
   }
-  
-  return data.choices[0].message.content;
 }
 
 // Get system instructions based on game type
@@ -212,9 +338,6 @@ Your response should ONLY include the full SVG code wrapped in basic HTML. Do no
 Create detailed, visually interesting SVGs that match the user's requirements. Use appropriate viewBox settings and consider adding simple animations or interactions if appropriate. Write clean, well-commented code.`;
       break;
     // Add more game types as needed
-    default:
-      // Use default web design instructions
-      break;
   }
 
   return instructions;
