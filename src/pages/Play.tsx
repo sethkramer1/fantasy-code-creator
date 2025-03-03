@@ -1,4 +1,3 @@
-
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -245,7 +244,15 @@ const Play = () => {
   }
 
   // Memoize the GamePreview key to prevent unnecessary re-renders
-  const gamePreviewKey = `${currentVersion?.id || 'initial'}-${stableDataRef.current ? 'stable' : 'loading'}`;
+  const gamePreviewKey = useCallback(() => {
+    if (stableDataRef.current && currentVersion?.id) {
+      // Once we have stable data, use a fixed key to prevent remounting
+      return `stable-${currentVersion.id}`;
+    }
+    
+    // Default case during loading or transitions
+    return `loading-${currentVersion?.id || 'initial'}`;
+  }, [currentVersion?.id, stableDataRef.current]);
 
   return (
     <div className="flex flex-col h-screen w-full">
@@ -291,7 +298,7 @@ const Play = () => {
             />
           ) : (
             <GamePreview
-              key={gamePreviewKey}
+              key={gamePreviewKey()}
               currentVersion={currentVersion}
               showCode={showCode}
               ref={iframeRef}

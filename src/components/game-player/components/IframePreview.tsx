@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, forwardRef, useState, useCallback } from "react";
 
 interface IframePreviewProps {
@@ -10,6 +11,8 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
     const [iframeContent, setIframeContent] = useState<string>("");
     const prevCodeRef = useRef<string>("");
     const [isStable, setIsStable] = useState(false);
+    const contentStabilizedRef = useRef<boolean>(false);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     
     // Forward the ref to parent component
     useEffect(() => {
@@ -22,21 +25,45 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       }
     }, [ref]);
 
-    // Update iframe content when code changes
+    // Cleanup timers on unmount
     useEffect(() => {
-      // Skip if code is empty, unchanged, or too short
-      if (!code || code.length < 10 || (code === prevCodeRef.current && isStable)) {
+      return () => {
+        if (timerRef.current) {
+          clearTimeout(timerRef.current);
+        }
+      };
+    }, []);
+
+    // Update iframe content when code changes - with enhanced stability checks
+    useEffect(() => {
+      // If we already have stable content and the code hasn't changed, do nothing
+      if (contentStabilizedRef.current && code === prevCodeRef.current) {
         return;
       }
       
-      // Update the content after a short delay to prevent flicker
-      const timer = setTimeout(() => {
-        setIframeContent(code);
-        prevCodeRef.current = code;
-        setIsStable(true);
-      }, 100);
+      // Basic validation to avoid processing invalid code
+      if (!code || code.length < 10) {
+        return;
+      }
       
-      return () => clearTimeout(timer);
+      // Clear any existing timer to prevent race conditions
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+      }
+      
+      // Set a timer to update the content with debouncing
+      timerRef.current = setTimeout(() => {
+        // Update refs and state only if the code is different
+        if (code !== prevCodeRef.current) {
+          console.log("Updating iframe content");
+          setIframeContent(code);
+          prevCodeRef.current = code;
+          setIsStable(true);
+          contentStabilizedRef.current = true;
+        }
+        timerRef.current = null;
+      }, 300); // Increased debounce time
+      
     }, [code]);
 
     return (

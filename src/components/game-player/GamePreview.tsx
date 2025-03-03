@@ -21,6 +21,8 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     const [lastValidCode, setLastValidCode] = useState<string | null>(null);
     const [isStable, setIsStable] = useState(false);
     const prevVersionIdRef = useRef<string | null>(null);
+    const contentStableRef = useRef<boolean>(false);
+    const stableVersionCodeRef = useRef<string | null>(null);
     
     // Validate code function
     const isValidCode = useCallback((code: string | undefined): boolean => {
@@ -36,30 +38,47 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       return hasHtmlStructure;
     }, []);
     
-    // Handle version changes and code validation
+    // Handle version changes and code validation - with enhanced stability
     useEffect(() => {
-      // Skip if same version and already stable
-      if (currentVersion?.id === prevVersionIdRef.current && isStable) {
+      // If we've already processed this version and have stable content, don't reprocess
+      if (currentVersion?.id === prevVersionIdRef.current && contentStableRef.current) {
         return;
       }
       
-      // Update version reference
-      if (currentVersion?.id) {
+      // If we don't have a current version with code, nothing to do
+      if (!currentVersion?.code) {
+        return;
+      }
+      
+      // Check if current code is valid
+      const isCurrentCodeValid = isValidCode(currentVersion.code);
+      
+      // Update version reference when we have a valid ID
+      if (currentVersion.id) {
         prevVersionIdRef.current = currentVersion.id;
       }
 
-      // Validate and update code
-      if (currentVersion?.code) {
-        if (isValidCode(currentVersion.code)) {
+      // Handle valid code case
+      if (isCurrentCodeValid) {
+        // Only update if the code has changed
+        if (stableVersionCodeRef.current !== currentVersion.code) {
+          console.log("Valid code detected, updating...");
           setLastValidCode(currentVersion.code);
+          stableVersionCodeRef.current = currentVersion.code;
           setIsStable(true);
-        } else if (lastValidCode && isValidCode(lastValidCode)) {
-          // Keep using last valid code
-          setIsStable(true);
-        } else if (currentVersion.code.length < 100 && currentVersion.code.length > 0 
-                  && currentVersion.code.includes('<') && currentVersion.code.includes('>')) {
-          // Handle short HTML snippets by wrapping them
-          const wrappedCode = `<!DOCTYPE html>
+          contentStableRef.current = true;
+        }
+      } 
+      // If current code isn't valid but we have last valid code
+      else if (lastValidCode && isValidCode(lastValidCode)) {
+        // Keep using last valid code
+        contentStableRef.current = true;
+        setIsStable(true);
+      } 
+      // Handle short HTML snippets by wrapping them
+      else if (currentVersion.code.length < 100 && currentVersion.code.length > 0 
+              && currentVersion.code.includes('<') && currentVersion.code.includes('>')) {
+        const wrappedCode = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
@@ -70,8 +89,12 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
   ${currentVersion.code}
 </body>
 </html>`;
+        
+        if (stableVersionCodeRef.current !== wrappedCode) {
           setLastValidCode(wrappedCode);
+          stableVersionCodeRef.current = wrappedCode;
           setIsStable(true);
+          contentStableRef.current = true;
         }
       }
     }, [currentVersion, isValidCode, lastValidCode]);
@@ -86,8 +109,8 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       );
     }
 
-    // Show loading state only if we don't have any valid code
-    if (!isStable && !lastValidCode) {
+    // Show loading state only if we don't have any valid code AND we're not stable yet
+    if (!contentStableRef.current && !lastValidCode) {
       return (
         <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -100,7 +123,8 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     }
 
     // Use lastValidCode as fallback if current code is invalid
-    const displayCode = isValidCode(currentVersion.code) ? currentVersion.code : (lastValidCode || "");
+    const displayCode = isValidCode(currentVersion.code) ? 
+      currentVersion.code : (lastValidCode || "");
 
     // Determine which view to show based on showCode flag
     if (!showCode) {
