@@ -33,7 +33,8 @@ export const GameChat = ({
     handleSubmit,
     initialMessageId,
     setInitialMessageId,
-    addSystemMessage
+    addSystemMessage,
+    fetchMessages
   } = useChatMessages({
     gameId,
     onGameUpdate,
@@ -54,7 +55,7 @@ export const GameChat = ({
   useEffect(() => {
     // Check if disabled state changed from true to false (generation completed)
     if (previousDisabledState === true && disabled === false) {
-      // Update the message to show content was generated successfully
+      console.log("Generation state changed from in-progress to complete");
       if (initialMessageId) {
         setInitialMessageId(null);
         setGenerationComplete(true);
@@ -70,27 +71,20 @@ export const GameChat = ({
     const addConfirmationMessage = async () => {
       if (generationComplete && gameId && !generationHandledRef.current) {
         generationHandledRef.current = true;
+        console.log("Adding confirmation message after generation");
         
         try {
-          // Check if the last message is about generating content
-          const lastMessage = messages[messages.length - 1];
-          const isGeneratingMessage = 
-            lastMessage?.response === "Generating initial content..." || 
-            lastMessage?.response === "Initial content generated successfully" ||
-            lastMessage?.message === initialMessage;
+          // Explicitly create a completion system message
+          await addSystemMessage(
+            "Initial generation complete",
+            "✅ Content generated successfully! You can now ask me to modify the content or add new features."
+          );
           
-          if (isGeneratingMessage) {
-            console.log("Adding confirmation message after generation");
-            
-            // Use the addSystemMessage method instead of direct DB call
-            addSystemMessage(
-              "Initial generation complete",
-              "✅ Content generated successfully! You can now ask me to modify the content or add new features."
-            );
-              
-            // Reset the flag
-            setGenerationComplete(false);
-          }
+          // Force refresh messages to ensure new message is displayed
+          await fetchMessages();
+          
+          // Reset the flag
+          setGenerationComplete(false);
         } catch (error) {
           console.error("Error adding confirmation message:", error);
           // Reset the ref so we can try again
@@ -101,13 +95,34 @@ export const GameChat = ({
     
     addConfirmationMessage();
     
-    // Reset the handled ref when messages change
+    // Reset the handled ref when game ID changes
     return () => {
-      if (messages.length === 0) {
+      if (gameId !== undefined) {
         generationHandledRef.current = false;
       }
     };
-  }, [generationComplete, gameId, messages, initialMessage, addSystemMessage]);
+  }, [generationComplete, gameId, addSystemMessage, fetchMessages]);
+
+  // Additional check to add a welcome message if none exists and generation is complete
+  useEffect(() => {
+    const ensureWelcomeMessage = async () => {
+      // Only run this once when loading is complete and messages are loaded
+      if (!disabled && !loadingHistory && messages.length === 0 && gameId) {
+        console.log("No messages found after load, adding welcome message");
+        try {
+          await addSystemMessage(
+            "Welcome",
+            "✅ Your content is ready! You can now ask me to modify it or add new features."
+          );
+          await fetchMessages();
+        } catch (error) {
+          console.error("Error adding welcome message:", error);
+        }
+      }
+    };
+    
+    ensureWelcomeMessage();
+  }, [disabled, loadingHistory, messages.length, gameId, addSystemMessage, fetchMessages]);
 
   return (
     <div className="flex flex-col h-full w-full max-w-[400px] mx-auto bg-white">

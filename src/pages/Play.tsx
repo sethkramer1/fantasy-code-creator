@@ -82,6 +82,7 @@ const Play = () => {
   useEffect(() => {
     if (generating && !generationInProgress && !generationHandledRef.current) {
       generationHandledRef.current = true;
+      console.log("Generation process complete, navigating to standard view");
       
       const loadContent = async () => {
         try {
@@ -89,11 +90,6 @@ const Play = () => {
           navigate(`/play/${gameId}`, { replace: true });
         } catch (error) {
           console.error("Error refreshing game data after generation:", error);
-          toast({
-            title: "Error loading content",
-            description: "Failed to load the generated content. Please try refreshing the page.",
-            variant: "destructive"
-          });
           navigate(`/play/${gameId}`, { replace: true });
         }
       };
@@ -103,6 +99,7 @@ const Play = () => {
     
     if (generationError && !generationHandledRef.current) {
       generationHandledRef.current = true;
+      console.error("Generation error occurred:", generationError);
       
       if (generating) {
         navigate(`/play/${gameId}`, { replace: true });

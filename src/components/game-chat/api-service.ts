@@ -4,15 +4,23 @@ import { Message } from "./types";
 
 export const fetchChatHistory = async (gameId: string, initialMessage?: string) => {
   try {
+    console.log(`Fetching chat history for game: ${gameId}`);
+    
     const { data, error } = await supabase
       .from('game_messages')
       .select('*')
       .eq('game_id', gameId)
       .order('created_at', { ascending: true });
       
-    if (error) throw error;
+    if (error) {
+      console.error("Supabase error fetching chat history:", error);
+      throw error;
+    }
     
-    if (data.length === 0 && initialMessage) {
+    console.log(`Fetched ${data?.length || 0} messages`);
+    
+    if (data?.length === 0 && initialMessage) {
+      console.log("No messages found, creating initial message");
       const newMessage: Message = {
         id: 'initial-message',
         message: initialMessage,

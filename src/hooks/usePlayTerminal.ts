@@ -327,7 +327,7 @@ export function usePlayTerminal(
               })
           )
             .then(() => {
-              console.log("Added system message about successful generation");
+              console.log("Added system message about successful generation (terminal effect)");
             })
             .catch(error => {
               console.error("Error adding system message:", error);

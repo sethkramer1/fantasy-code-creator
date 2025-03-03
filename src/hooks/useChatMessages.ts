@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "@/components/game-chat/types";
@@ -74,32 +75,39 @@ export function useChatMessages({
   }, [thinkingTime, terminalOutput, loading, onTerminalStatusChange]);
 
   // Load chat history
-  useEffect(() => {
-    const loadChatHistory = async () => {
-      try {
-        const data = await fetchChatHistory(gameId, initialMessage);
-        
-        // Convert model_type from string to ModelType
-        const typedData: Message[] = data.map(msg => ({
-          ...msg,
-          model_type: (msg.model_type as string) === "smart" ? "smart" as ModelType : 
-                      (msg.model_type as string) === "fast" ? "fast" as ModelType : null
-        }));
-        
-        if (typedData.length === 1 && typedData[0].id === 'initial-message') {
-          setInitialMessageId('initial-message');
-        }
-        
-        setMessages(typedData);
-      } catch (error) {
-        console.error("Error loading chat history:", error);
-      } finally {
-        setLoadingHistory(false);
-      }
-    };
+  const fetchMessages = useCallback(async () => {
+    if (!gameId) return;
     
-    loadChatHistory();
+    try {
+      setLoadingHistory(true);
+      console.log("Fetching chat messages for game:", gameId);
+      
+      const data = await fetchChatHistory(gameId, initialMessage);
+      
+      // Convert model_type from string to ModelType
+      const typedData: Message[] = data.map(msg => ({
+        ...msg,
+        model_type: (msg.model_type as string) === "smart" ? "smart" as ModelType : 
+                    (msg.model_type as string) === "fast" ? "fast" as ModelType : null
+      }));
+      
+      if (typedData.length === 1 && typedData[0].id === 'initial-message') {
+        setInitialMessageId('initial-message');
+      }
+      
+      console.log(`Loaded ${typedData.length} messages for game ${gameId}`);
+      setMessages(typedData);
+    } catch (error) {
+      console.error("Error loading chat history:", error);
+    } finally {
+      setLoadingHistory(false);
+    }
   }, [gameId, initialMessage]);
+
+  // Load messages when gameId changes
+  useEffect(() => {
+    fetchMessages();
+  }, [fetchMessages]);
 
   const updateTerminalOutputWrapper = (newContent: string, isNewMessage = false) => {
     updateTerminalOutput(setTerminalOutput, newContent, isNewMessage);
@@ -110,6 +118,8 @@ export function useChatMessages({
     if (!gameId) return;
     
     try {
+      console.log(`Adding system message: ${message}`);
+      
       const { data: messageData, error } = await supabase
         .from('game_messages')
         .insert({
@@ -128,6 +138,8 @@ export function useChatMessages({
       
       // Update the messages state with the new system message
       if (messageData) {
+        console.log("System message added successfully:", messageData.id);
+        
         const newMessage: Message = {
           ...messageData,
           model_type: messageData.model_type === "smart" ? "smart" as ModelType : 
@@ -135,10 +147,12 @@ export function useChatMessages({
         };
         
         setMessages(prev => [...prev, newMessage]);
+        return messageData;
       }
       
     } catch (error) {
       console.error("Error in addSystemMessage:", error);
+      throw error;
     }
   }, [gameId]);
 
@@ -307,6 +321,7 @@ export function useChatMessages({
     initialMessageId,
     setInitialMessageId,
     terminalOutput,
-    addSystemMessage
+    addSystemMessage,
+    fetchMessages // Add this to return values
   };
 }
