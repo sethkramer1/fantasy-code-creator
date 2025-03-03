@@ -1,4 +1,3 @@
-
 import { useRef, useEffect } from "react";
 import { Loader2, ArrowUp, Paperclip, Info } from "lucide-react";
 import { ImageUpload } from "./ImageUpload";
@@ -16,6 +15,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ChatInputProps } from "./types";
+import { ModelType } from "@/types/generation";
 
 export const ChatInput = ({ 
   message, 

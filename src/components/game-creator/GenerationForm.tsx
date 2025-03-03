@@ -5,6 +5,7 @@ import { GamePromptInput } from "./GamePromptInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
+import { ModelType } from "@/types/generation";
 import {
   Tooltip,
   TooltipContent,
@@ -24,8 +25,8 @@ interface GenerationFormProps {
   imageUrl?: string;
   onImageUploaded: (url: string) => void;
   onImageRemoved: () => void;
-  modelType?: string;
-  setModelType?: (type: string) => void;
+  modelType?: ModelType;
+  setModelType?: (type: ModelType) => void;
   showModelPreference?: boolean;
   visibility?: string;
   setVisibility?: (visibility: string) => void;

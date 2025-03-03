@@ -28,7 +28,7 @@ export interface ChatInputProps {
   setMessage: (message: string) => void;
   imageUrl: string | null;
   setImageUrl: (url: string | null) => void;
-  modelType: string;
+  modelType: ModelType;  // Changed from string to ModelType
   handleModelChange: (value: string) => void;
   handleSubmit: (e: React.FormEvent) => void;
   loading: boolean;

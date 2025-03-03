@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { ModelType } from "@/types/generation";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
@@ -18,7 +19,7 @@ const Index = () => {
   const [imageUrl, setImageUrl] = useState<string>("");
   const [visibility, setVisibility] = useState<string>("public");
   // Always use "smart" model (Claude) from the index page
-  const modelType = "smart";
+  const modelType: ModelType = "smart";
   const { toast } = useToast();
   const navigate = useNavigate();
   const { user } = useAuth();

@@ -1,7 +1,8 @@
+
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { contentTypes } from "@/types/game";
-import { GenerationOptions, GenerationResult } from "@/types/generation";
+import { GenerationOptions, GenerationResult, ModelType } from "@/types/generation";
 import { callAnthropicApi } from "@/services/generation/anthropicService";
 import { callGroqApi } from "@/services/generation/groqService";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
@@ -12,7 +13,7 @@ export const useGameGeneration = () => {
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [thinkingTime, setThinkingTime] = useState(0);
   const [gameId, setGameId] = useState<string | null>(null);
-  const [modelType, setModelType] = useState<string>("smart"); // Default to smart (Anthropic) model
+  const [modelType, setModelType] = useState<ModelType>("smart"); // Changed from string to ModelType
   const timerRef = useRef<NodeJS.Timeout>();
   const { toast } = useToast();
   const maxRetries = 2; // Maximum number of retry attempts for network errors
@@ -43,7 +44,7 @@ export const useGameGeneration = () => {
     }
 
     // Use the passed model type or fall back to the state value
-    const activeModelType = requestModelType || modelType;
+    const activeModelType: ModelType = requestModelType || modelType;
 
     setLoading(true);
     setShowTerminal(true);
