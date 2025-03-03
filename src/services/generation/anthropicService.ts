@@ -29,9 +29,16 @@ export const callAnthropicApi = async (
   const { systemInstructions } = getContentTypeInstructions(gameType);
   
   // Combine the system instructions with the enhanced prompt and image URL
-  const finalPrompt = `${systemInstructions}\n\n${enhancedPrompt}`;
+  const finalPrompt = `${enhancedPrompt}\n\n${partialResponse ? "Use this as a starting point: " + partialResponse : ""}`;
   
   callbacks?.onStreamStart();
+
+  console.log("Calling Anthropic API with:", {
+    prompt: finalPrompt.substring(0, 50) + "...",
+    systemInstructions: systemInstructions.substring(0, 50) + "...",
+    imageUrl: imageUrl ? "Yes (provided)" : "No",
+    partialResponse: partialResponse ? "Yes (length: " + partialResponse.length + ")" : "No"
+  });
   
   const response = await fetch(
     ANTHROPIC_API_ENDPOINT,
@@ -43,9 +50,11 @@ export const callAnthropicApi = async (
       },
       body: JSON.stringify({ 
         prompt: finalPrompt,
+        system: systemInstructions,
         imageUrl: imageUrl,
         contentType: gameType,
-        partialResponse: partialResponse
+        partialResponse: partialResponse,
+        model: "claude-3-7-sonnet-20250219"
       }),
       signal: AbortSignal.timeout(300000), // 5 minute timeout for Anthropic
     }
@@ -92,6 +101,7 @@ export const callAnthropicApi = async (
 
               switch (data.type) {
                 case 'message_start':
+                  console.log("Stream started, model:", data.message?.model || "unknown");
                   break;
 
                 case 'content_block_start':

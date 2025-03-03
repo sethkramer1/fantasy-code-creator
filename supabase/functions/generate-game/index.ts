@@ -1,344 +1,162 @@
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
+import "https://deno.land/x/xhr@0.1.0/mod.ts"
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+
+// Function to extract Base64 data from a data URL
+function extractBase64FromDataUrl(dataUrl: string): string {
+  // Format is like: data:image/jpeg;base64,/9j/4AAQSkZJRgABAQEASABIAAD...
+  const match = dataUrl.match(/^data:image\/\w+;base64,(.+)$/);
+  if (match && match[1]) {
+    return match[1];
+  }
+  throw new Error('Invalid data URL format');
+}
+
 serve(async (req) => {
-  // Handle CORS preflight request
+  // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
-    return new Response(null, { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders })
+  }
+
+  if (!ANTHROPIC_API_KEY) {
+    console.error('ANTHROPIC_API_KEY is not set');
+    return new Response(
+      JSON.stringify({ error: 'ANTHROPIC_API_KEY is not set' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
   }
 
   try {
-    const { gameId, prompt, gameType, modelType = "smart", imageUrl, stream = false, userId } = await req.json();
+    const { prompt, imageUrl, contentType, system, partialResponse, model = "claude-3-7-sonnet-20250219" } = await req.json();
     
-    // Log the request payload
-    console.log("Processing generation request:", { 
-      gameId, 
-      gameType, 
-      modelType, 
-      stream,
-      promptLength: prompt?.length || 0,
-      hasImage: !!imageUrl,
-      hasUserId: !!userId
+    console.log("Received request with prompt length:", prompt?.length || 0);
+    console.log("Content type:", contentType);
+    console.log("Model:", model);
+    console.log("System prompt provided:", system ? "Yes" : "No");
+    console.log("Image URL provided:", imageUrl ? "Yes" : "No");
+    console.log("Partial response provided:", partialResponse ? "Yes" : "No");
+
+    if (!prompt) {
+      return new Response(
+        JSON.stringify({ error: 'prompt is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Define a default system message if none provided
+    const systemMessage = system || `You are an expert developer specializing in web technologies. 
+You are tasked with creating HTML/CSS/JS code based on the user's request.
+Return only the complete HTML code that's ready to be displayed in a browser.
+Include all CSS and JavaScript within the HTML file.
+Do not include any explanations, markdown formatting or code blocks - only return the actual code.`;
+
+    // Prepare the request body with the correct structure for Claude 3.7 Sonnet
+    let requestBody: any = {
+      model: model,
+      max_tokens: 30000,
+      stream: true,
+      system: systemMessage,
+      thinking: {
+        type: "enabled",
+        budget_tokens: 10000
+      }
+    };
+
+    // Handle the message content differently based on whether there's an image
+    if (imageUrl && imageUrl.startsWith('data:image/')) {
+      try {
+        // Extract the base64 data from the data URL
+        const base64Image = extractBase64FromDataUrl(imageUrl);
+        console.log('Successfully extracted base64 data, length:', base64Image.length);
+        
+        const mediaType = imageUrl.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
+        console.log('Detected media type:', mediaType);
+        
+        // Structure for image-with-text request
+        requestBody.messages = [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: partialResponse 
+                  ? `${prompt}\n\nUse this as a starting point:\n${partialResponse}`
+                  : prompt
+              },
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: mediaType,
+                  data: base64Image
+                }
+              }
+            ]
+          }
+        ];
+      } catch (imageError) {
+        console.error('Error processing image data URL:', imageError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to process image data' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      // Structure for text-only request
+      const messageText = partialResponse 
+        ? `${prompt}\n\nUse this as a starting point:\n${partialResponse}` 
+        : prompt;
+        
+      requestBody.messages = [
+        {
+          role: "user",
+          content: messageText
+        }
+      ];
+    }
+
+    console.log('Sending request to Anthropic API...');
+
+    // Make the request to Anthropic
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify(requestBody),
     });
 
-    // Validate required parameters
-    if (!gameId || !prompt || !gameType) {
-      return new Response(
-        JSON.stringify({ error: "Missing required parameters: gameId, prompt, or gameType" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Anthropic API error response:', errorText);
+      throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    // Choose the appropriate API service based on modelType
-    let response;
-    let content;
+    console.log('Successfully got response from Anthropic API, streaming back to client');
     
-    if (modelType === "smart") {
-      // Use Anthropic (Claude)
-      console.log("Calling Anthropic API for smart model generation");
-      response = await callAnthropicApi(prompt, gameType, imageUrl, stream);
-      
-      // If streaming, return the response directly
-      if (stream) {
-        const headers = {
-          ...corsHeaders,
-          "Content-Type": "text/event-stream",
-          "Cache-Control": "no-cache",
-          "Connection": "keep-alive"
-        };
-        return new Response(response.body, { headers });
-      }
-      
-      // Otherwise, get the response content
-      const responseData = await response.json();
-      content = responseData.content;
-      
-    } else {
-      // Use Groq LLM API (faster)
-      console.log("Calling Groq API for fast model generation");
-      content = await callGroqApi(prompt, gameType, imageUrl);
-    }
-    
-    // Validate content before returning
-    if (!content || content.length < 100) {
-      console.error("Generated content validation failed:", content?.substring(0, 100));
-      return new Response(
-        JSON.stringify({ 
-          error: "Received empty or invalid content from generation",
-          details: "Content is either empty or too short"
-        }),
-        { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-    
-    // Create a Supabase client to update game record
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
-    
-    // Create or update game record
-    try {
-      if (gameId) {
-        console.log(`Updating existing game ${gameId} via edge function`);
-        
-        const { error: updateError } = await supabaseAdmin
-          .from('games')
-          .update({ 
-            code: content,
-            instructions: "Content generated successfully",
-            user_id: userId || null
-          })
-          .eq('id', gameId);
-        
-        if (updateError) {
-          console.error("Error updating game record:", updateError);
-        } else {
-          console.log("Game record updated successfully");
-        }
-        
-        // Also update the game version
-        const { error: versionError } = await supabaseAdmin
-          .from('game_versions')
-          .update({
-            code: content,
-            instructions: "Content generated successfully"
-          })
-          .eq('game_id', gameId)
-          .eq('version_number', 1);
-        
-        if (versionError) {
-          console.error("Error updating game version:", versionError);
-        } else {
-          console.log("Game version updated successfully");
-        }
-      }
-    } catch (dbError) {
-      console.error("Database operation error:", dbError);
-      // We'll still return the content even if DB operations fail
-    }
-    
-    console.log("Generation successful, returning content");
-    
-    return new Response(
-      JSON.stringify({ content }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(response.body, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    });
+
   } catch (error) {
-    console.error("Error in generate-game function:", error);
+    console.error('Error in generate-game function:', error);
     return new Response(
-      JSON.stringify({ 
-        error: error.message || "An unexpected error occurred",
-        details: error.stack || "No stack trace available"
-      }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error occurred' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });
-
-// Function to call Anthropic's Claude API
-async function callAnthropicApi(prompt: string, gameType: string, imageUrl?: string, stream = false) {
-  const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!ANTHROPIC_API_KEY) {
-    throw new Error("ANTHROPIC_API_KEY is not set");
-  }
-
-  console.log("Calling Anthropic API:", {
-    hasImage: !!imageUrl,
-    promptLength: prompt?.length || 0,
-    streaming: stream,
-    gameType
-  });
-
-  // Construct the messages array with appropriate content
-  const messages = [];
-  
-  // Add system instructions based on game type
-  messages.push({
-    role: "system",
-    content: getSystemInstructions(gameType)
-  });
-
-  // Create the user message
-  let userMessage: any = {
-    role: "user",
-    content: []
-  };
-
-  // Add text content
-  userMessage.content.push({
-    type: "text",
-    text: prompt
-  });
-
-  // Add image if provided
-  if (imageUrl) {
-    userMessage.content.push({
-      type: "image",
-      source: {
-        type: "url",
-        url: imageUrl
-      }
-    });
-  }
-
-  messages.push(userMessage);
-
-  // Prepare request options
-  const requestOptions = {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": ANTHROPIC_API_KEY,
-      "anthropic-version": "2023-06-01"
-    },
-    body: JSON.stringify({
-      model: "claude-3-opus-20240229",
-      messages,
-      max_tokens: 4000,
-      stream,
-      temperature: 0.7,
-      system: getSystemInstructions(gameType)
-    })
-  };
-
-  try {
-    const response = await fetch("https://api.anthropic.com/v1/messages", requestOptions);
-    
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("Anthropic API error response:", errorData);
-      throw new Error(`Anthropic API error: ${response.status} - ${errorData}`);
-    }
-    
-    return response;
-  } catch (error) {
-    console.error("Error calling Anthropic API:", error);
-    throw error;
-  }
-}
-
-// Function to call Groq's API
-async function callGroqApi(prompt: string, gameType: string, imageUrl?: string) {
-  const GROQ_API_KEY = Deno.env.get("GROQ_API_KEY");
-  if (!GROQ_API_KEY) {
-    throw new Error("GROQ_API_KEY is not set");
-  }
-
-  console.log("Calling Groq API:", {
-    hasImage: !!imageUrl,
-    promptLength: prompt?.length || 0,
-    gameType
-  });
-
-  // Enhanced messages array with image if provided
-  const messages = [
-    {
-      role: "system",
-      content: getSystemInstructions(gameType)
-    }
-  ];
-
-  // Add user message with image if provided
-  if (imageUrl) {
-    messages.push({
-      role: "user",
-      content: [
-        { type: "text", text: prompt },
-        { type: "image_url", image_url: { url: imageUrl } }
-      ]
-    });
-  } else {
-    messages.push({
-      role: "user",
-      content: prompt
-    });
-  }
-
-  const requestOptions = {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": `Bearer ${GROQ_API_KEY}`
-    },
-    body: JSON.stringify({
-      model: "llama3-70b-8192",
-      messages,
-      temperature: 0.7,
-      max_tokens: 4000
-    })
-  };
-
-  try {
-    const response = await fetch("https://api.groq.com/openai/v1/chat/completions", requestOptions);
-    
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error("Groq API error response:", errorData);
-      throw new Error(`Groq API error: ${response.status} - ${errorData}`);
-    }
-    
-    const data = await response.json();
-    
-    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
-      console.error("Invalid response format from Groq API:", data);
-      throw new Error("Invalid response format from Groq API");
-    }
-    
-    const content = data.choices[0].message.content;
-    
-    if (!content || content.length < 100) {
-      console.error("Groq API returned invalid content:", content?.substring(0, 100));
-      throw new Error("Received empty or invalid content from Groq");
-    }
-    
-    return content;
-  } catch (error) {
-    console.error("Error calling Groq API:", error);
-    throw error;
-  }
-}
-
-// Get system instructions based on game type
-function getSystemInstructions(gameType: string): string {
-  // Default instructions for web design
-  let instructions = `You are a master web designer and programmer. Your job is to create visually appealing, interactive web designs based on the user's description. 
-  
-Your response should ONLY include the full HTML, CSS, and JavaScript code needed to create the described design. Do not include any explanations, markdown code blocks, or anything other than the raw code.
-  
-Create responsive designs that work well on both desktop and mobile. Use modern CSS techniques like flexbox and grid. Write clean, well-commented code.`;
-
-  // Customize based on game type
-  switch (gameType) {
-    case "game":
-      instructions = `You are a master game developer. Your job is to create fun, playable web games based on the user's description.
-      
-Your response should ONLY include the full HTML, CSS, and JavaScript code needed to create the described game. Do not include any explanations, markdown code blocks, or anything other than the raw code.
-      
-Create games that are interactive, have clear goals, and provide feedback to the player. Make them visually appealing and intuitive to play. Write clean, well-commented code.`;
-      break;
-    case "chart":
-      instructions = `You are a data visualization expert. Your job is to create informative, interactive charts and graphs based on the user's description.
-      
-Your response should ONLY include the full HTML, CSS, and JavaScript code needed to create the described visualization. Do not include any explanations, markdown code blocks, or anything other than the raw code.
-      
-Use libraries like Chart.js or D3.js to create your visualizations. Make them visually appealing and easy to understand. Write clean, well-commented code.`;
-      break;
-    case "svg":
-      instructions = `You are a master SVG artist and programmer. Your job is to create visually appealing, potentially interactive SVG illustrations based on the user's description.
-      
-Your response should ONLY include the full SVG code wrapped in basic HTML. Do not include any explanations, markdown code blocks, or anything other than the raw code.
-      
-Create detailed, visually interesting SVGs that match the user's requirements. Use appropriate viewBox settings and consider adding simple animations or interactions if appropriate. Write clean, well-commented code.`;
-      break;
-    // Add more game types as needed
-  }
-
-  return instructions;
-}
