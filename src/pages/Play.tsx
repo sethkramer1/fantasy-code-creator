@@ -78,21 +78,24 @@ const Play = () => {
         />
         
         <div className="flex-1 h-full overflow-hidden">
-          <GamePreview
-            currentVersion={currentVersion}
-            showCode={showCode}
-            ref={iframeRef}
-          />
+          {generationInProgress ? (
+            <GenerationTerminal
+              open={showTerminal}
+              onOpenChange={setShowTerminal}
+              output={terminalOutput}
+              thinkingTime={thinkingTime}
+              loading={generationInProgress}
+              asModal={false}
+            />
+          ) : (
+            <GamePreview
+              currentVersion={currentVersion}
+              showCode={showCode}
+              ref={iframeRef}
+            />
+          )}
         </div>
       </div>
-
-      <GenerationTerminal
-        open={showTerminal}
-        onOpenChange={setShowTerminal}
-        output={terminalOutput}
-        thinkingTime={thinkingTime}
-        loading={generationInProgress}
-      />
     </div>
   );
 };

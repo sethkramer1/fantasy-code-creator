@@ -78,28 +78,34 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
                 do {
                   result = await reader.read();
                   if (result.value) {
-                    partialResponse += decoder.decode(result.value);
-                    // Split by double newline to delineate messages
-                    const messages = partialResponse.split("\n\n");
+                    const chunk = decoder.decode(result.value);
+                    console.log("Received chunk:", chunk.substring(0, 100) + "...");
                     
-                    // Process each message
-                    messages.forEach((message, index) => {
-                      if (message && index < messages.length - 1) {
+                    partialResponse += chunk;
+                    
+                    // Split by lines to process each event
+                    const lines = partialResponse.split("\n");
+                    
+                    // Process complete lines
+                    for (let i = 0; i < lines.length - 1; i++) {
+                      const line = lines[i].trim();
+                      if (line.startsWith('data: ')) {
                         try {
-                          const parsed = JSON.parse(message.replace(/^data: /, ''));
-                          if (parsed.delta?.text) {
-                            setTerminalOutput(prev => [...prev.slice(0, -1), `> ${parsed.delta.text}`]);
-                          } else if (parsed.thinking) {
-                            setTerminalOutput(prev => [...prev, `> Thinking: ${parsed.thinking}`]);
+                          const data = JSON.parse(line.substring(6));
+                          
+                          if (data.thinking) {
+                            setTerminalOutput(prev => [...prev, `> Thinking: ${data.thinking}`]);
+                          } else if (data.delta?.text) {
+                            setTerminalOutput(prev => [...prev, `> ${data.delta.text}`]);
                           }
                         } catch (e) {
-                          // Silently ignore parsing errors for partial messages
+                          console.error("Error parsing data:", e, "Line:", line);
                         }
                       }
-                    });
+                    }
                     
-                    // Keep the last message (potentially incomplete) for the next iteration
-                    partialResponse = messages[messages.length - 1] || "";
+                    // Keep the last line which might be incomplete
+                    partialResponse = lines[lines.length - 1];
                   }
                 } while (!result.done);
 
