@@ -42,13 +42,13 @@ export function PlayNavbar({
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 py-2 px-4 flex items-center justify-between">
+    <header className="bg-white border-b border-gray-200 py-2 px-4 flex items-center justify-between shadow-sm">
       <div className="flex items-center">
         <Button
           onClick={handleBackClick}
           variant="ghost"
           size="sm"
-          className="mr-4"
+          className="mr-4 text-gray-700 hover:bg-gray-100"
         >
           ← Back
         </Button>
@@ -61,7 +61,7 @@ export function PlayNavbar({
         <Button 
           variant="outline" 
           size="sm" 
-          className="h-8 gap-1 text-sm" 
+          className="h-8 gap-1 text-sm border-gray-200 text-gray-700 hover:bg-gray-100" 
           onClick={onDownload}
         >
           <Download size={14} />
@@ -85,7 +85,7 @@ export function PlayNavbar({
           <Button 
             variant="outline" 
             size="sm" 
-            className="flex items-center gap-2 ml-2"
+            className="flex items-center gap-2 ml-2 border-gray-200 text-gray-700 hover:bg-gray-100"
             onClick={handleAccountClick}
           >
             <UserCircle size={16} />
@@ -96,7 +96,7 @@ export function PlayNavbar({
             onClick={handleLoginClick}
             size="sm" 
             variant="outline"
-            className="ml-2"
+            className="ml-2 border-gray-200 text-gray-700 hover:bg-gray-100"
           >
             Sign in
           </Button>

@@ -53,7 +53,7 @@ export function VersionHistory({
 
   return (
     <div className="flex items-center gap-2">
-      <div className="flex items-center gap-1 text-sm text-zinc-400">
+      <div className="flex items-center gap-1 text-sm text-gray-500">
         <History className="h-4 w-4" />
         <span>History:</span>
       </div>
@@ -62,15 +62,15 @@ export function VersionHistory({
         value={selectedVersionId || undefined}
         onValueChange={onVersionSelect}
       >
-        <SelectTrigger className="h-9 w-[180px] bg-zinc-800 border-zinc-700 text-zinc-200">
+        <SelectTrigger className="h-9 w-[180px] bg-white border-gray-200 text-gray-800">
           <SelectValue placeholder="Select version" />
         </SelectTrigger>
-        <SelectContent className="bg-zinc-800 border-zinc-700 text-zinc-200">
+        <SelectContent className="bg-white border-gray-200 text-gray-800">
           {sortedVersions.map((version) => (
             <SelectItem 
               key={version.id} 
               value={version.id}
-              className={`${version.id === currentVersionId ? 'bg-zinc-700' : ''}`}
+              className={`${version.id === currentVersionId ? 'bg-gray-100' : ''}`}
             >
               {`V${version.version_number} - ${formatDistanceToNow(new Date(version.created_at), { addSuffix: true })}`}
             </SelectItem>
@@ -80,8 +80,8 @@ export function VersionHistory({
       
       <Button
         size="sm"
-        variant="secondary"
-        className="h-9 bg-zinc-800 border-zinc-700 text-zinc-200 hover:bg-zinc-700"
+        variant="outline"
+        className="h-9 bg-white border-gray-200 text-gray-800 hover:bg-gray-100"
         onClick={handleRevert}
         disabled={!selectedVersionId || isReverting || selectedVersionId === currentVersionId}
       >

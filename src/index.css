@@ -83,6 +83,14 @@
   .focus-ring {
     @apply focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2;
   }
+  
+  .code-editor {
+    @apply bg-white text-gray-800;
+  }
+  
+  .code-editor-line {
+    @apply text-gray-500 text-sm border-r border-gray-200 pr-2 mr-2 text-right w-8;
+  }
 }
 
 @layer base {
@@ -121,5 +129,13 @@
   
   input, textarea, select {
     @apply rounded-lg border-gray-200;
+  }
+  
+  pre {
+    @apply bg-gray-50 text-gray-800 rounded-md;
+  }
+  
+  code {
+    @apply font-mono text-sm;
   }
 }
