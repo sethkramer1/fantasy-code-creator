@@ -30,7 +30,7 @@ serve(async (req) => {
 
     // Prepare the request body with improved parameters
     const requestBody: any = {
-      model: "mixtral-8x7b-32768", // Use Mixtral model for fast responses
+      model: "qwen-2.5-coder-32b", // Use Mixtral model for fast responses
       messages: [
         {
           role: "user",
