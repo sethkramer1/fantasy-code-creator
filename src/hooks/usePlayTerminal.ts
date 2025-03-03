@@ -60,12 +60,40 @@ export function usePlayTerminal(
     }));
   };
 
+  // Fix: Create a custom state update function for terminal output
   const updateTerminalOutputWrapper = (newOutput: string, isNewMessage = false) => {
-    updateTerminalOutput(
-      (output) => setState(prev => ({ ...prev, terminalOutput: output })),
-      newOutput,
-      isNewMessage
-    );
+    setState(prev => {
+      // Create a new array based on the current state's terminal output
+      let updatedOutput: string[];
+      
+      if (isNewMessage || 
+          newOutput.startsWith("> Thinking:") || 
+          newOutput.startsWith("> Generation") || 
+          newOutput.includes("completed") || 
+          newOutput.includes("Error:")) {
+        updatedOutput = [...prev.terminalOutput, newOutput];
+      } else {
+        if (prev.terminalOutput.length > 0) {
+          const lastLine = prev.terminalOutput[prev.terminalOutput.length - 1];
+          
+          if (lastLine.startsWith("> ") && !lastLine.startsWith("> Thinking:") && 
+              newOutput.startsWith("> ") && !newOutput.startsWith("> Thinking:")) {
+            
+            const updatedLastLine = lastLine + newOutput.slice(1);
+            updatedOutput = [...prev.terminalOutput.slice(0, -1), updatedLastLine];
+          } else {
+            updatedOutput = [...prev.terminalOutput, newOutput];
+          }
+        } else {
+          updatedOutput = [newOutput];
+        }
+      }
+      
+      return {
+        ...prev,
+        terminalOutput: updatedOutput
+      };
+    });
   };
 
   useEffect(() => {
