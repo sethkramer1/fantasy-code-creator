@@ -43,7 +43,7 @@ export function GenerationForm({
   imageUrl,
   onImageUploaded,
   onImageRemoved,
-  modelType = "smart", // Changed default from "fast" to "smart"
+  modelType = "smart", 
   setModelType = () => {},
   showModelPreference = false,
   visibility = "public",
