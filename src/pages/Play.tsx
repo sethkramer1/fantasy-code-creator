@@ -136,11 +136,12 @@ export default function Play() {
         
         {/* Sidebar Chat */}
         <SidebarChat
-          showSidebar={sidebarOpen}
-          setShowSidebar={setSidebarOpen}
           isOpen={sidebarOpen} 
           setIsOpen={setSidebarOpen}
           onSubmit={handleChatSubmit}
+          input={chatInput}
+          setInput={setChatInput}
+          loading={false}
           disabled={!isLatestVersion}
           imageUrl={imageUrl}
           setImageUrl={setImageUrl}

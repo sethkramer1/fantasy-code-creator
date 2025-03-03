@@ -28,6 +28,5 @@ site_url = "http://localhost:3000"
 [realtime]
 enabled = true
 
-[[functions]]
-name = "netlify-integration"
+[functions.netlify-integration]
 verify_jwt = false
