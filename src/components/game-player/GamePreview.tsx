@@ -51,7 +51,11 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
 
       if (isResizable) {
         return (
-          <ResizableIframeContainer onResize={handleIframeResize}>
+          <ResizableIframeContainer 
+            onResize={handleIframeResize}
+            initialWidth={800}
+            initialHeight={600}
+          >
             {iframePreviewContent}
           </ResizableIframeContainer>
         );

@@ -15,6 +15,9 @@ export const ResizableIframeContainer: React.FC<ResizableIframeContainerProps> =
   initialHeight = 600,
   onResize
 }) => {
+  // Calculate initial position to be on the right side
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [containerBounds, setContainerBounds] = useState({ width: 0, height: 0 });
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [size, setSize] = useState({ width: initialWidth, height: initialHeight });
   const [isDragging, setIsDragging] = useState(false);
@@ -26,22 +29,48 @@ export const ResizableIframeContainer: React.FC<ResizableIframeContainerProps> =
     size: { width: number, height: number } 
   } | null>(null);
   
-  const containerRef = useRef<HTMLDivElement>(null);
   const startPositionRef = useRef({ x: 0, y: 0 });
   const startSizeRef = useRef({ width: 0, height: 0 });
   const startCursorRef = useRef({ x: 0, y: 0 });
+
+  // Get container dimensions and set initial position on mount
+  useEffect(() => {
+    const updateContainerBounds = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setContainerBounds({ width: rect.width, height: rect.height });
+        
+        // Set initial position on the right side (centered)
+        const rightSideWidth = rect.width * 0.75; // Right side is 75% of the container
+        const leftBoundary = rect.width * 0.25; // Left boundary is at 25% of the container
+        
+        setPosition({
+          x: leftBoundary + (rightSideWidth - initialWidth) / 2,
+          y: (rect.height - initialHeight) / 2
+        });
+      }
+    };
+
+    updateContainerBounds();
+    window.addEventListener('resize', updateContainerBounds);
+    return () => window.removeEventListener('resize', updateContainerBounds);
+  }, [initialWidth, initialHeight]);
 
   // Handle window resize
   useEffect(() => {
     const handleWindowResize = () => {
       if (isMaximized && containerRef.current) {
-        const parentRect = containerRef.current.parentElement?.getBoundingClientRect();
+        const parentRect = containerRef.current.getBoundingClientRect();
         if (parentRect) {
+          // When maximized, take up the right 75% of the container
+          const leftBoundary = parentRect.width * 0.25;
+          const maxWidth = parentRect.width * 0.75 - 40; // 40px padding
+          
           setSize({ 
-            width: parentRect.width - 40, // Accounting for padding
+            width: maxWidth,
             height: parentRect.height - 40 
           });
-          setPosition({ x: 20, y: 20 });
+          setPosition({ x: leftBoundary + 20, y: 20 });
         }
       }
     };
@@ -76,14 +105,30 @@ export const ResizableIframeContainer: React.FC<ResizableIframeContainerProps> =
   const handleMouseMove = (e: React.MouseEvent) => {
     if (!isDragging && !isResizing) return;
     
+    // Calculate the left boundary (25% of container width)
+    const leftBoundary = containerBounds.width * 0.25;
+    
     if (isDragging) {
       const deltaX = e.clientX - startCursorRef.current.x;
       const deltaY = e.clientY - startCursorRef.current.y;
       
-      setPosition({
-        x: startPositionRef.current.x + deltaX,
-        y: startPositionRef.current.y + deltaY
-      });
+      let newX = startPositionRef.current.x + deltaX;
+      let newY = startPositionRef.current.y + deltaY;
+      
+      // Enforce boundaries
+      // Left boundary - restrict to right 75% of the container
+      newX = Math.max(newX, leftBoundary);
+      
+      // Right boundary
+      newX = Math.min(newX, containerBounds.width - size.width);
+      
+      // Top boundary
+      newY = Math.max(newY, 0);
+      
+      // Bottom boundary
+      newY = Math.min(newY, containerBounds.height - size.height);
+      
+      setPosition({ x: newX, y: newY });
     } else if (isResizing && resizeDirection) {
       const deltaX = e.clientX - startCursorRef.current.x;
       const deltaY = e.clientY - startCursorRef.current.y;
@@ -99,6 +144,12 @@ export const ResizableIframeContainer: React.FC<ResizableIframeContainerProps> =
       } else if (resizeDirection.includes('w')) {
         newWidth = startSizeRef.current.width - deltaX;
         newX = startPositionRef.current.x + deltaX;
+        
+        // Enforce left boundary when resizing from the left
+        if (newX < leftBoundary) {
+          newX = leftBoundary;
+          newWidth = startSizeRef.current.width + (startPositionRef.current.x - leftBoundary);
+        }
       }
       
       if (resizeDirection.includes('s')) {
@@ -126,6 +177,16 @@ export const ResizableIframeContainer: React.FC<ResizableIframeContainerProps> =
         }
       }
       
+      // Enforce right boundary
+      if (newX + newWidth > containerBounds.width) {
+        newWidth = containerBounds.width - newX;
+      }
+      
+      // Enforce bottom boundary
+      if (newY + newHeight > containerBounds.height) {
+        newHeight = containerBounds.height - newY;
+      }
+      
       setSize({ width: newWidth, height: newHeight });
       setPosition({ x: newX, y: newY });
     }
@@ -144,13 +205,17 @@ export const ResizableIframeContainer: React.FC<ResizableIframeContainerProps> =
       
       // Get parent size for maximizing
       if (containerRef.current) {
-        const parentRect = containerRef.current.parentElement?.getBoundingClientRect();
+        const parentRect = containerRef.current.getBoundingClientRect();
         if (parentRect) {
+          // Calculate the left boundary and max width
+          const leftBoundary = parentRect.width * 0.25;
+          const maxWidth = parentRect.width * 0.75 - 40; // 40px padding
+          
           setSize({ 
-            width: parentRect.width - 40, // Accounting for padding
+            width: maxWidth,
             height: parentRect.height - 40 
           });
-          setPosition({ x: 20, y: 20 });
+          setPosition({ x: leftBoundary + 20, y: 20 });
         }
       }
       
@@ -174,6 +239,16 @@ export const ResizableIframeContainer: React.FC<ResizableIframeContainerProps> =
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
+      {/* Visual indicator for the right side area */}
+      <div 
+        className="absolute top-0 bottom-0 bg-gray-100 border-r border-gray-200"
+        style={{ 
+          left: 0, 
+          width: `${containerBounds.width * 0.25}px`,
+          pointerEvents: 'none'  // Make this div non-interactive
+        }}
+      />
+      
       <div
         className="absolute bg-white rounded-lg shadow-lg overflow-hidden border border-gray-200"
         style={{
