@@ -1,4 +1,3 @@
-
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -11,6 +10,7 @@ import { usePlayTerminal } from "@/hooks/usePlayTerminal";
 import { useToast } from "@/components/ui/use-toast";
 import { ViewToggle } from "@/components/game-player/ViewToggle";
 import { VersionHistory } from "@/components/game-player/components/VersionHistory";
+import JSZip from 'jszip';
 
 const Play = () => {
   const { id: gameId } = useParams();
@@ -58,7 +58,6 @@ const Play = () => {
     generationError
   } = usePlayTerminal(gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl);
 
-  // Get the currently displayed version (either selected or current)
   const displayedVersion = useCallback(() => {
     if (selectedVersionId) {
       const selectedVersion = gameVersions.find(v => v.id === selectedVersionId);
@@ -77,7 +76,7 @@ const Play = () => {
   useEffect(() => {
     generationHandledRef.current = false;
     contentInitializedRef.current = false;
-    setSelectedVersionId(null); // Reset selected version when game changes
+    setSelectedVersionId(null);
   }, [gameId]);
 
   useEffect(() => {
@@ -124,6 +123,67 @@ const Play = () => {
     }
   }, [hasValidContent]);
 
+  const handleDownload = () => {
+    if (displayedVersion()) {
+      const zip = new JSZip();
+      try {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(displayedVersion()?.code || "", 'text/html');
+        const styles = Array.from(doc.getElementsByTagName('style')).map(style => style.textContent).join('\n');
+        if (styles) {
+          zip.file('styles.css', styles);
+          doc.querySelectorAll('style').forEach(style => style.remove());
+        }
+        const scripts = Array.from(doc.getElementsByTagName('script')).map(script => script.textContent).join('\n');
+        if (scripts) {
+          zip.file('script.js', scripts);
+          doc.querySelectorAll('script').forEach(script => script.remove());
+        }
+        if (styles) {
+          const linkTag = doc.createElement('link');
+          linkTag.rel = 'stylesheet';
+          linkTag.href = './styles.css';
+          doc.head.appendChild(linkTag);
+        }
+        if (scripts) {
+          const scriptTag = doc.createElement('script');
+          scriptTag.src = './script.js';
+          doc.body.appendChild(scriptTag);
+        }
+        zip.file('index.html', doc.documentElement.outerHTML);
+        
+        zip.generateAsync({ type: 'blob' }).then((content) => {
+          const url = URL.createObjectURL(content);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `version-${displayedVersion()?.version_number || 'latest'}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          toast({
+            title: "Files downloaded",
+            description: "The HTML, CSS, and JS files have been downloaded as a ZIP file."
+          });
+        });
+      } catch (error) {
+        console.error("Error downloading files:", error);
+        toast({
+          title: "Download failed",
+          description: "There was an error downloading the files. Please try again.",
+          variant: "destructive"
+        });
+      }
+    } else {
+      toast({
+        title: "No content to download",
+        description: "There is no content available to download.",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (!gameId) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -149,7 +209,7 @@ const Play = () => {
         showCodeEditor={showCode}
         onShowCodeEditorChange={setShowCode}
         onExport={() => {}}
-        onDownload={() => {}}
+        onDownload={handleDownload}
         onFork={() => {}}
         onShare={() => {}}
       />

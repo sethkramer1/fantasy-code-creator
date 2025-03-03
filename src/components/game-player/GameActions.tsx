@@ -99,11 +99,6 @@ export function GameActions({
   }
   
   return <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" className="h-8 gap-1 text-sm" onClick={onDownload || handleDownload}>
-        <Download size={14} />
-        Zip
-      </Button>
-
       <Dialog>
         <DialogTrigger asChild>
           <Button variant="default" size="sm" className="h-8 gap-1 text-sm bg-green-500 hover:bg-green-600">

@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GameActions } from "./GameActions";
 import { useAuth } from "@/context/AuthContext";
-import { UserCircle } from "lucide-react";
+import { Download, UserCircle } from "lucide-react";
 
 interface PlayNavbarProps {
   gameId: string;
@@ -58,6 +58,16 @@ export function PlayNavbar({
       </div>
 
       <div className="flex items-center space-x-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className="h-8 gap-1 text-sm" 
+          onClick={onDownload}
+        >
+          <Download size={14} />
+          Download Zip
+        </Button>
+        
         <GameActions
           currentVersion={undefined}
           showGenerating={false}
