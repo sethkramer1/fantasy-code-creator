@@ -41,7 +41,15 @@ const Play = () => {
   useEffect(() => {
     if (!generationInProgress && gameId && generating) {
       console.log("Generation completed, refreshing game data");
-      fetchGame();
+      
+      // Add a slight delay to ensure database is updated
+      const refreshTimer = setTimeout(() => {
+        fetchGame().then(() => {
+          console.log("Game data refreshed after generation");
+        });
+      }, 1000);
+      
+      return () => clearTimeout(refreshTimer);
     }
   }, [generationInProgress, gameId, generating, fetchGame]);
 

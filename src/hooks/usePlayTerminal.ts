@@ -9,6 +9,7 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
   const [showTerminal, setShowTerminal] = useState(false);
   const [thinkingTime, setThinkingTime] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const gameVersionLoaded = useRef(false);
 
   useEffect(() => {
     if (generating && gameId) {
@@ -16,6 +17,7 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
       setGenerationInProgress(true);
       setShowTerminal(true); // Automatically show terminal when generating
       setTerminalOutput([`> Starting generation for: "${initialPrompt}"`]);
+      gameVersionLoaded.current = false;
     }
   }, [generating, gameId, initialPrompt]);
 
@@ -145,13 +147,14 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
                 setTerminalOutput(prev => [...prev, "> Generation completed successfully!"]);
                 console.log("Stream processing completed");
                 
-                // Explicitly fetch the game version to ensure we have the latest data
-                await fetchGameVersion(gameId);
+                // Add a slight delay to ensure database has been updated
+                await new Promise(resolve => setTimeout(resolve, 1000));
                 
-                // Set a slight delay to ensure everything is complete before showing iframe
-                setTimeout(() => {
-                  setGenerationInProgress(false);
-                }, 1000);
+                // Explicitly fetch the latest game version to ensure we have the updated content
+                await fetchLatestGameVersion(gameId);
+                
+                // Complete the generation process
+                setGenerationInProgress(false);
               } catch (e) {
                 console.error("Streaming error:", e);
                 setTerminalOutput(prev => [...prev, `> Error: ${e.message}`]);
@@ -166,13 +169,14 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
             // Non-streaming fallback
             setTerminalOutput(prev => [...prev, "> Received complete response"]);
             
-            // Explicitly fetch the game version to ensure we have the latest data
-            await fetchGameVersion(gameId);
+            // Add a delay to ensure database has been updated
+            await new Promise(resolve => setTimeout(resolve, 1000));
             
-            // Set a slight delay to ensure everything is complete before showing iframe
-            setTimeout(() => {
-              setGenerationInProgress(false);
-            }, 1000);
+            // Explicitly fetch the latest game version
+            await fetchLatestGameVersion(gameId);
+            
+            // Complete the generation process
+            setGenerationInProgress(false);
           }
         } catch (error) {
           console.error("Error during initial content fetch:", error);
@@ -182,11 +186,33 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
       }
     };
 
-    // Helper function to fetch the latest game version
-    const fetchGameVersion = async (gameId: string) => {
+    // Helper function to fetch the latest game version and ensure it's valid
+    const fetchLatestGameVersion = async (gameId: string) => {
       try {
         setTerminalOutput(prev => [...prev, "> Fetching the latest game version..."]);
-        const { data, error } = await supabase
+        
+        // First check if the game has been updated
+        const { data: gameData, error: gameError } = await supabase
+          .from('games')
+          .select('code, current_version')
+          .eq('id', gameId)
+          .single();
+          
+        if (gameError) {
+          console.error("Error fetching game data:", gameError);
+          setTerminalOutput(prev => [...prev, `> Error fetching game data: ${gameError.message}`]);
+          return;
+        }
+        
+        if (!gameData || !gameData.code || gameData.code.length < 100) {
+          console.error("Game data is missing or code is too short:", gameData);
+          setTerminalOutput(prev => [...prev, `> Warning: Game data might be incomplete. Fetching version details...`]);
+        } else {
+          console.log("Game data successfully fetched, code length:", gameData.code.length);
+        }
+        
+        // Now fetch the specific version
+        const { data: versionData, error: versionError } = await supabase
           .from('game_versions')
           .select('*')
           .eq('game_id', gameId)
@@ -194,20 +220,46 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
           .limit(1)
           .single();
           
-        if (error) {
-          console.error("Error fetching game version:", error);
-          setTerminalOutput(prev => [...prev, `> Error fetching game version: ${error.message}`]);
+        if (versionError) {
+          console.error("Error fetching game version:", versionError);
+          setTerminalOutput(prev => [...prev, `> Error fetching game version: ${versionError.message}`]);
           return;
         }
         
-        if (data) {
-          setTerminalOutput(prev => [...prev, `> Successfully fetched game version ${data.version_number}`]);
-          console.log("Fetched game version:", data);
-        } else {
+        if (!versionData) {
           setTerminalOutput(prev => [...prev, `> No game version found`]);
+          console.error("No version data returned");
+          return;
+        }
+        
+        if (!versionData.code || versionData.code.length < 100) {
+          console.error("Version data has no code or code is too short:", versionData);
+          setTerminalOutput(prev => [...prev, `> Warning: Version data might be incomplete. Code length: ${versionData.code?.length || 0}`]);
+          
+          // Try one more time after a delay
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          
+          const { data: retryData, error: retryError } = await supabase
+            .from('game_versions')
+            .select('*')
+            .eq('id', versionData.id)
+            .single();
+            
+          if (retryError) {
+            console.error("Error in retry fetch:", retryError);
+          } else if (retryData && retryData.code && retryData.code.length > 100) {
+            console.log("Successfully fetched code on retry. Length:", retryData.code.length);
+            setTerminalOutput(prev => [...prev, `> Successfully loaded game content after retry.`]);
+            gameVersionLoaded.current = true;
+          }
+        } else {
+          setTerminalOutput(prev => [...prev, `> Successfully fetched game version ${versionData.version_number} (${versionData.code.length} bytes)`]);
+          console.log("Fetched game version:", versionData.version_number, "Code length:", versionData.code.length);
+          gameVersionLoaded.current = true;
         }
       } catch (error) {
-        console.error("Error in fetchGameVersion:", error);
+        console.error("Error in fetchLatestGameVersion:", error);
+        setTerminalOutput(prev => [...prev, `> Error checking game version: ${error.message}`]);
       }
     };
 
