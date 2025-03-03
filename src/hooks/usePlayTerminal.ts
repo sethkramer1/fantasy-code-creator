@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { processGameUpdate } from "@/components/game-chat/api-service";
 
@@ -11,11 +10,12 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
 
   useEffect(() => {
     if (generating && gameId) {
+      console.log("Starting generation process for game:", gameId);
       setGenerationInProgress(true);
-      // Start with a placeholder message
-      setTerminalOutput([`> Generating initial content...`]);
+      setShowTerminal(true); // Automatically show terminal when generating
+      setTerminalOutput([`> Starting generation for: "${initialPrompt}"`]);
     }
-  }, [generating, gameId]);
+  }, [generating, gameId, initialPrompt]);
 
   useEffect(() => {
     if (generationInProgress && gameId) {
@@ -36,12 +36,20 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
         clearInterval(timerRef.current);
       }
     };
-  }, [generationInProgress]);
+  }, [generationInProgress, gameId]);
 
   useEffect(() => {
     const fetchInitialContent = async () => {
       if (gameId && generating) {
         try {
+          console.log("Fetching initial content with:", {
+            prompt: initialPrompt,
+            modelType: initialModelType,
+            imageUrl: initialImageUrl
+          });
+
+          setTerminalOutput(prev => [...prev, `> Using ${initialModelType === "smart" ? "Claude (Smartest)" : "Groq (Fastest)"} model`]);
+          
           const { apiResponse, modelType } = await processGameUpdate(
             gameId,
             initialPrompt,
@@ -73,25 +81,33 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
                     partialResponse += decoder.decode(result.value);
                     // Split by double newline to delineate messages
                     const messages = partialResponse.split("\n\n");
-                    // Update terminal output with each message
+                    
+                    // Process each message
                     messages.forEach((message, index) => {
-                      if (message) {
-                        setTerminalOutput(prev => {
-                          const newOutput = [...prev.slice(0, -1), message];
-                          return newOutput;
-                        });
+                      if (message && index < messages.length - 1) {
+                        try {
+                          const parsed = JSON.parse(message.replace(/^data: /, ''));
+                          if (parsed.delta?.text) {
+                            setTerminalOutput(prev => [...prev.slice(0, -1), `> ${parsed.delta.text}`]);
+                          } else if (parsed.thinking) {
+                            setTerminalOutput(prev => [...prev, `> Thinking: ${parsed.thinking}`]);
+                          }
+                        } catch (e) {
+                          // Silently ignore parsing errors for partial messages
+                        }
                       }
                     });
+                    
+                    // Keep the last message (potentially incomplete) for the next iteration
                     partialResponse = messages[messages.length - 1] || "";
                   }
                 } while (!result.done);
 
-                // Handle the last part of the response
-                if (partialResponse) {
-                  setTerminalOutput(prev => [...prev, partialResponse]);
-                }
+                setTerminalOutput(prev => [...prev, "> Generation completed successfully!"]);
+                console.log("Stream processing completed");
               } catch (e) {
                 console.error("Streaming error:", e);
+                setTerminalOutput(prev => [...prev, `> Error: ${e.message}`]);
               } finally {
                 setGenerationInProgress(false);
                 reader.releaseLock();
@@ -100,10 +116,14 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
 
             processStream();
           } else {
+            // Non-streaming case (Groq/fast model)
+            const responseData = await apiResponse.json();
+            setTerminalOutput(prev => [...prev, "> Received complete response from fast model"]);
             setGenerationInProgress(false);
           }
         } catch (error) {
           console.error("Error during initial content fetch:", error);
+          setTerminalOutput(prev => [...prev, `> Error: ${error.message}`]);
           setGenerationInProgress(false);
         }
       }
