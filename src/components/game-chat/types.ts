@@ -9,6 +9,7 @@ export interface Message {
   model_type?: "smart" | "fast" | null;
   isLoading?: boolean;
   is_system?: boolean;
+  version_id?: string | null; // Add this property for the version ID
 }
 
 export interface MessageItemProps {
@@ -32,4 +33,33 @@ export interface GameChatProps {
   onRevertToVersion?: (message: Message) => Promise<void>;
   gameVersions?: any[];
   initialMessage?: string;
+}
+
+// Add the missing types for ChatInput
+export interface ChatInputProps {
+  message: string;
+  setMessage: (message: string) => void;
+  imageUrl: string | null;
+  setImageUrl: (url: string | null) => void;
+  modelType: "smart" | "fast";
+  handleModelChange: (value: "smart" | "fast") => void;
+  handleSubmit: (e: React.FormEvent) => void;
+  loading: boolean;
+  disabled?: boolean;
+}
+
+// Add the missing types for ImageUpload
+export interface ImageUploadProps {
+  imageUrl: string | null;
+  setImageUrl: (url: string | null) => void;
+  disabled?: boolean;
+}
+
+export interface ImageUploadResult {
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  isUploading: boolean;
+  handleImageFile: (file: File) => void;
+  handleImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleRemoveImage: () => void;
+  imagePreview: JSX.Element | null;
 }
