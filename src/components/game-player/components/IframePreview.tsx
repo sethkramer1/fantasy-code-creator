@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, forwardRef, useState } from "react";
+import React, { useRef, useEffect, forwardRef, useState, useCallback } from "react";
 
 interface IframePreviewProps {
   code: string;
@@ -8,7 +8,10 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
   ({ code }, ref) => {
     const localIframeRef = useRef<HTMLIFrameElement>(null);
     const [iframeContent, setIframeContent] = useState<string>("");
+    const prevCodeRef = useRef<string>("");
+    const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
     
+    // Forward the ref to parent component
     useEffect(() => {
       if (!ref) return;
       
@@ -19,24 +22,8 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       }
     }, [ref]);
 
-    useEffect(() => {
-      console.log("IframePreview received code update, length:", code?.length);
-      
-      if (!code || code === iframeContent) return;
-      
-      if (code.length > 100) {
-        const preparedContent = prepareIframeContent(code);
-        setIframeContent(preparedContent);
-      }
-    }, [code]);
-
-    useEffect(() => {
-      if (iframeContent && localIframeRef.current) {
-        localIframeRef.current.focus();
-      }
-    }, [iframeContent]);
-
-    const prepareIframeContent = (html: string) => {
+    // Memoized function to prepare iframe content
+    const prepareIframeContent = useCallback((html: string) => {
       const helperScript = `
         <script>
           document.addEventListener('DOMContentLoaded', function() {
@@ -214,22 +201,64 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       } else {
         return helperScript + html;
       }
-    };
+    }, []);
+
+    // Update iframe content when code changes, with debounce
+    useEffect(() => {
+      // Clear any existing timer
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+      }
+      
+      // Skip if code is unchanged or too short
+      if (!code || code === prevCodeRef.current || code.length < 100) {
+        return;
+      }
+      
+      console.log("IframePreview preparing to update with new code, length:", code.length);
+      
+      // Set a small delay to debounce updates
+      updateTimerRef.current = setTimeout(() => {
+        const preparedContent = prepareIframeContent(code);
+        setIframeContent(preparedContent);
+        prevCodeRef.current = code;
+        console.log("IframePreview content updated");
+      }, 300);
+      
+      return () => {
+        if (updateTimerRef.current) {
+          clearTimeout(updateTimerRef.current);
+        }
+      };
+    }, [code, prepareIframeContent]);
+
+    // Focus iframe when content changes
+    useEffect(() => {
+      if (iframeContent && localIframeRef.current) {
+        localIframeRef.current.focus();
+      }
+    }, [iframeContent]);
 
     return (
       <div 
         className="h-full relative"
         onClick={() => localIframeRef.current?.focus()}
       >
-        <iframe
-          ref={localIframeRef}
-          srcDoc={iframeContent}
-          className="absolute inset-0 w-full h-full border border-gray-100"
-          sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
-          title="Generated Content"
-          tabIndex={0}
-          onLoad={() => console.log("Iframe content loaded")}
-        />
+        {iframeContent ? (
+          <iframe
+            ref={localIframeRef}
+            srcDoc={iframeContent}
+            className="absolute inset-0 w-full h-full border border-gray-100"
+            sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+            title="Generated Content"
+            tabIndex={0}
+            onLoad={() => console.log("Iframe content loaded")}
+          />
+        ) : (
+          <div className="h-full flex items-center justify-center bg-gray-50">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          </div>
+        )}
       </div>
     );
   }

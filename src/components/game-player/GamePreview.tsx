@@ -26,6 +26,8 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     const initialRenderRef = useRef(true);
     const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const prevVersionIdRef = useRef<string | null>(null);
+    const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const processingRef = useRef(false);
     
     // Validate code function
     const isValidCode = useCallback((code: string | undefined): boolean => {
@@ -42,7 +44,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       return hasHtmlStructure;
     }, []);
     
-    // Check and handle version changes - this is the main function that was causing issues
+    // Check and handle version changes
     useEffect(() => {
       console.log("GamePreview received currentVersion update", 
         currentVersion?.id, 
@@ -50,21 +52,34 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
         "code length:", currentVersion?.code?.length || 0
       );
       
+      // Prevent processing while another operation is in progress
+      if (processingRef.current) {
+        console.log("Still processing previous update, skipping");
+        return;
+      }
+      
       // If version ID hasn't changed, don't proceed to avoid reload loops
       if (currentVersion?.id === prevVersionIdRef.current && !initialRenderRef.current) {
         console.log("Same version ID, skipping processing to avoid reload loop");
         return;
       }
       
+      // Set processing flag
+      processingRef.current = true;
+      
       // Update ref to current version ID
       if (currentVersion?.id) {
         prevVersionIdRef.current = currentVersion.id;
       }
       
-      // Clear any existing timeout
+      // Clear any existing timeouts
       if (loadTimeoutRef.current) {
         clearTimeout(loadTimeoutRef.current);
         loadTimeoutRef.current = null;
+      }
+      
+      if (stabilityTimerRef.current) {
+        clearTimeout(stabilityTimerRef.current);
       }
       
       if (currentVersion?.code) {
@@ -77,11 +92,11 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
             setLoadAttempts(prev => prev + 1);
           }
           
-          // Set a timeout to refresh the page if still generating after 10 seconds
+          // Set a timeout to check status again, but don't auto-reload
           loadTimeoutRef.current = setTimeout(() => {
-            console.log("Game still showing 'Generating...' after timeout, reloading");
-            window.location.reload();
-          }, 10000);
+            console.log("Game still showing 'Generating...' after timeout");
+            processingRef.current = false;
+          }, 5000);
           
           return;
         }
@@ -92,6 +107,11 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
           setContentReady(true);
           setLastValidCode(currentVersion.code);
           setLoadAttempts(0); // Reset attempts counter
+          
+          // Use a stability timer to prevent immediate state changes
+          stabilityTimerRef.current = setTimeout(() => {
+            processingRef.current = false;
+          }, 1000);
         } else {
           console.log("Invalid or incomplete code received");
           
@@ -116,6 +136,12 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
               console.log("Attempted to wrap short code in HTML");
               setLastValidCode(wrappedCode);
               setContentReady(true);
+              
+              // Use a stability timer
+              stabilityTimerRef.current = setTimeout(() => {
+                processingRef.current = false;
+              }, 1000);
+              
               return;
             }
           }
@@ -123,11 +149,19 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
           // If we already have valid code, don't use the invalid one
           if (lastValidCode && isValidCode(lastValidCode)) {
             console.log("Using previously saved valid code");
+            
+            // Use a stability timer
+            stabilityTimerRef.current = setTimeout(() => {
+              processingRef.current = false;
+            }, 1000);
           } else {
             // Increment load attempts for potentially showing error
             setLoadAttempts(prev => prev + 1);
+            processingRef.current = false;
           }
         }
+      } else {
+        processingRef.current = false;
       }
       
       initialRenderRef.current = false;
@@ -137,10 +171,15 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
           clearTimeout(loadTimeoutRef.current);
           loadTimeoutRef.current = null;
         }
+        
+        if (stabilityTimerRef.current) {
+          clearTimeout(stabilityTimerRef.current);
+          stabilityTimerRef.current = null;
+        }
       };
     }, [currentVersion, showCode, isValidCode, lastValidCode]);
 
-    // Show toast on multiple failed attempts
+    // Show toast on multiple failed attempts - but limit frequency
     useEffect(() => {
       if (loadAttempts >= 3 && !lastValidCode) {
         toast({

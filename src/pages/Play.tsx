@@ -23,6 +23,7 @@ const Play = () => {
   const [refreshAttempts, setRefreshAttempts] = useState(0);
   const maxRefreshAttempts = 5;
   const dataRefreshRef = useRef<boolean>(false);
+  const stableDataRef = useRef<boolean>(false);
 
   // Get search params for generation
   const generating = searchParams.get("generating") === "true";
@@ -73,6 +74,7 @@ const Play = () => {
   useEffect(() => {
     let refreshTimer: NodeJS.Timeout;
     
+    // Only proceed if generation was in progress and has completed
     if (!generationInProgress && gameId && generating && !hasRefreshedAfterGeneration) {
       console.log("Generation completed, refreshing game data");
       
@@ -95,14 +97,19 @@ const Play = () => {
                 currentVersion.code.length > 100) {
               console.log("Valid game code found after refresh");
               
-              // Remove the generating parameter from URL after successful generation
-              if (generating) {
-                navigate(`/play/${gameId}`, { replace: true });
-                setHasRefreshedAfterGeneration(true);
-              }
+              // Use a delay to ensure stability before marking as complete
+              setTimeout(() => {
+                // Remove the generating parameter from URL after successful generation
+                if (generating) {
+                  navigate(`/play/${gameId}`, { replace: true });
+                  setHasRefreshedAfterGeneration(true);
+                }
+                
+                // Mark data as stable to prevent further refresh cycles
+                stableDataRef.current = true;
+                dataRefreshRef.current = false;
+              }, 1000);
               
-              // Success, exit the refresh cycle
-              dataRefreshRef.current = false;
               return;
             }
             
@@ -197,20 +204,12 @@ const Play = () => {
     maxRefreshAttempts
   ]);
 
-  // Log when currentVersion changes for debugging
-  useEffect(() => {
-    if (currentVersion) {
-      console.log("Current version updated:", currentVersion.id, 
-                  "Version number:", currentVersion.version_number,
-                  "Code length:", currentVersion.code?.length);
-    }
-  }, [currentVersion]);
-
   // Reset the refresh state if gameId changes
   useEffect(() => {
     setHasRefreshedAfterGeneration(false);
     setRefreshAttempts(0);
     dataRefreshRef.current = false;
+    stableDataRef.current = false;
   }, [gameId]);
 
   // Handle missing gameId
@@ -276,7 +275,7 @@ const Play = () => {
             />
           ) : (
             <GamePreview
-              key={currentVersion?.id || 'initial'}
+              key={`${currentVersion?.id || 'initial'}-${stableDataRef.current ? 'stable' : 'loading'}`}
               currentVersion={currentVersion}
               showCode={showCode}
               ref={iframeRef}

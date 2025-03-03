@@ -38,7 +38,7 @@ serve(async (req) => {
     const { prompt, imageUrl, contentType, system, partialResponse, model = "claude-3-7-sonnet-20250219" } = requestData;
     
     console.log("Received request with prompt:", prompt);
-    console.log("Prompt raw:", prompt);
+    console.log("Prompt raw:", JSON.stringify(prompt));
     console.log("Prompt length:", prompt?.length || 0);
     console.log("Content type:", contentType);
     console.log("Model:", model);
@@ -46,12 +46,12 @@ serve(async (req) => {
     console.log("Image URL provided:", imageUrl ? "Yes" : "No");
     console.log("Partial response provided:", partialResponse ? "Yes" : "No");
     
-    // Check that prompt is valid before proceeding
-    if (!prompt || prompt === "Loading..." || prompt.trim() === "") {
+    // Improved validation to reject "Loading..." or very short prompts
+    if (!prompt || typeof prompt !== 'string' || prompt === "Loading..." || prompt.trim() === "" || prompt.length < 3) {
       console.error('Invalid or empty prompt received:', prompt);
       return new Response(
         JSON.stringify({ 
-          error: 'Valid prompt is required, received: ' + prompt,
+          error: 'Valid prompt is required, received: ' + (prompt || "null/undefined"),
           details: 'A non-empty prompt is required to generate content'
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -131,7 +131,7 @@ Do not include any explanations, markdown formatting or code blocks - only retur
     }
 
     console.log('Sending request to Anthropic API with Claude 3.7 Sonnet');
-    console.log('Request body message contents:', requestBody.messages);
+    console.log('Request body message contents:', JSON.stringify(requestBody.messages).substring(0, 500));
 
     // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {
