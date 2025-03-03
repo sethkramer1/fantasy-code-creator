@@ -1,450 +1,406 @@
 
-import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/cors.ts";
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.38.0'
 
-interface NetlifyTokenResponse {
-  access_token: string;
-  refresh_token: string;
-  token_type: string;
-  expires_in: number;
+// CORS headers for browser requests
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Max-Age': '86400',
 }
+
+// Create a Supabase client with the admin key
+const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+const supabaseKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+const netlifyClientId = Deno.env.get('NETLIFY_CLIENT_ID') ?? ''
+const netlifyClientSecret = Deno.env.get('NETLIFY_CLIENT_SECRET') ?? ''
+const siteUrl = Deno.env.get('SITE_URL') ?? ''
+
+const supabase = createClient(supabaseUrl, supabaseKey)
 
 serve(async (req) => {
   // Handle CORS preflight requests
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+  if (req.method === 'OPTIONS') {
+    return new Response(null, {
+      status: 204,
+      headers: corsHeaders,
+    })
   }
 
   try {
-    const supabaseClient = createClient(
-      Deno.env.get("SUPABASE_URL") ?? "",
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false,
-        },
-      }
-    );
+    // Get request body
+    const body = await req.json()
+    const { path, gameId, code, state, siteName } = body
 
-    const url = new URL(req.url);
-    const path = url.searchParams.get("path");
-    const gameId = url.searchParams.get("gameId");
+    console.log(`Function called with path: ${path}, gameId: ${gameId}`)
 
     if (!path) {
-      return new Response(
-        JSON.stringify({ error: "Missing path parameter" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      throw new Error('Path is required')
     }
 
-    // Netlify OAuth credentials
-    const clientId = Deno.env.get("NETLIFY_CLIENT_ID");
-    const clientSecret = Deno.env.get("NETLIFY_CLIENT_SECRET");
+    // START OAUTH FLOW
+    if (path === 'start-oauth') {
+      if (!gameId) {
+        throw new Error('Game ID is required')
+      }
 
-    if (!clientId || !clientSecret) {
-      return new Response(
-        JSON.stringify({ error: "Netlify credentials not configured" }),
-        {
-          status: 500,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
-    }
+      if (!netlifyClientId) {
+        throw new Error('Netlify client ID is not configured')
+      }
 
-    // Netlify API base URL
-    const netlifyApiUrl = "https://api.netlify.com/api/v1";
+      if (!siteUrl) {
+        throw new Error('Site URL is not configured')
+      }
 
-    // Handle different routes
-    switch (path) {
-      case "start-oauth": {
-        if (!gameId) {
-          return new Response(
-            JSON.stringify({ error: "Missing gameId parameter" }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
-        }
+      // Generate a random state for OAuth security
+      const stateId = crypto.randomUUID()
 
-        // Generate a unique state for OAuth security
-        const state = crypto.randomUUID();
-        
-        // Store the state and game ID in the database
-        await supabaseClient.from("netlify_auth_state").insert({
-          state,
+      // Store state and game ID in the database
+      const { error: insertError } = await supabase
+        .from('netlify_auth_state')
+        .insert({
+          state: stateId,
           game_id: gameId,
-        });
+        })
 
-        // Redirect URL for OAuth callback
-        const redirectUri = `${Deno.env.get("SITE_URL") || "http://localhost:3000"}/netlify-callback`;
-        
-        // Build the Netlify OAuth URL
-        const authUrl = `https://app.netlify.com/authorize?response_type=code&client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
-
-        return new Response(
-          JSON.stringify({ authUrl }),
-          {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+      if (insertError) {
+        console.error('Error storing auth state:', insertError)
+        throw new Error('Failed to store auth state')
       }
 
-      case "exchange-code": {
-        const code = url.searchParams.get("code");
-        const state = url.searchParams.get("state");
+      // Generate Netlify OAuth URL
+      const redirectUri = `${siteUrl}/netlify-callback`
+      const authUrl = `https://app.netlify.com/authorize?response_type=code&client_id=${netlifyClientId}&redirect_uri=${encodeURIComponent(
+        redirectUri
+      )}&state=${stateId}`
 
-        if (!code || !state) {
-          return new Response(
-            JSON.stringify({ error: "Missing code or state parameter" }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+      console.log('Generated auth URL with redirect to:', redirectUri)
+
+      return new Response(
+        JSON.stringify({
+          authUrl,
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
         }
+      )
+    }
 
-        // Look up the game ID from the state
-        const { data: stateData, error: stateError } = await supabaseClient
-          .from("netlify_auth_state")
-          .select("game_id")
-          .eq("state", state)
-          .single();
-
-        if (stateError || !stateData) {
-          return new Response(
-            JSON.stringify({ error: "Invalid state" }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
-        }
-
-        const gameId = stateData.game_id;
-
-        // Exchange code for token using Netlify API
-        const redirectUri = `${Deno.env.get("SITE_URL") || "http://localhost:3000"}/netlify-callback`;
-        
-        const tokenResponse = await fetch("https://api.netlify.com/oauth/token", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/x-www-form-urlencoded",
-          },
-          body: new URLSearchParams({
-            grant_type: "authorization_code",
-            code,
-            client_id: clientId,
-            client_secret: clientSecret,
-            redirect_uri: redirectUri,
-          }),
-        });
-
-        if (!tokenResponse.ok) {
-          const errorText = await tokenResponse.text();
-          return new Response(
-            JSON.stringify({ error: `Failed to exchange code: ${errorText}` }),
-            {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
-        }
-
-        const tokenData: NetlifyTokenResponse = await tokenResponse.json();
-        
-        // Calculate expiration time
-        const expiresAt = new Date();
-        expiresAt.setSeconds(expiresAt.getSeconds() + tokenData.expires_in);
-
-        // Store the token in the database
-        const { error: tokenError } = await supabaseClient
-          .from("netlify_tokens")
-          .upsert({
-            game_id: gameId,
-            access_token: tokenData.access_token,
-            refresh_token: tokenData.refresh_token,
-            token_type: tokenData.token_type,
-            expires_at: expiresAt.toISOString(),
-            updated_at: new Date().toISOString(),
-          });
-
-        if (tokenError) {
-          return new Response(
-            JSON.stringify({ error: "Failed to store token" }),
-            {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
-        }
-
-        // Clean up the state entry
-        await supabaseClient
-          .from("netlify_auth_state")
-          .delete()
-          .eq("state", state);
-
-        return new Response(
-          JSON.stringify({ success: true, gameId }),
-          {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+    // EXCHANGE CODE FOR TOKEN
+    if (path === 'exchange-code') {
+      if (!code || !state) {
+        throw new Error('Code and state are required')
       }
 
-      case "check-token": {
-        if (!gameId) {
-          return new Response(
-            JSON.stringify({ error: "Missing gameId parameter" }),
-            {
-              status: 400,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+      // Verify the state from the callback
+      const { data: stateData, error: stateError } = await supabase
+        .from('netlify_auth_state')
+        .select('game_id')
+        .eq('state', state)
+        .single()
+
+      if (stateError || !stateData) {
+        console.error('Error verifying state:', stateError)
+        throw new Error('Invalid state parameter')
+      }
+
+      // Get the game ID associated with the state
+      const gameId = stateData.game_id
+
+      // Exchange the code for an access token
+      const redirectUri = `${siteUrl}/netlify-callback`
+      const tokenResponse = await fetch('https://api.netlify.com/oauth/token', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: new URLSearchParams({
+          grant_type: 'authorization_code',
+          code,
+          client_id: netlifyClientId,
+          client_secret: netlifyClientSecret,
+          redirect_uri: redirectUri,
+        }),
+      })
+
+      if (!tokenResponse.ok) {
+        const errorText = await tokenResponse.text()
+        console.error('Netlify token exchange error:', errorText)
+        throw new Error(`Failed to exchange token: ${tokenResponse.status} ${errorText}`)
+      }
+
+      const tokenData = await tokenResponse.json()
+
+      // Calculate token expiration
+      const expiresAt = new Date()
+      expiresAt.setSeconds(expiresAt.getSeconds() + tokenData.expires_in)
+
+      // Store the tokens in the database
+      const { error: tokenInsertError } = await supabase
+        .from('netlify_tokens')
+        .upsert({
+          game_id: gameId,
+          access_token: tokenData.access_token,
+          refresh_token: tokenData.refresh_token,
+          token_type: tokenData.token_type,
+          expires_at: expiresAt.toISOString(),
+        })
+
+      if (tokenInsertError) {
+        console.error('Error storing token:', tokenInsertError)
+        throw new Error('Failed to store access token')
+      }
+
+      // Clean up the auth state
+      await supabase.from('netlify_auth_state').delete().eq('state', state)
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          gameId,
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
         }
+      )
+    }
 
-        // Check if we have a valid token for this game
-        const { data: tokenData, error: tokenError } = await supabaseClient
-          .from("netlify_tokens")
-          .select("access_token, expires_at")
-          .eq("game_id", gameId)
-          .single();
+    // CHECK TOKEN
+    if (path === 'check-token') {
+      if (!gameId) {
+        throw new Error('Game ID is required')
+      }
 
-        if (tokenError || !tokenData) {
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('netlify_tokens')
+        .select('*')
+        .eq('game_id', gameId)
+        .single()
+
+      if (tokenError) {
+        if (tokenError.code === 'PGRST116') {
+          // No token found
           return new Response(
-            JSON.stringify({ authorized: false }),
+            JSON.stringify({
+              authorized: false,
+            }),
             {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
               status: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
             }
-          );
+          )
         }
-
-        // Check if token is expired
-        const expiresAt = new Date(tokenData.expires_at);
-        const now = new Date();
-        const isExpired = expiresAt <= now;
-
-        return new Response(
-          JSON.stringify({ authorized: !isExpired }),
-          {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          }
-        );
+        throw tokenError
       }
 
-      case "deploy": {
-        if (req.method !== "POST") {
-          return new Response(
-            JSON.stringify({ error: "Method not allowed" }),
-            {
-              status: 405,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+      // Check if token is expired
+      const now = new Date()
+      const expiresAt = new Date(tokenData.expires_at)
+      const isExpired = now > expiresAt
+
+      if (isExpired) {
+        // TODO: Implement token refresh
+        // For now, just return not authorized
+        return new Response(
+          JSON.stringify({
+            authorized: false,
+          }),
+          {
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
+          }
+        )
+      }
+
+      return new Response(
+        JSON.stringify({
+          authorized: true,
+        }),
+        {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          status: 200,
+        }
+      )
+    }
+
+    // DEPLOY
+    if (path === 'deploy') {
+      if (!gameId || !siteName) {
+        throw new Error('Game ID and site name are required')
+      }
+
+      // Get access token
+      const { data: tokenData, error: tokenError } = await supabase
+        .from('netlify_tokens')
+        .select('*')
+        .eq('game_id', gameId)
+        .single()
+
+      if (tokenError || !tokenData) {
+        console.error('Error retrieving token:', tokenError)
+        throw new Error('No Netlify access token found')
+      }
+
+      // Get the game version (HTML)
+      const { data: gameVersionData, error: gameVersionError } = await supabase
+        .from('game_versions')
+        .select('*')
+        .eq('game_id', gameId)
+        .order('version_number', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (gameVersionError || !gameVersionData) {
+        console.error('Error retrieving game version:', gameVersionError)
+        throw new Error('Game version not found')
+      }
+
+      const htmlContent = gameVersionData.code
+
+      // Extract CSS and JS
+      const parser = new DOMParser()
+      const doc = parser.parseFromString(htmlContent, 'text/html')
+
+      const styles = Array.from(doc.getElementsByTagName('style'))
+        .map((style) => style.textContent)
+        .join('\n')
+      doc.querySelectorAll('style').forEach((style) => style.remove())
+
+      const scripts = Array.from(doc.getElementsByTagName('script'))
+        .map((script) => script.textContent)
+        .join('\n')
+      doc.querySelectorAll('script').forEach((script) => script.remove())
+
+      // Add link to CSS file
+      if (styles) {
+        const linkTag = doc.createElement('link')
+        linkTag.rel = 'stylesheet'
+        linkTag.href = './styles.css'
+        doc.head.appendChild(linkTag)
+      }
+
+      // Add script tag to JS file
+      if (scripts) {
+        const scriptTag = doc.createElement('script')
+        scriptTag.src = './script.js'
+        doc.body.appendChild(scriptTag)
+      }
+
+      // Create deployment package
+      const files = {
+        'index.html': doc.documentElement.outerHTML,
+      }
+
+      if (styles) {
+        files['styles.css'] = styles
+      }
+
+      if (scripts) {
+        files['script.js'] = scripts
+      }
+
+      // Create or update site
+      try {
+        // First check if the site exists
+        const accessToken = tokenData.access_token
+        let siteId = null
+
+        // List user sites
+        const sitesResponse = await fetch('https://api.netlify.com/api/v1/sites', {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        })
+
+        if (!sitesResponse.ok) {
+          throw new Error(`Failed to list sites: ${sitesResponse.status}`)
         }
 
-        try {
-          const { gameId, siteName } = await req.json();
+        const sites = await sitesResponse.json()
+        const existingSite = sites.find((site) => site.name === siteName)
 
-          if (!gameId || !siteName) {
-            return new Response(
-              JSON.stringify({ error: "Missing gameId or siteName" }),
-              {
-                status: 400,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              }
-            );
-          }
-
-          // Get the game code
-          const { data: gameData, error: gameError } = await supabaseClient
-            .from("games")
-            .select("code")
-            .eq("id", gameId)
-            .single();
-
-          if (gameError || !gameData) {
-            return new Response(
-              JSON.stringify({ error: "Game not found" }),
-              {
-                status: 404,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              }
-            );
-          }
-
-          // Get the Netlify token
-          const { data: tokenData, error: tokenError } = await supabaseClient
-            .from("netlify_tokens")
-            .select("access_token, token_type")
-            .eq("game_id", gameId)
-            .single();
-
-          if (tokenError || !tokenData) {
-            return new Response(
-              JSON.stringify({ error: "Netlify token not found" }),
-              {
-                status: 404,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              }
-            );
-          }
-
-          // Create a site on Netlify
-          const createSiteResponse = await fetch(`${netlifyApiUrl}/sites`, {
-            method: "POST",
+        if (existingSite) {
+          siteId = existingSite.id
+          console.log(`Found existing site: ${siteName} with ID: ${siteId}`)
+        } else {
+          // Create new site
+          const createSiteResponse = await fetch('https://api.netlify.com/api/v1/sites', {
+            method: 'POST',
             headers: {
-              Authorization: `${tokenData.token_type} ${tokenData.access_token}`,
-              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+              'Content-Type': 'application/json',
             },
             body: JSON.stringify({
               name: siteName,
             }),
-          });
+          })
 
           if (!createSiteResponse.ok) {
-            const errorText = await createSiteResponse.text();
-            return new Response(
-              JSON.stringify({ error: `Failed to create site: ${errorText}` }),
-              {
-                status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              }
-            );
+            const errorText = await createSiteResponse.text()
+            throw new Error(`Failed to create site: ${createSiteResponse.status} ${errorText}`)
           }
 
-          const siteData = await createSiteResponse.json();
-          const siteId = siteData.id;
-          
-          // Parse the HTML code to prepare for deployment
-          // Extract styles and scripts to separate files
-          const code = gameData.code;
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(code, "text/html");
-          
-          // Extract styles
-          const styles = Array.from(doc.getElementsByTagName("style"))
-            .map((style) => style.textContent)
-            .join("\n");
-          
-          // Extract scripts
-          const scripts = Array.from(doc.getElementsByTagName("script"))
-            .map((script) => script.textContent)
-            .join("\n");
-          
-          // Remove original styles and scripts
-          doc.querySelectorAll("style").forEach((style) => style.remove());
-          doc.querySelectorAll("script").forEach((script) => script.remove());
-          
-          // Add links to the extracted files
-          if (styles) {
-            const linkTag = doc.createElement("link");
-            linkTag.rel = "stylesheet";
-            linkTag.href = "./styles.css";
-            doc.head.appendChild(linkTag);
-          }
-          
-          if (scripts) {
-            const scriptTag = doc.createElement("script");
-            scriptTag.src = "./script.js";
-            doc.body.appendChild(scriptTag);
-          }
-          
-          // Create a ZIP file in memory
-          const fileMap = new Map();
-          fileMap.set("index.html", doc.documentElement.outerHTML);
-          if (styles) {
-            fileMap.set("styles.css", styles);
-          }
-          if (scripts) {
-            fileMap.set("script.js", scripts);
-          }
-          
-          // Deploy to Netlify using their deploy API
-          // Create form data with files
-          const formData = new FormData();
-          
-          // Add files to the form
-          for (const [filename, content] of fileMap.entries()) {
-            const blob = new Blob([content], { type: "text/plain" });
-            formData.append(`file${filename}`, blob, filename);
-          }
-          
-          // Deploy to Netlify
-          const deployResponse = await fetch(
-            `${netlifyApiUrl}/sites/${siteId}/deploys`,
-            {
-              method: "POST",
-              headers: {
-                Authorization: `${tokenData.token_type} ${tokenData.access_token}`,
-              },
-              body: formData,
-            }
-          );
-          
-          if (!deployResponse.ok) {
-            const errorText = await deployResponse.text();
-            return new Response(
-              JSON.stringify({ error: `Failed to deploy: ${errorText}` }),
-              {
-                status: 500,
-                headers: { ...corsHeaders, "Content-Type": "application/json" },
-              }
-            );
-          }
-          
-          const deployData = await deployResponse.json();
-          
-          return new Response(
-            JSON.stringify({
-              success: true,
-              site_id: siteId,
-              site_name: siteData.name,
-              site_url: siteData.ssl_url || siteData.url,
-              deploy_id: deployData.id,
-            }),
-            {
-              status: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
-        } catch (error) {
-          return new Response(
-            JSON.stringify({ error: `Deploy failed: ${error.message}` }),
-            {
-              status: 500,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            }
-          );
+          const newSite = await createSiteResponse.json()
+          siteId = newSite.id
+          console.log(`Created new site: ${siteName} with ID: ${siteId}`)
         }
-      }
 
-      default:
+        // Deploy files to site
+        const deployUrl = `https://api.netlify.com/api/v1/sites/${siteId}/deploys`
+        const formData = new FormData()
+
+        // Add files to form data
+        const fileBlob = new Blob([JSON.stringify(files)], { type: 'application/json' })
+        formData.append('file', fileBlob, 'files.json')
+        formData.append('function_name', 'deploy-to-netlify') // For logging
+
+        const deployResponse = await fetch(deployUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: formData,
+        })
+
+        if (!deployResponse.ok) {
+          const errorText = await deployResponse.text()
+          throw new Error(`Failed to deploy: ${deployResponse.status} ${errorText}`)
+        }
+
+        const deployResult = await deployResponse.json()
+        console.log('Deployment successful:', deployResult)
+
         return new Response(
-          JSON.stringify({ error: "Invalid path" }),
+          JSON.stringify({
+            success: true,
+            site_url: deployResult.ssl_url || deployResult.url,
+            deploy_id: deployResult.id,
+          }),
           {
-            status: 400,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 200,
           }
-        );
-    }
-  } catch (error) {
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        )
+      } catch (deployError) {
+        console.error('Deployment error:', deployError)
+        throw new Error(`Deployment failed: ${deployError.message}`)
       }
-    );
+    }
+
+    throw new Error(`Unknown path: ${path}`)
+  } catch (error) {
+    console.error('Function error:', error)
+    return new Response(
+      JSON.stringify({
+        error: error.message,
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 400,
+      }
+    )
   }
-});
+})

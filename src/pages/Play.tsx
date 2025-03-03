@@ -125,6 +125,7 @@ export default function Play() {
           gameVersions={gameVersions}
           selectedVersion={selectedVersion}
           onVersionChange={setSelectedVersion}
+          setSelectedVersion={setSelectedVersion}
           showCode={showCode}
           setShowCode={setShowCode}
           gameId={gameId}
@@ -136,7 +137,9 @@ export default function Play() {
         {/* Sidebar Chat */}
         <SidebarChat
           showSidebar={sidebarOpen}
-          setShowSidebar={setSidebarOpen} 
+          setShowSidebar={setSidebarOpen}
+          isOpen={sidebarOpen} 
+          setIsOpen={setSidebarOpen}
           onSubmit={handleChatSubmit}
           disabled={!isLatestVersion}
           imageUrl={imageUrl}

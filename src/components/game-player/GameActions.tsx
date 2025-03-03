@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { Download, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -44,20 +45,28 @@ export function GameActions({
   const [deploying, setDeploying] = useState(false);
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
+  const [netlifyCalling, setNetlifyCalling] = useState(false);
 
   const checkNetlifyAuth = async () => {
     if (!gameId) return;
     
     setIsCheckingAuth(true);
     try {
+      console.log("Checking Netlify auth for game:", gameId);
       const { data, error } = await supabase.functions.invoke('netlify-integration', {
         body: { path: 'check-token', gameId }
       });
       
-      if (error) throw error;
+      if (error) {
+        console.error("Netlify auth check error:", error);
+        throw error;
+      }
+
+      console.log("Netlify auth check result:", data);
       setIsAuthorized(data?.authorized || false);
     } catch (error) {
       console.error("Error checking Netlify auth:", error);
+      // Don't show toast for failed check as it's not user-initiated
     } finally {
       setIsCheckingAuth(false);
     }
@@ -65,17 +74,24 @@ export function GameActions({
 
   const handleNetlifyAuth = async () => {
     try {
+      setNetlifyCalling(true);
+      console.log("Starting Netlify OAuth flow for game:", gameId);
+      
       const { data, error } = await supabase.functions.invoke('netlify-integration', {
         body: { path: 'start-oauth', gameId }
       });
       
       if (error) {
+        console.error("Netlify auth start error:", error);
         throw error;
       }
+      
+      console.log("Netlify auth start response:", data);
       
       localStorage.setItem('netlify_deploy_game_id', gameId);
       
       if (data?.authUrl) {
+        // Use window.location.href for actual navigation
         window.location.href = data.authUrl;
       } else {
         throw new Error("No auth URL received");
@@ -87,6 +103,8 @@ export function GameActions({
         description: "Could not connect to Netlify. Please try again.",
         variant: "destructive"
       });
+    } finally {
+      setNetlifyCalling(false);
     }
   };
 
@@ -95,19 +113,23 @@ export function GameActions({
     
     setDeploying(true);
     try {
+      console.log("Deploying to Netlify with site name:", siteName);
+      
       const { data, error } = await supabase.functions.invoke('netlify-integration', {
         body: { path: 'deploy', gameId, siteName: siteName.trim() }
       });
       
       if (error) {
+        console.error("Netlify deploy error:", error);
         throw error;
       }
       
+      console.log("Netlify deploy response:", data);
       setDeployDialogOpen(false);
       
       toast({
         title: "Deployment Successful!",
-        description: `Your site has been deployed to ${data.site_url}`,
+        description: `Your site has been deployed to ${data.site_url}`
       });
     } catch (error) {
       console.error("Deployment error:", error);
@@ -169,9 +191,10 @@ export function GameActions({
 
       toast({
         title: "Files downloaded",
-        description: "The HTML, CSS, and JS files have been downloaded as a ZIP file.",
+        description: "The HTML, CSS, and JS files have been downloaded as a ZIP file."
       });
     } catch (error) {
+      console.error("Download error:", error);
       toast({
         title: "Download failed",
         description: "There was an error downloading the files. Please try again.",
@@ -212,10 +235,13 @@ export function GameActions({
               handleNetlifyAuth();
             }
           }}
-          disabled={isCheckingAuth}
+          disabled={isCheckingAuth || netlifyCalling}
         >
           <Globe size={14} />
           {isAuthorized ? "Deploy to Netlify" : "Connect to Netlify"}
+          {(isCheckingAuth || netlifyCalling) && (
+            <span className="ml-1 h-3 w-3 animate-spin rounded-full border-b-2 border-t-2 border-current"></span>
+          )}
         </Button>
       </div>
       
