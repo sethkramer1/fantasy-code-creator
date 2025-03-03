@@ -80,7 +80,7 @@ export function PlayContent({
           <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <div className="flex items-center gap-4">
               {!showGenerating && (
-                <ViewToggle showCode={showCode} setShowCode={setShowCode} />
+                <ViewToggle showCode={showCode} onToggle={setShowCode} />
               )}
             </div>
             
