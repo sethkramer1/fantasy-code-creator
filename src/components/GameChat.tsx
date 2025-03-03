@@ -59,7 +59,7 @@ export const GameChat = ({
   }, [disabled, initialMessageId, previousDisabledState, setInitialMessageId]);
 
   return (
-    <div className="flex flex-col h-full w-full max-w-[400px] mx-auto">
+    <div className="flex flex-col h-full w-full max-w-[400px] mx-auto bg-white">
       <MessageList 
         messages={messages}
         loadingHistory={loadingHistory}

@@ -9,11 +9,14 @@ export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
     return (
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loadingHistory ? (
-          <div className="flex justify-center">
-            <Loader2 className="animate-spin" size={24} />
+          <div className="flex justify-center my-8">
+            <Loader2 className="animate-spin text-gray-400" size={24} />
           </div>
         ) : messages.length === 0 ? (
-          <p className="text-center text-gray-500">No messages yet. Ask me to modify!</p>
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <p className="text-gray-500 mb-2">No messages yet</p>
+            <p className="text-sm text-gray-400">Ask me to modify the content!</p>
+          </div>
         ) : (
           messages.map(msg => (
             <MessageItem 
