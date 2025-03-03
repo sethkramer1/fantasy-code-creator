@@ -120,80 +120,103 @@ export const processAnthropicStream = async (
   let buffer = '';
   let currentLineContent = '';
   
-  while (true) {
-    const { done, value } = await reader.read();
-    
-    if (done) {
-      console.log("Stream complete after", totalChunks, "chunks");
-      break;
-    }
-    
-    totalChunks++;
-    const chunk = new TextDecoder().decode(value);
-    buffer += chunk;
-    
-    console.log(`Received chunk #${totalChunks}, size: ${chunk.length}`);
-    if (chunk.length > 0 && totalChunks < 3) {
-      console.log("Chunk sample:", chunk.substring(0, 200));
-    }
-    
-    let lineEnd;
-    while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-      const line = buffer.slice(0, lineEnd);
-      buffer = buffer.slice(lineEnd + 1);
+  updateTerminalOutputFn("> Anthropic stream connected, receiving content...", true);
+  
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
       
-      if (!line) continue;
+      if (done) {
+        console.log("Stream complete after", totalChunks, "chunks");
+        updateTerminalOutputFn("> Stream complete", true);
+        break;
+      }
       
-      if (line.startsWith('data: ')) {
-        try {
-          const parsedData = JSON.parse(line.slice(5));
-          
-          if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
-            const contentChunk = parsedData.delta.text || '';
-            if (contentChunk) {
-              content += contentChunk;
-              
-              if (contentChunk.includes('\n')) {
-                const lines = contentChunk.split('\n');
+      totalChunks++;
+      const chunk = new TextDecoder().decode(value);
+      buffer += chunk;
+      
+      console.log(`Received chunk #${totalChunks}, size: ${chunk.length}`);
+      if (totalChunks <= 3) {
+        console.log("Chunk sample:", chunk.substring(0, 100));
+      }
+      
+      let lineEnd;
+      while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+        const line = buffer.slice(0, lineEnd);
+        buffer = buffer.slice(lineEnd + 1);
+        
+        if (!line) continue;
+        
+        if (line.startsWith('data: ')) {
+          try {
+            const parsedData = JSON.parse(line.slice(5));
+            
+            if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'text_delta') {
+              const contentChunk = parsedData.delta.text || '';
+              if (contentChunk) {
+                content += contentChunk;
                 
-                if (lines[0]) {
-                  currentLineContent += lines[0];
+                if (contentChunk.includes('\n')) {
+                  const lines = contentChunk.split('\n');
+                  
+                  if (lines[0]) {
+                    currentLineContent += lines[0];
+                    updateTerminalOutputFn(`> ${currentLineContent}`, false);
+                  }
+                  
+                  for (let i = 1; i < lines.length - 1; i++) {
+                    if (lines[i].trim()) {
+                      currentLineContent = lines[i];
+                      updateTerminalOutputFn(`> ${currentLineContent}`, true);
+                    }
+                  }
+                  
+                  if (lines.length > 1) {
+                    currentLineContent = lines[lines.length - 1];
+                    if (currentLineContent) {
+                      updateTerminalOutputFn(`> ${currentLineContent}`, true);
+                    } else {
+                      currentLineContent = '';
+                    }
+                  }
+                } else {
+                  currentLineContent += contentChunk;
                   updateTerminalOutputFn(`> ${currentLineContent}`, false);
                 }
-                
-                for (let i = 1; i < lines.length - 1; i++) {
-                  if (lines[i].trim()) {
-                    currentLineContent = lines[i];
-                    updateTerminalOutputFn(`> ${currentLineContent}`, true);
-                  }
-                }
-                
-                if (lines.length > 1) {
-                  currentLineContent = lines[lines.length - 1];
-                  if (currentLineContent) {
-                    updateTerminalOutputFn(`> ${currentLineContent}`, true);
-                  } else {
-                    currentLineContent = '';
-                  }
-                }
-              } else {
-                currentLineContent += contentChunk;
-                updateTerminalOutputFn(`> ${currentLineContent}`, false);
               }
+            } else if (parsedData.type === 'content_block_start') {
+              if (parsedData.content_block?.type === 'thinking') {
+                updateTerminalOutputFn("> Thinking phase started...", true);
+              }
+            } else if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'thinking_delta') {
+              const thinking = parsedData.delta.thinking || '';
+              if (thinking && thinking.trim()) {
+                updateTerminalOutputFn(`> Thinking: ${thinking}`, true);
+              }
+            } else if (parsedData.type === 'content_block_stop') {
+              if (parsedData.content_block?.type === 'thinking') {
+                updateTerminalOutputFn("> Thinking phase completed", true);
+              }
+            } else if (parsedData.type === 'message_delta') {
+              if (parsedData.delta?.stop_reason) {
+                updateTerminalOutputFn(`> Generation ${parsedData.delta.stop_reason}`, true);
+              }
+            } else if (parsedData.type === 'message_stop') {
+              updateTerminalOutputFn("> Content generation completed!", true);
             }
-          } else if (parsedData.type === 'thinking') {
-            const thinking = parsedData.thinking || '';
-            if (thinking && thinking.trim()) {
-              updateTerminalOutputFn(`> Thinking: ${thinking}`, true);
-            }
-          } else if (parsedData.type === 'message_stop') {
-            updateTerminalOutputFn("> Content generation completed!", true);
+          } catch (e) {
+            console.warn("Error parsing Anthropic data:", e);
+            console.log("Raw data that failed to parse:", line.slice(5));
+            // Continue even if we can't parse a line - don't throw here
           }
-        } catch (e) {
-          console.warn("Error parsing Anthropic data:", e);
         }
       }
     }
+  } catch (error) {
+    console.error("Error processing stream:", error);
+    updateTerminalOutputFn(`> Error processing stream: ${error.message}`, true);
+    throw error;
   }
   
   if (!content || content.trim().length === 0) {

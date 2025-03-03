@@ -68,7 +68,8 @@ export const callAnthropicApi = async (
         imageUrl: imageUrl,
         contentType: gameType,
         partialResponse: partialResponse,
-        model: "claude-3-7-sonnet-20250219"
+        model: "claude-3-7-sonnet-20250219",
+        stream: true
       }),
       signal: AbortSignal.timeout(300000), // 5 minute timeout for Anthropic
     }

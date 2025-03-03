@@ -35,7 +35,7 @@ serve(async (req) => {
 
   try {
     const requestData = await req.json();
-    const { prompt, imageUrl, contentType, system, partialResponse, model = "claude-3-7-sonnet-20250219" } = requestData;
+    const { prompt, imageUrl, contentType, system, partialResponse, model = "claude-3-7-sonnet-20250219", stream = true } = requestData;
     
     console.log("Received request with prompt:", prompt);
     console.log("Prompt raw:", JSON.stringify(prompt));
@@ -45,6 +45,7 @@ serve(async (req) => {
     console.log("System prompt provided:", system ? "Yes" : "No");
     console.log("Image URL provided:", imageUrl ? "Yes" : "No");
     console.log("Partial response provided:", partialResponse ? "Yes" : "No");
+    console.log("Stream mode:", stream ? "Enabled" : "Disabled");
     
     // Improved validation to reject "Loading..." or very short prompts
     if (!prompt || typeof prompt !== 'string' || prompt === "Loading..." || prompt.trim() === "" || prompt.length < 3) {
@@ -69,7 +70,7 @@ Do not include any explanations, markdown formatting or code blocks - only retur
     let requestBody: any = {
       model: model,
       max_tokens: 30000,
-      stream: true,
+      stream: stream,
       system: systemMessage,
       thinking: {
         type: "enabled",
@@ -132,6 +133,7 @@ Do not include any explanations, markdown formatting or code blocks - only retur
 
     console.log('Sending request to Anthropic API with Claude 3.7 Sonnet');
     console.log('Request body message contents:', JSON.stringify(requestBody.messages).substring(0, 500));
+    console.log('Streaming mode:', stream ? 'Enabled' : 'Disabled');
 
     // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -150,16 +152,30 @@ Do not include any explanations, markdown formatting or code blocks - only retur
       throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    console.log('Successfully got response from Anthropic API, streaming back to client');
+    console.log('Successfully got response from Anthropic API');
     
-    return new Response(response.body, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
+    if (stream) {
+      console.log('Streaming response back to client');
+      return new Response(response.body, {
+        headers: {
+          ...corsHeaders,
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+        },
+      });
+    } else {
+      console.log('Processing non-streaming response');
+      const data = await response.json();
+      const content = data.content[0]?.text || '';
+      
+      console.log('Non-streaming response processed, content length:', content.length);
+      
+      return new Response(
+        JSON.stringify({ content }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
   } catch (error) {
     console.error('Error in generate-game function:', error);

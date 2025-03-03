@@ -5,6 +5,7 @@ import { ModelType } from "@/types/generation";
 import { supabase } from "@/integrations/supabase/client";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { useAuth } from "@/context/AuthContext";
+import { updateTerminalOutput, processAnthropicStream } from "@/components/game-chat/terminal-utils";
 
 interface TerminalState {
   generationInProgress: boolean;
@@ -59,13 +60,12 @@ export function usePlayTerminal(
     }));
   };
 
-  const updateTerminalOutput = (newOutput: string, isNewMessage = false) => {
-    setState(prev => ({
-      ...prev,
-      terminalOutput: isNewMessage 
-        ? [...prev.terminalOutput, newOutput] 
-        : [...prev.terminalOutput.slice(0, -1), newOutput]
-    }));
+  const updateTerminalOutputWrapper = (newOutput: string, isNewMessage = false) => {
+    updateTerminalOutput(
+      (output) => setState(prev => ({ ...prev, terminalOutput: output })),
+      newOutput,
+      isNewMessage
+    );
   };
 
   useEffect(() => {
@@ -95,130 +95,10 @@ export function usePlayTerminal(
     };
   }, [state.generationInProgress]);
 
-  const processAnthropicStream = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
-    let content = '';
-    let buffer = '';
-    let currentLineContent = '';
-    
-    try {
-      updateTerminalOutput("> Stream connected, processing content...", true);
-      
-      while (true) {
-        const { done, value } = await reader.read();
-        
-        if (done) {
-          updateTerminalOutput("> Stream complete", true);
-          break;
-        }
-        
-        const text = new TextDecoder().decode(value);
-        buffer += text;
-        
-        let lineEnd;
-        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, lineEnd);
-          buffer = buffer.slice(lineEnd + 1);
-          
-          if (!line) continue;
-          
-          if (line.startsWith('data: ')) {
-            try {
-              const data = JSON.parse(line.slice(5));
-              
-              switch (data.type) {
-                case 'message_start':
-                  updateTerminalOutput("> Generation started", true);
-                  break;
-                  
-                case 'content_block_start':
-                  if (data.content_block?.type === 'thinking') {
-                    updateTerminalOutput("> Thinking phase started...", true);
-                  }
-                  break;
-                  
-                case 'content_block_delta':
-                  if (data.delta?.type === 'thinking_delta') {
-                    const thinking = data.delta.thinking || '';
-                    if (thinking && thinking.trim()) {
-                      updateTerminalOutput(`> Thinking: ${thinking}`, true);
-                    }
-                  } else if (data.delta?.type === 'text_delta') {
-                    const contentChunk = data.delta.text || '';
-                    if (contentChunk) {
-                      content += contentChunk;
-                      gameContentRef.current += contentChunk;
-                      
-                      if (contentChunk.includes('\n')) {
-                        const lines = contentChunk.split('\n');
-                        
-                        if (lines[0]) {
-                          currentLineContent += lines[0];
-                          updateTerminalOutput(`> ${currentLineContent}`, false);
-                        }
-                        
-                        for (let i = 1; i < lines.length - 1; i++) {
-                          if (lines[i].trim()) {
-                            currentLineContent = lines[i];
-                            updateTerminalOutput(`> ${currentLineContent}`, true);
-                          }
-                        }
-                        
-                        if (lines.length > 1) {
-                          currentLineContent = lines[lines.length - 1];
-                          if (currentLineContent) {
-                            updateTerminalOutput(`> ${currentLineContent}`, true);
-                          } else {
-                            currentLineContent = '';
-                          }
-                        }
-                      } else {
-                        currentLineContent += contentChunk;
-                        updateTerminalOutput(`> ${currentLineContent}`, false);
-                      }
-                    }
-                  }
-                  break;
-                  
-                case 'content_block_stop':
-                  if (data.content_block?.type === 'thinking') {
-                    updateTerminalOutput("> Thinking phase completed", true);
-                  }
-                  break;
-                  
-                case 'message_delta':
-                  if (data.delta?.stop_reason) {
-                    updateTerminalOutput(`> Generation ${data.delta.stop_reason}`, true);
-                  }
-                  break;
-                  
-                case 'message_stop':
-                  updateTerminalOutput("> Generation completed!", true);
-                  break;
-                  
-                case 'error':
-                  throw new Error(data.error?.message || 'Unknown error in stream');
-              }
-            } catch (e) {
-              console.error('Error parsing SSE line:', e);
-              console.log('Raw data that failed to parse:', line.slice(5));
-              updateTerminalOutput(`> Warning: Error parsing stream data, continuing...`, true);
-            }
-          }
-        }
-      }
-      
-      return content;
-    } catch (error) {
-      console.error("Stream processing error:", error);
-      updateTerminalOutput(`> Error: ${error.message}`, true);
-      throw error;
-    }
-  };
-
   // Function to make API call with retry logic
   const makeApiCallWithRetry = async () => {
     try {
-      updateTerminalOutput(`> Attempt ${retryCount.current + 1} to generate content...`, true);
+      updateTerminalOutputWrapper(`> Attempt ${retryCount.current + 1} to generate content...`, true);
       
       console.log("Starting generation process for gameId:", gameId);
       console.log("Using prompt:", initialPrompt);
@@ -249,8 +129,8 @@ export function usePlayTerminal(
         hasUserId: !!user?.id
       });
       
-      updateTerminalOutput("> Connecting to AI service...", true);
-      updateTerminalOutput(`> Using prompt: "${initialPrompt}"`, true);
+      updateTerminalOutputWrapper("> Connecting to AI service...", true);
+      updateTerminalOutputWrapper(`> Using prompt: "${initialPrompt}"`, true);
       
       // Reset the game content reference
       gameContentRef.current = '';
@@ -272,13 +152,14 @@ export function usePlayTerminal(
         throw new Error(`API error (${response.status}): ${errorText.substring(0, 200)}`);
       }
       
-      updateTerminalOutput("> Connection established, receiving content...", true);
+      updateTerminalOutputWrapper("> Connection established, receiving content...", true);
       
       let content = '';
       
       if (modelType === "smart" && response.body) {
         const reader = response.body.getReader();
-        content = await processAnthropicStream(reader);
+        updateTerminalOutputWrapper("> Stream connected, processing real-time content...", true);
+        content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
       } else {
         const data = await response.json();
         console.log("Non-streaming response received:", {
@@ -291,7 +172,7 @@ export function usePlayTerminal(
         }
         
         content = data.content;
-        updateTerminalOutput("> Content received successfully", true);
+        updateTerminalOutputWrapper("> Content received successfully", true);
       }
       
       // Use accumulated content from the stream reference if available
@@ -304,7 +185,7 @@ export function usePlayTerminal(
       }
       
       if (!content.includes("<html") && !content.includes("<!DOCTYPE") && !content.includes("<svg")) {
-        updateTerminalOutput("> Warning: Generated content may not be valid HTML. Attempting to fix...", true);
+        updateTerminalOutputWrapper("> Warning: Generated content may not be valid HTML. Attempting to fix...", true);
         
         if (content.includes('<') && content.includes('>')) {
           content = `<!DOCTYPE html>
@@ -318,13 +199,13 @@ export function usePlayTerminal(
   ${content}
 </body>
 </html>`;
-          updateTerminalOutput("> Content wrapped in HTML structure", true);
+          updateTerminalOutputWrapper("> Content wrapped in HTML structure", true);
         } else {
           throw new Error("Generated content is not valid HTML and cannot be fixed");
         }
       }
       
-      updateTerminalOutput("> Processing and saving generated content...", true);
+      updateTerminalOutputWrapper("> Processing and saving generated content...", true);
       
       // Save the game to the database
       try {
@@ -362,7 +243,7 @@ export function usePlayTerminal(
           throw new Error(`Database error: ${versionUpdateError.message}`);
         }
         
-        updateTerminalOutput("> Content saved successfully", true);
+        updateTerminalOutputWrapper("> Content saved successfully", true);
         
         // Update message if needed
         await supabase
@@ -377,19 +258,19 @@ export function usePlayTerminal(
         retryCount.current = 0;
       } catch (saveError) {
         console.error("Error saving game:", saveError);
-        updateTerminalOutput(`> Error saving game: ${saveError.message}`, true);
+        updateTerminalOutputWrapper(`> Error saving game: ${saveError.message}`, true);
         throw saveError;
       }
       
       return true;
     } catch (error) {
       console.error(`Generation attempt ${retryCount.current + 1} failed:`, error);
-      updateTerminalOutput(`> Error: ${error.message}`, true);
+      updateTerminalOutputWrapper(`> Error: ${error.message}`, true);
       
       // Check if we should retry
       if (retryCount.current < maxRetries) {
         retryCount.current++;
-        updateTerminalOutput(`> Retrying generation (attempt ${retryCount.current} of ${maxRetries})...`, true);
+        updateTerminalOutputWrapper(`> Retrying generation (attempt ${retryCount.current} of ${maxRetries})...`, true);
         await new Promise(resolve => setTimeout(resolve, 2000)); // Wait before retrying
         return makeApiCallWithRetry();
       } else {
@@ -415,8 +296,8 @@ export function usePlayTerminal(
           generationError: null
         }));
         
-        updateTerminalOutput(`> Processing request: "${initialPrompt}"${imageUrl ? ' (with image)' : ''}`, true);
-        updateTerminalOutput(`> Using ${modelType === "smart" ? "Anthropic (Smartest)" : "Groq (Fastest)"} model`, true);
+        updateTerminalOutputWrapper(`> Processing request: "${initialPrompt}"${imageUrl ? ' (with image)' : ''}`, true);
+        updateTerminalOutputWrapper(`> Using ${modelType === "smart" ? "Anthropic (Smartest)" : "Groq (Fastest)"} model`, true);
         
         // Reset retry counter
         retryCount.current = 0;
@@ -442,8 +323,8 @@ export function usePlayTerminal(
       } catch (error) {
         console.error("Error in generateInitialContent:", error);
         
-        updateTerminalOutput(`> Fatal Error: ${error.message}`, true);
-        updateTerminalOutput(`> Generation failed after ${retryCount.current} retries`, true);
+        updateTerminalOutputWrapper(`> Fatal Error: ${error.message}`, true);
+        updateTerminalOutputWrapper(`> Generation failed after ${retryCount.current} retries`, true);
         
         setState(prev => ({ 
           ...prev, 
