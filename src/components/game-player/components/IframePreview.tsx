@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, forwardRef, useState } from "react";
+import React, { useRef, useEffect, forwardRef } from "react";
 
 interface IframePreviewProps {
   code: string;
@@ -8,9 +8,7 @@ interface IframePreviewProps {
 export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
   ({ code }, ref) => {
     const localIframeRef = useRef<HTMLIFrameElement>(null);
-    const [iframeContent, setIframeContent] = useState<string>("");
-    const contentStabilizedRef = useRef<boolean>(false);
-    const prevCodeRef = useRef<string>("");
+    const codeRef = useRef<string>("");
     
     // Forward the ref to parent component
     useEffect(() => {
@@ -23,10 +21,10 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       }
     }, [ref]);
 
-    // Update iframe content when code changes, but only if it's different
+    // Only update iframe content when code actually changes
     useEffect(() => {
       // Skip if code is exactly the same as previous
-      if (prevCodeRef.current === code) {
+      if (codeRef.current === code) {
         return;
       }
       
@@ -35,34 +33,31 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
         return;
       }
       
-      // Set the content and mark as stabilized
-      console.log("Setting iframe content with code length:", code.length);
-      setIframeContent(code);
-      prevCodeRef.current = code;
-      contentStabilizedRef.current = true;
+      // Store the new code in ref to prevent unnecessary updates
+      codeRef.current = code;
       
     }, [code]);
 
-    // Display iframe when we have content
-    if (iframeContent) {
+    // Display loading state when no content
+    if (!codeRef.current) {
       return (
-        <iframe
-          ref={localIframeRef}
-          srcDoc={iframeContent}
-          className="absolute inset-0 w-full h-full border border-gray-100"
-          sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
-          title="Generated Content"
-          tabIndex={0}
-          style={{ width: '100%', height: '100%', position: 'absolute' }}
-        />
+        <div className="h-full flex items-center justify-center bg-gray-50">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        </div>
       );
     }
     
-    // Loading state when no content
+    // Only show iframe when we have stable content
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-      </div>
+      <iframe
+        ref={localIframeRef}
+        srcDoc={codeRef.current}
+        className="absolute inset-0 w-full h-full border border-gray-100"
+        sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+        title="Generated Content"
+        tabIndex={0}
+        style={{ width: '100%', height: '100%', position: 'absolute' }}
+      />
     );
   }
 );

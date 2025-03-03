@@ -18,24 +18,17 @@ const Play = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
   
-  // State for handling generation completion
-  const [hasRefreshedAfterGeneration, setHasRefreshedAfterGeneration] = useState(false);
-  const [refreshAttempts, setRefreshAttempts] = useState(0);
-  const maxRefreshAttempts = 5;
-  const dataRefreshRef = useRef<boolean>(false);
-  const stableVersionIdRef = useRef<string | null>(null);
-  const stableGameRef = useRef<boolean>(false);
-  
   // Get search params for generation
   const generating = searchParams.get("generating") === "true";
   const initialType = searchParams.get("type") || "webdesign";
   const initialModelType = searchParams.get("modelType") || "smart";
   const initialImageUrl = searchParams.get("imageUrl") || "";
-  
-  // Get the prompt directly from URL params first
   const promptFromUrl = searchParams.get("prompt") || "";
   
-  // Use custom hooks
+  // Single flag to track if we need to handle post-generation actions
+  const [postGenerationHandled, setPostGenerationHandled] = useState(false);
+  
+  // Use custom hooks for data fetching and game updates
   const { 
     game, 
     currentVersion, 
@@ -51,15 +44,7 @@ const Play = () => {
   // Set the initial prompt prioritizing URL param over database value
   const initialPrompt = promptFromUrl || (game?.prompt || "Loading...");
   
-  // Log the selected prompt source for debugging
-  useEffect(() => {
-    if (promptFromUrl) {
-      console.log("Using prompt from URL:", promptFromUrl);
-    } else if (game?.prompt) {
-      console.log("Using prompt from database:", game.prompt);
-    }
-  }, [promptFromUrl, game]);
-  
+  // Terminal state management
   const {
     generationInProgress,
     terminalOutput,
@@ -70,189 +55,92 @@ const Play = () => {
     generationError
   } = usePlayTerminal(gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl);
 
-  // We use a stable reference for the current version ID
-  useEffect(() => {
-    if (currentVersion?.id && currentVersion.id !== stableVersionIdRef.current && 
-        currentVersion.code && currentVersion.code !== "Generating..." &&
-        currentVersion.code.length > 100) {
-      console.log("Stable version detected, updating reference:", currentVersion.id);
-      stableVersionIdRef.current = currentVersion.id;
-      
-      // Mark game as stable once we have good content
-      if (!stableGameRef.current) {
-        stableGameRef.current = true;
-        
-        // Stop any ongoing refresh attempts immediately
-        if (dataRefreshRef.current) {
-          console.log("Stopping refresh cycle - stable content detected");
-          dataRefreshRef.current = false;
-          setHasRefreshedAfterGeneration(true);
-          
-          // Remove the generating parameter from URL if needed
-          if (generating) {
-            navigate(`/play/${gameId}`, { replace: true });
-          }
-        }
-      }
-    }
-  }, [currentVersion, generating, gameId, navigate]);
+  // Function to check if we have valid content
+  const hasValidContent = () => {
+    return currentVersion?.code && 
+           currentVersion.code !== "Generating..." && 
+           currentVersion.code.length > 100;
+  };
 
-  // When generation completes, refresh the game data to get the latest version - BUT ONLY ONCE
+  // Reset post-generation handling flag when gameId changes
   useEffect(() => {
-    let refreshTimer: NodeJS.Timeout;
-    
-    // Only proceed if generation was in progress and has completed, we haven't refreshed yet
-    // AND we don't already have stable content
-    if (!generationInProgress && gameId && generating && !hasRefreshedAfterGeneration && !stableGameRef.current) {
-      console.log("Generation completed, refreshing game data");
-      
-      // Only schedule refresh if we haven't already done so
-      if (!dataRefreshRef.current) {
-        dataRefreshRef.current = true;
-        
-        // Define the refresh data function with retry logic
-        const refreshData = async () => {
-          console.log(`Attempting to refresh game data (attempt ${refreshAttempts + 1}/${maxRefreshAttempts})`);
+    setPostGenerationHandled(false);
+  }, [gameId]);
+
+  // Handle post-generation actions only once
+  useEffect(() => {
+    // Only proceed if we're in generating mode and generation has completed
+    if (generating && !generationInProgress && !postGenerationHandled) {
+      // Set a one-time refresh attempt
+      const refreshTimer = setTimeout(async () => {
+        try {
+          await fetchGame();
           
-          try {
-            await fetchGame();
-            console.log(`Game data refresh attempt ${refreshAttempts + 1} completed`);
-            setRefreshAttempts(prev => prev + 1);
+          // Check if we received valid content
+          if (hasValidContent()) {
+            // Remove generating param from URL
+            navigate(`/play/${gameId}`, { replace: true });
+            setPostGenerationHandled(true);
+          } else {
+            // If we didn't get valid content yet, try once more after a delay
+            const secondAttemptTimer = setTimeout(async () => {
+              await fetchGame();
+              
+              // Regardless of outcome, mark as handled to prevent infinite loop
+              setPostGenerationHandled(true);
+              
+              // Remove generating param from URL
+              navigate(`/play/${gameId}`, { replace: true });
+            }, 2000);
             
-            // Check if we have valid code
-            if (currentVersion?.code && 
-                currentVersion.code !== "Generating..." && 
-                currentVersion.code.length > 100) {
-              console.log("Valid game code found after refresh");
-              
-              // Mark as stable to prevent further refresh cycles
-              stableGameRef.current = true;
-              
-              // Use a delay to ensure stability before marking as complete
-              setTimeout(() => {
-                // Remove the generating parameter from URL after successful generation
-                if (generating) {
-                  navigate(`/play/${gameId}`, { replace: true });
-                }
-                
-                setHasRefreshedAfterGeneration(true);
-                
-                // Mark data as stable to prevent further refresh cycles
-                dataRefreshRef.current = false;
-              }, 1000);
-              
-              return;
-            }
-            
-            // If we've made too many attempts, give up
-            if (refreshAttempts >= maxRefreshAttempts - 1) {
-              console.log("Maximum refresh attempts reached, giving up");
-              setHasRefreshedAfterGeneration(true);
-              dataRefreshRef.current = false;
-              stableGameRef.current = true;
-              
-              toast({
-                title: "Generation completed",
-                description: "However, we couldn't load the latest content. Try refreshing the page.",
-                variant: "destructive"
-              });
-              
-              // Remove the generating parameter even if we failed
-              if (generating) {
-                navigate(`/play/${gameId}`, { replace: true });
-              }
-              
-              return;
-            }
-            
-            // Schedule another attempt with increasing delay IF we're not stable yet
-            if (!stableGameRef.current) {
-              const delay = Math.min(1000 * (refreshAttempts + 1), 5000);
-              refreshTimer = setTimeout(refreshData, delay);
-            }
-          } catch (error) {
-            console.error("Error refreshing game data:", error);
-            
-            // If we've made too many attempts, give up and show an error
-            if (refreshAttempts >= maxRefreshAttempts - 1) {
-              toast({
-                title: "Error loading content",
-                description: "Failed to load the generated content. Please try refreshing the page.",
-                variant: "destructive"
-              });
-              
-              setHasRefreshedAfterGeneration(true);
-              dataRefreshRef.current = false;
-              stableGameRef.current = true;
-              
-              // Remove the generating parameter even if we failed
-              if (generating) {
-                navigate(`/play/${gameId}`, { replace: true });
-              }
-              
-              return;
-            }
-            
-            // Only retry if not already stable
-            if (!stableGameRef.current) {
-              setRefreshAttempts(prev => prev + 1);
-              refreshTimer = setTimeout(refreshData, 2000);
-            }
+            return () => clearTimeout(secondAttemptTimer);
           }
-        };
-        
-        // Add a slight delay to ensure database is updated
-        refreshTimer = setTimeout(refreshData, 1000);
-      }
+        } catch (error) {
+          console.error("Error refreshing game data after generation:", error);
+          
+          // Mark as handled to prevent loops
+          setPostGenerationHandled(true);
+          
+          // Remove generating param from URL
+          navigate(`/play/${gameId}`, { replace: true });
+          
+          toast({
+            title: "Error loading content",
+            description: "Failed to load the generated content. Please try refreshing the page.",
+            variant: "destructive"
+          });
+        }
+      }, 1000); // Small initial delay
+      
+      return () => clearTimeout(refreshTimer);
     }
     
-    // Handle generation error - also stop refresh cycle
-    if (generationError) {
-      console.error("Generation error detected:", generationError);
-      
-      // Mark as stable to prevent refresh cycle
-      stableGameRef.current = true;
-      dataRefreshRef.current = false;
-      
-      toast({
-        title: "Generation Error",
-        description: generationError || "Failed to generate content. Please try again.",
-        variant: "destructive"
-      });
+    // Handle generation error
+    if (generationError && !postGenerationHandled) {
+      setPostGenerationHandled(true);
       
       // Remove the generating parameter if there was an error
       if (generating) {
         navigate(`/play/${gameId}`, { replace: true });
       }
       
-      setHasRefreshedAfterGeneration(true);
+      toast({
+        title: "Generation Error",
+        description: generationError || "Failed to generate content. Please try again.",
+        variant: "destructive"
+      });
     }
-    
-    return () => {
-      if (refreshTimer) clearTimeout(refreshTimer);
-    };
   }, [
+    generating, 
     generationInProgress, 
     gameId, 
-    generating, 
+    postGenerationHandled, 
     fetchGame, 
-    hasRefreshedAfterGeneration,
-    refreshAttempts, 
-    currentVersion, 
+    hasValidContent, 
     navigate, 
-    toast,
-    generationError,
-    maxRefreshAttempts
+    toast, 
+    generationError
   ]);
-
-  // Reset the refresh state if gameId changes
-  useEffect(() => {
-    setHasRefreshedAfterGeneration(false);
-    setRefreshAttempts(0);
-    dataRefreshRef.current = false;
-    stableVersionIdRef.current = null;
-    stableGameRef.current = false;
-  }, [gameId]);
 
   // Handle missing gameId
   if (!gameId) {
@@ -280,18 +168,10 @@ const Play = () => {
         gameName={initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading...")}
         showCodeEditor={showCode}
         onShowCodeEditorChange={setShowCode}
-        onExport={() => {
-          // handleExport(game.code);
-        }}
-        onDownload={() => {
-          // handleDownload(game.code);
-        }}
-        onFork={() => {
-          // handleFork(game.code);
-        }}
-        onShare={() => {
-          // handleShare(game.code);
-        }}
+        onExport={() => {}}
+        onDownload={() => {}}
+        onFork={() => {}}
+        onShare={() => {}}
       />
 
       <div className="flex flex-grow w-full overflow-hidden">
@@ -317,7 +197,7 @@ const Play = () => {
             />
           ) : (
             <GamePreview
-              key={`preview-${stableVersionIdRef.current || 'loading'}`}
+              key={currentVersion?.id || 'loading'}
               currentVersion={currentVersion}
               showCode={showCode}
               ref={iframeRef}

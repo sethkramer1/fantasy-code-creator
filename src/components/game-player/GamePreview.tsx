@@ -48,11 +48,8 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
         return;
       }
       
-      console.log("Processing version:", currentVersion.id);
-      
-      // Check if current code is valid
+      // Process the code based on validation
       if (isValidCode(currentVersion.code)) {
-        console.log("Valid code detected in GamePreview, version:", currentVersion.id);
         setProcessedCode(currentVersion.code);
         processedVersionId.current = currentVersion.id;
       } 
@@ -60,7 +57,6 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       else if (currentVersion.code.length > 0 && 
                currentVersion.code.includes('<') && 
                currentVersion.code.includes('>')) {
-        console.log("Wrapping HTML snippet in GamePreview, version:", currentVersion.id);
         const wrappedCode = `<!DOCTYPE html>
 <html>
 <head>
