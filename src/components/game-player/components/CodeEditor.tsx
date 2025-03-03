@@ -1,42 +1,19 @@
 
 import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Code, FileText, Pencil, Type } from "lucide-react";
+import { Code, FileText, Pencil } from "lucide-react";
 import { CodeWithLineNumbers } from "./CodeWithLineNumbers";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-
-// Define font options with display names and CSS values
-const fontOptions = [
-  { name: "Consolas", value: "Consolas, monospace" },
-  { name: "Fira Code", value: "'Fira Code', monospace" },
-  { name: "JetBrains Mono", value: "'JetBrains Mono', monospace" },
-  { name: "Source Code Pro", value: "'Source Code Pro', monospace" },
-  { name: "Roboto Mono", value: "'Roboto Mono', monospace" },
-  { name: "Ubuntu Mono", value: "'Ubuntu Mono', monospace" },
-  { name: "Monaco", value: "Monaco, monospace" },
-  { name: "Menlo", value: "Menlo, monospace" },
-  { name: "Courier New", value: "'Courier New', monospace" },
-  { name: "Courier Prime", value: "'Courier Prime', monospace" },
-  { name: "IBM Plex Mono", value: "'IBM Plex Mono', monospace" },
-  { name: "Hack", value: "Hack, monospace" },
-  { name: "Inconsolata", value: "Inconsolata, monospace" },
-  { name: "Anonymous Pro", value: "'Anonymous Pro', monospace" },
-  { name: "PT Mono", value: "'PT Mono', monospace" },
-];
 
 interface CodeEditorProps {
   html: string;
   css: string;
   js: string;
+  selectedFont: string;
+  onFontChange: (font: string) => void;
 }
 
-export const CodeEditor = ({ html, css, js }: CodeEditorProps) => {
+export const CodeEditor = ({ html, css, js, selectedFont }: CodeEditorProps) => {
   const [activeTab, setActiveTab] = useState<string>("html");
-  const [selectedFont, setSelectedFont] = useState<string>(fontOptions[0].value);
-
-  const handleFontChange = (value: string) => {
-    setSelectedFont(value);
-  };
 
   return (
     <div className="absolute inset-0 overflow-hidden flex flex-col bg-gray-900 text-white rounded-lg">
@@ -74,29 +51,6 @@ export const CodeEditor = ({ html, css, js }: CodeEditorProps) => {
               </TabsTrigger>
             )}
           </TabsList>
-          
-          <div className="flex items-center mr-2">
-            <div className="flex items-center gap-2">
-              <Type size={14} className="text-gray-400" />
-              <Select value={selectedFont} onValueChange={handleFontChange}>
-                <SelectTrigger className="h-7 w-40 bg-gray-700 border-gray-600 text-xs">
-                  <SelectValue placeholder="Select font" />
-                </SelectTrigger>
-                <SelectContent className="max-h-60">
-                  {fontOptions.map((font) => (
-                    <SelectItem 
-                      key={font.value} 
-                      value={font.value}
-                      className="text-xs"
-                      style={{ fontFamily: font.value }}
-                    >
-                      {font.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
         </div>
         
         <div className="flex-1 overflow-auto">

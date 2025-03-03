@@ -1,11 +1,13 @@
+
 import React, { useRef, useEffect, forwardRef } from "react";
 
 interface IframePreviewProps {
   code: string;
+  selectedFont?: string;
 }
 
 export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
-  ({ code }, ref) => {
+  ({ code, selectedFont }, ref) => {
     const localIframeRef = useRef<HTMLIFrameElement>(null);
     
     useEffect(() => {
@@ -26,6 +28,14 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
     }, [code]);
 
     const prepareIframeContent = (html: string) => {
+      // Add font style if one is selected
+      const fontStyle = selectedFont ? 
+        `<style>
+          body, pre, code, textarea, input, button, select, option {
+            font-family: ${selectedFont} !important;
+          }
+        </style>` : '';
+
       const helperScript = `
         <script>
           document.addEventListener('DOMContentLoaded', function() {
@@ -197,11 +207,11 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       `;
 
       if (html.includes('<head>')) {
-        return html.replace('<head>', '<head>' + helperScript);
+        return html.replace('<head>', '<head>' + fontStyle + helperScript);
       } else if (html.includes('<html')) {
-        return html.replace(/<html[^>]*>/, '$&<head>' + helperScript + '</head>');
+        return html.replace(/<html[^>]*>/, '$&<head>' + fontStyle + helperScript + '</head>');
       } else {
-        return helperScript + html;
+        return fontStyle + helperScript + html;
       }
     };
 
