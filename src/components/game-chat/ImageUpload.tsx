@@ -2,14 +2,9 @@
 import { useRef, useState } from "react";
 import { X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { ImageUploadProps, ImageUploadResult } from "./types";
 
-interface ImageUploadProps {
-  imageUrl: string | null;
-  setImageUrl: (url: string | null) => void;
-  disabled?: boolean;
-}
-
-export const ImageUpload = ({ imageUrl, setImageUrl, disabled = false }: ImageUploadProps) => {
+export const ImageUpload = ({ imageUrl, setImageUrl, disabled = false }: ImageUploadProps): ImageUploadResult => {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
@@ -65,7 +60,7 @@ export const ImageUpload = ({ imageUrl, setImageUrl, disabled = false }: ImageUp
     handleImageFile,
     handleImageUpload,
     handleRemoveImage,
-    imagePreview: imageUrl && (
+    imagePreview: imageUrl ? (
       <div className="mb-3 relative">
         <div className="relative rounded-lg overflow-hidden border border-gray-200 inline-flex max-w-xs">
           <img 
@@ -83,6 +78,6 @@ export const ImageUpload = ({ imageUrl, setImageUrl, disabled = false }: ImageUp
           </button>
         </div>
       </div>
-    )
+    ) : null
   };
 };

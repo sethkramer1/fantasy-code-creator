@@ -108,13 +108,16 @@ Important: Only return the raw HTML/CSS/JS code without any markdown code block 
 
 Follow these structure requirements precisely and generate clean, semantic, and accessible code.`;
 
-    // Prepare the request body with the correct structure
+    // Prepare the request body with the correct structure for Claude 3.7 Sonnet
     let requestBody: any = {
       model: "claude-3-7-sonnet-20250219",
       max_tokens: 30000,
       stream: true,
-      system: systemMessage
-      // Removed thinking configuration as requested
+      system: systemMessage,
+      thinking: {
+        type: "enabled",
+        budget_tokens: 10000
+      }
     };
 
     // Handle the message content differently based on whether there's an image
@@ -170,6 +173,8 @@ Follow these structure requirements precisely and generate clean, semantic, and 
 
     console.log('Sending request to Anthropic API with message structure:', 
       imageUrl ? 'Image + Text' : 'Text only');
+    console.log('Using model:', requestBody.model);
+    console.log('System message is properly set with length:', systemMessage.length);
 
     // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {

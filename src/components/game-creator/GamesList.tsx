@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useMemo } from "react";
 import { Game } from "@/types/game";
 import { GamesFilter } from "./GamesFilter";
@@ -28,7 +27,7 @@ export function GamesList({
   const [selectedType, setSelectedType] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const pageSize = 24; // Number of designs per page
+  const pageSize = 9; // Number of designs per page (changed from 24)
   
   // Use useMemo to prevent unnecessary recalculations
   const filteredGames = useMemo(() => {

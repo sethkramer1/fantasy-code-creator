@@ -5,9 +5,7 @@ import "https://deno.land/x/xhr@0.1.0/mod.ts"
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Credentials': 'true',
-}
+};
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 
@@ -36,33 +34,43 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, imageUrl } = await req.json();
+    const { prompt, imageUrl, contentType, system, partialResponse, model = "claude-3-7-sonnet-20250219" } = await req.json();
     
-    console.log('Received request with prompt length:', prompt?.length || 0);
-    console.log('Image URL provided:', imageUrl ? 'Yes (data URL)' : 'No');
+    console.log("Received request with prompt length:", prompt?.length || 0);
+    console.log("Content type:", contentType);
+    console.log("Model:", model);
+    console.log("System prompt provided:", system ? "Yes" : "No");
+    console.log("Image URL provided:", imageUrl ? "Yes" : "No");
+    console.log("Partial response provided:", partialResponse ? "Yes" : "No");
 
-    // Define the system message
-    const systemMessage = `You are an expert developer specializing in web technologies, particularly in creating interactive web content, SVG graphics, data visualizations, and infographics. 
-            
-Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
+    if (!prompt) {
+      return new Response(
+        JSON.stringify({ error: 'prompt is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
-Follow these structure requirements precisely and generate clean, semantic, and accessible code.`;
+    // Define a default system message if none provided
+    const systemMessage = system || `You are an expert developer specializing in web technologies. 
+You are tasked with creating HTML/CSS/JS code based on the user's request.
+Return only the complete HTML code that's ready to be displayed in a browser.
+Include all CSS and JavaScript within the HTML file.
+Do not include any explanations, markdown formatting or code blocks - only return the actual code.`;
 
-    // Prepare the request body with the correct structure
+    // Prepare the request body with the correct structure for Claude 3.7 Sonnet
     let requestBody: any = {
-      model: "claude-3-7-sonnet-20250219",
+      model: model,
       max_tokens: 30000,
       stream: true,
       system: systemMessage,
       thinking: {
         type: "enabled",
-        budget_tokens: 3500
+        budget_tokens: 10000
       }
     };
 
     // Handle the message content differently based on whether there's an image
     if (imageUrl && imageUrl.startsWith('data:image/')) {
-      console.log('Processing data URL image...');
       try {
         // Extract the base64 data from the data URL
         const base64Image = extractBase64FromDataUrl(imageUrl);
@@ -78,7 +86,9 @@ Follow these structure requirements precisely and generate clean, semantic, and 
             content: [
               {
                 type: "text",
-                text: prompt
+                text: partialResponse 
+                  ? `${prompt}\n\nUse this as a starting point:\n${partialResponse}`
+                  : prompt
               },
               {
                 type: "image",
@@ -94,25 +104,26 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       } catch (imageError) {
         console.error('Error processing image data URL:', imageError);
         return new Response(
-          JSON.stringify({ 
-            error: 'Failed to process image data',
-            details: imageError instanceof Error ? imageError.message : 'Unknown error'
-          }),
+          JSON.stringify({ error: 'Failed to process image data' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
     } else {
       // Structure for text-only request
+      const messageText = partialResponse 
+        ? `${prompt}\n\nUse this as a starting point:\n${partialResponse}` 
+        : prompt;
+        
       requestBody.messages = [
         {
           role: "user",
-          content: prompt
+          content: messageText
         }
       ];
     }
 
-    console.log('Sending request to Anthropic API with message structure:', 
-      imageUrl ? 'Image + Text' : 'Text only');
+    console.log('Sending request to Anthropic API with properly structured body');
+    console.log('System message is:', systemMessage.substring(0, 50) + '...');
 
     // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -131,8 +142,8 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    console.log('Successfully got response from Anthropic API');
-
+    console.log('Successfully got response from Anthropic API, streaming back to client');
+    
     return new Response(response.body, {
       headers: {
         ...corsHeaders,
@@ -144,16 +155,9 @@ Follow these structure requirements precisely and generate clean, semantic, and 
 
   } catch (error) {
     console.error('Error in generate-game function:', error);
-    const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
     return new Response(
-      JSON.stringify({ 
-        error: errorMessage,
-        details: error instanceof Error ? error.stack : undefined
-      }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      }
+      JSON.stringify({ error: error instanceof Error ? error.message : 'Unknown error occurred' }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
 });

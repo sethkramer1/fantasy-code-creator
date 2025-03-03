@@ -1,5 +1,9 @@
 
-import { Wand2 } from "lucide-react";
+import { useAuth } from "@/context/AuthContext";
+import { Button } from "@/components/ui/button";
+import { useNavigate } from "react-router-dom";
+import { FcGoogle } from "react-icons/fc";
+import { UserCircle } from "lucide-react";
 
 interface HeaderProps {
   title: string;
@@ -7,19 +11,54 @@ interface HeaderProps {
 }
 
 export function Header({ title, description }: HeaderProps) {
+  const { user, loading } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLoginClick = () => {
+    navigate("/auth");
+  };
+
+  const handleAccountClick = () => {
+    navigate("/account");
+  };
+
   return (
-    <div className="text-center space-y-5">
-      <div className="inline-flex items-center justify-center">
-        <div className="bg-black rounded-full p-4 mb-2 shadow-lg hover:shadow-gray-200 transition-shadow duration-300">
-          <Wand2 size={36} className="text-white" />
-        </div>
+    <div className="space-y-1 flex flex-col md:flex-row md:items-center md:justify-between">
+      <div>
+        <h1 className="text-2xl font-bold text-black">{title}</h1>
+        <p className="text-gray-500">{description}</p>
       </div>
-      <h1 className="text-3xl md:text-4xl font-semibold text-black tracking-tight">
-        {title}
-      </h1>
-      <p className="text-lg md:text-xl text-gray-700 max-w-2xl mx-auto">
-        {description}
-      </p>
+      
+      <div className="mt-2 md:mt-0">
+        {!loading && (
+          user ? (
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-medium mr-2 hidden sm:block">
+                {user.email}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center gap-2"
+                onClick={handleAccountClick}
+              >
+                <UserCircle size={16} />
+                <span className="hidden sm:inline">Account</span>
+              </Button>
+            </div>
+          ) : (
+            <Button 
+              onClick={handleLoginClick}
+              size="sm" 
+              variant="outline"
+              className="flex items-center gap-2"
+            >
+              <FcGoogle size={16} />
+              Sign in
+            </Button>
+          )
+        )}
+      </div>
     </div>
   );
 }
