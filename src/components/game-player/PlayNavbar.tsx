@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GameActions } from "./GameActions";
 import { useAuth } from "@/context/AuthContext";
-import { UserCircle, LogOut } from "lucide-react";
+import { UserCircle } from "lucide-react";
 
 interface PlayNavbarProps {
   gameId: string;
@@ -27,7 +27,7 @@ export function PlayNavbar({
   onShowCodeEditorChange,
 }: PlayNavbarProps) {
   const navigate = useNavigate();
-  const { user, signOut } = useAuth();
+  const { user } = useAuth();
 
   const handleBackClick = () => {
     navigate("/");
@@ -37,9 +37,8 @@ export function PlayNavbar({
     navigate("/auth");
   };
 
-  const handleLogoutClick = async () => {
-    await signOut();
-    // User will be redirected by the auth state change listener
+  const handleAccountClick = () => {
+    navigate("/account");
   };
 
   return (
@@ -77,11 +76,10 @@ export function PlayNavbar({
             variant="outline" 
             size="sm" 
             className="flex items-center gap-2 ml-2"
-            onClick={handleLogoutClick}
+            onClick={handleAccountClick}
           >
             <UserCircle size={16} />
             <span className="hidden sm:inline">Account</span>
-            <LogOut size={16} className="ml-1 text-gray-500" />
           </Button>
         ) : (
           <Button 

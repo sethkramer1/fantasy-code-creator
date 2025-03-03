@@ -3,7 +3,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
-import { UserCircle, LogOut } from "lucide-react";
+import { UserCircle } from "lucide-react";
 
 interface HeaderProps {
   title: string;
@@ -11,16 +11,15 @@ interface HeaderProps {
 }
 
 export function Header({ title, description }: HeaderProps) {
-  const { user, signOut, loading } = useAuth();
+  const { user, loading } = useAuth();
   const navigate = useNavigate();
 
   const handleLoginClick = () => {
     navigate("/auth");
   };
 
-  const handleLogoutClick = async () => {
-    await signOut();
-    // User will be redirected automatically by the auth state change listener
+  const handleAccountClick = () => {
+    navigate("/account");
   };
 
   return (
@@ -41,11 +40,10 @@ export function Header({ title, description }: HeaderProps) {
                 variant="outline" 
                 size="sm" 
                 className="flex items-center gap-2"
-                onClick={handleLogoutClick}
+                onClick={handleAccountClick}
               >
                 <UserCircle size={16} />
                 <span className="hidden sm:inline">Account</span>
-                <LogOut size={16} className="ml-1 text-gray-500" />
               </Button>
             </div>
           ) : (
