@@ -1,6 +1,6 @@
 
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -11,23 +11,65 @@ const Auth = () => {
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
 
+  // This useEffect handles the initial auth check and hash fragment processing
   useEffect(() => {
-    // Check if the user is already authenticated
-    const checkSession = async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (data.session) {
-        setSession(data.session);
-        navigate("/");
+    const checkAuthAndProcessHash = async () => {
+      setLoading(true);
+      
+      try {
+        // The URL hash might contain tokens after OAuth sign-in
+        if (location.hash) {
+          const { data, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            throw error;
+          }
+          
+          if (data?.session) {
+            setSession(data.session);
+            navigate("/");
+            toast({
+              title: "Authentication successful",
+              description: "You have been signed in",
+            });
+            return;
+          }
+        }
+        
+        // If we don't have a hash or couldn't get a session from the hash,
+        // check if the user is already authenticated
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          throw error;
+        }
+        
+        if (data.session) {
+          setSession(data.session);
+          navigate("/");
+        }
+      } catch (error) {
+        console.error("Auth error:", error);
+        toast({
+          title: "Authentication error",
+          description: error.message || "An unexpected error occurred during authentication",
+          variant: "destructive",
+        });
+      } finally {
+        setLoading(false);
       }
     };
     
-    checkSession();
+    checkAuthAndProcessHash();
+  }, [navigate, location.hash, toast]);
 
-    // Set up auth state listener
+  // Setup auth state change listener
+  useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        console.log("Auth state changed:", _event, !!session);
         setSession(session);
         if (session) {
           navigate("/");
@@ -84,7 +126,7 @@ const Auth = () => {
             variant="outline"
           >
             <FcGoogle size={20} />
-            Continue with Google
+            {loading ? "Processing..." : "Continue with Google"}
           </Button>
           
           <div className="flex items-center">
@@ -95,7 +137,7 @@ const Auth = () => {
           
           <Button 
             onClick={() => navigate("/")}
-            variant="subtle"
+            variant="outline"
             className="w-full"
           >
             Return to Home
