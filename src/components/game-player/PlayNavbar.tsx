@@ -1,13 +1,8 @@
 
 import { Link } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MessageSquare, Code } from "lucide-react";
 
 interface PlayNavbarProps {
-  showCode: boolean;
-  setShowCode: (show: boolean) => void;
-  isLatestVersion: boolean;
-  onRevertToVersion: (version: any) => Promise<void>;
-  currentVersion: any;
   gameId: string;
   showSidebar: boolean;
   setShowSidebar: (show: boolean) => void;
@@ -15,11 +10,6 @@ interface PlayNavbarProps {
 }
 
 export function PlayNavbar({
-  showCode,
-  setShowCode,
-  isLatestVersion,
-  onRevertToVersion,
-  currentVersion,
   gameId,
   showSidebar,
   setShowSidebar,
@@ -33,6 +23,13 @@ export function PlayNavbar({
       </Link>
       
       <div className="flex items-center gap-4">
+        <button
+          onClick={() => setShowSidebar(!showSidebar)}
+          className="p-2 rounded-full hover:bg-gray-100 transition-colors flex items-center justify-center lg:hidden"
+          aria-label="Toggle chat sidebar"
+        >
+          <MessageSquare size={18} className={showSidebar ? "text-blue-600" : "text-gray-600"} />
+        </button>
         {children}
       </div>
     </div>

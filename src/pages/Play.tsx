@@ -6,7 +6,6 @@ import { PlayContent } from "@/components/game-player/PlayContent";
 import { SidebarChat } from "@/components/game-player/SidebarChat";
 import { useToast } from "@/hooks/use-toast";
 import { useGameVersions } from "@/components/game-player/hooks/useGameVersions";
-import { useInitialGeneration } from "@/components/game-player/hooks/useInitialGeneration";
 import { useTerminal } from "@/components/game-player/hooks/useTerminal";
 
 export default function Play() {
@@ -17,6 +16,7 @@ export default function Play() {
   const [showCode, setShowCode] = useState(false);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [modelType, setModelType] = useState<string>("smart");
+  const [chatInput, setChatInput] = useState("");
 
   // Validate that we have a gameId
   if (!gameId) {
@@ -26,15 +26,16 @@ export default function Play() {
     return null;
   }
 
-  // Game versions hook - pull the required properties from the hook
+  // Game versions hook
   const {
-    gameVersions = [],
-    loading: loadingVersions = false,
-    selectedVersion = "",
+    gameVersions,
+    loading: loadingVersions,
+    selectedVersion,
     setSelectedVersion,
-    initialPrompt = "",
+    initialPrompt,
     handleRevertToVersion,
-    handleGameUpdate
+    handleGameUpdate,
+    handleRevertToMessageVersion
   } = useGameVersions(gameId);
 
   // Find the current version based on selectedVersion
@@ -45,10 +46,10 @@ export default function Play() {
     selectedVersion === gameVersions[0].id : 
     true;
 
-  // Use terminal hook with just the gameId parameter
+  // Use terminal hook
   const terminal = useTerminal(false);
   
-  // Create a chat submit handler that integrates with the terminal
+  // Create a chat submit handler
   const handleChatSubmit = (message: string, image?: File | null) => {
     // You would implement chat submission logic here
     console.log("Chat message submitted:", message, image);
@@ -115,11 +116,6 @@ export default function Play() {
   return (
     <div className="flex h-screen flex-col">
       <PlayNavbar
-        showCode={showCode}
-        setShowCode={setShowCode}
-        isLatestVersion={isLatestVersion}
-        onRevertToVersion={handleRevertToVersion}
-        currentVersion={currentVersion}
         gameId={gameId}
         showSidebar={sidebarOpen}
         setShowSidebar={setSidebarOpen}
@@ -128,8 +124,9 @@ export default function Play() {
         <PlayContent
           gameVersions={gameVersions}
           selectedVersion={selectedVersion}
-          setSelectedVersion={setSelectedVersion}
+          onVersionChange={setSelectedVersion}
           showCode={showCode}
+          setShowCode={setShowCode}
           gameId={gameId}
           currentVersion={currentVersion}
           isLatestVersion={isLatestVersion}
@@ -138,12 +135,9 @@ export default function Play() {
         
         {/* Sidebar Chat */}
         <SidebarChat
-          isOpen={sidebarOpen}
-          setIsOpen={setSidebarOpen} 
+          showSidebar={sidebarOpen}
+          setShowSidebar={setSidebarOpen} 
           onSubmit={handleChatSubmit}
-          input=""
-          setInput={() => {}}
-          loading={false}
           disabled={!isLatestVersion}
           imageUrl={imageUrl}
           setImageUrl={setImageUrl}
@@ -154,7 +148,7 @@ export default function Play() {
           initialPrompt={initialPrompt}
           onGameUpdate={handleGameUpdate}
           onTerminalStatusChange={terminal.handleTerminalStatusChange}
-          onRevertToMessageVersion={async () => {}}
+          onRevertToMessageVersion={handleRevertToMessageVersion}
         />
       </div>
     </div>

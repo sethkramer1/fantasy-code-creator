@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,9 +18,10 @@ export function useGameVersions(id: string | undefined) {
   const { toast } = useToast();
 
   const fetchGame = async () => {
-    if (!id) return;
+    if (!id) return false;
     
     try {
+      setLoading(true);
       const { data, error } = await supabase.from('games').select(`
           id,
           current_version,
@@ -45,14 +45,15 @@ export function useGameVersions(id: string | undefined) {
       if (sortedVersions.length > 0) {
         setSelectedVersion(sortedVersions[0].id);
         
-        if (sortedVersions[0].code !== "Generating...") {
-          return false; // Return false to indicate no generating state
-        } else {
+        if (sortedVersions[0].code === "Generating...") {
           return true; // Return true to indicate generating state
+        } else {
+          return false; // Return false to indicate no generating state
         }
       }
       return false;
     } catch (error) {
+      console.error("Error loading game:", error);
       toast({
         title: "Error loading content",
         description: error instanceof Error ? error.message : "Please try again",
@@ -63,6 +64,12 @@ export function useGameVersions(id: string | undefined) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (id) {
+      fetchGame();
+    }
+  }, [id]);
 
   const handleVersionChange = (versionId: string) => {
     setSelectedVersion(versionId);
