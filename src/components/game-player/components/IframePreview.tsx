@@ -1,11 +1,11 @@
 
-import React, { useRef, useEffect, forwardRef } from "react";
+import React, { useRef, useEffect, forwardRef, memo } from "react";
 
 interface IframePreviewProps {
   code: string;
 }
 
-export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
+export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewProps>(
   ({ code }, ref) => {
     const localIframeRef = useRef<HTMLIFrameElement>(null);
     
@@ -42,6 +42,6 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       />
     );
   }
-);
+));
 
 IframePreview.displayName = "IframePreview";

@@ -9,6 +9,8 @@ import { usePlayGameData } from "@/hooks/usePlayGameData";
 import { useGameUpdate } from "@/hooks/useGameUpdate";
 import { usePlayTerminal } from "@/hooks/usePlayTerminal";
 import { useToast } from "@/components/ui/use-toast";
+import { ViewToggle } from "@/components/game-player/ViewToggle";
+import { VersionHistory } from "@/components/game-player/components/VersionHistory";
 
 const Play = () => {
   const { id: gameId } = useParams();
@@ -38,7 +40,11 @@ const Play = () => {
     isLoading: gameDataLoading 
   } = usePlayGameData(gameId);
   
-  const { handleGameUpdate, revertToMessageVersion } = useGameUpdate(
+  const { 
+    handleGameUpdate, 
+    revertToMessageVersion, 
+    revertToVersion 
+  } = useGameUpdate(
     gameId, game, gameVersions, fetchGame
   );
   
@@ -180,17 +186,29 @@ const Play = () => {
               asModal={false}
             />
           ) : (
-            <GamePreview
-              key={`preview-${currentVersion?.id || 'loading'}`}
-              currentVersion={currentVersion}
-              showCode={showCode}
-              ref={iframeRef}
-            />
+            <div className="h-full flex flex-col">
+              <div className="flex justify-between items-center p-3 bg-zinc-900 border-b border-zinc-800">
+                <ViewToggle showCode={showCode} onToggle={setShowCode} />
+                <VersionHistory 
+                  gameVersions={gameVersions} 
+                  currentVersionId={currentVersion?.id}
+                  onRevertToVersion={revertToVersion} 
+                />
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <GamePreview
+                  key={`preview-${currentVersion?.id || 'loading'}`}
+                  currentVersion={currentVersion}
+                  showCode={showCode}
+                  ref={iframeRef}
+                />
+              </div>
+            </div>
           )}
         </div>
       </div>
     </div>
   );
-};
+}
 
 export default Play;

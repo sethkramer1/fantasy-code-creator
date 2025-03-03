@@ -74,6 +74,71 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
     }
   };
 
+  const revertToVersion = async (versionId: string) => {
+    try {
+      if (!gameId || !game) {
+        throw new Error("Game not available");
+      }
+
+      // Find the version in our list
+      const versionToRevert = gameVersions.find(v => v.id === versionId);
+      if (!versionToRevert) {
+        throw new Error("Version not found");
+      }
+
+      // Determine the next version number
+      const nextVersionNumber = gameVersions.length > 0 ? Math.max(...gameVersions.map(v => v.version_number)) + 1 : 1;
+
+      // Create a new version based on the old one
+      const { data: newVersion, error: newVersionError } = await supabase
+        .from('game_versions')
+        .insert([{
+          game_id: gameId,
+          code: versionToRevert.code,
+          instructions: versionToRevert.instructions,
+          version_number: nextVersionNumber
+        }])
+        .select()
+        .single();
+
+      if (newVersionError) {
+        console.error("Error creating new version from revert:", newVersionError);
+        throw newVersionError;
+      }
+
+      // Update the game with the reverted code and instructions
+      const { error: updateError } = await supabase
+        .from('games')
+        .update({
+          code: versionToRevert.code,
+          instructions: versionToRevert.instructions,
+          current_version: nextVersionNumber
+        })
+        .eq('id', gameId);
+
+      if (updateError) {
+        console.error("Error updating game after revert:", updateError);
+        throw updateError;
+      }
+
+      // Fetch the updated game versions
+      await fetchGame();
+
+      toast({
+        title: "Version restored",
+        description: `Reverted to version ${versionToRevert.version_number} as a new version (${nextVersionNumber})`,
+      });
+    } catch (error) {
+      console.error("Error in revertToVersion:", error);
+      toast({
+        title: "Error",
+        description: "Failed to revert to the selected version",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
   const revertToMessageVersion = async (message: Message) => {
     try {
       if (!message.version_id) {
@@ -85,49 +150,7 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
         return;
       }
 
-      const { data: versionData, error: versionError } = await supabase
-        .from('game_versions')
-        .select('*')
-        .eq('id', message.version_id)
-        .single();
-
-      if (versionError || !versionData) {
-        console.error("Error fetching version data:", versionError);
-        toast({
-          title: "Error reverting to version",
-          description: "Could not find the version data",
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Update the game with this version
-      const { error: updateError } = await supabase
-        .from('games')
-        .update({
-          code: versionData.code,
-          instructions: versionData.instructions,
-          current_version: versionData.version_number
-        })
-        .eq('id', gameId);
-
-      if (updateError) {
-        console.error("Error updating game:", updateError);
-        toast({
-          title: "Error reverting to version",
-          description: updateError.message,
-          variant: "destructive"
-        });
-        return;
-      }
-
-      // Refresh game data
-      fetchGame();
-      
-      toast({
-        title: "Success",
-        description: `Reverted to version from ${new Date(message.created_at).toLocaleString()}`,
-      });
+      await revertToVersion(message.version_id);
     } catch (error) {
       console.error("Error in revertToMessageVersion:", error);
       toast({
@@ -140,6 +163,7 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
 
   return {
     handleGameUpdate,
-    revertToMessageVersion
+    revertToMessageVersion,
+    revertToVersion
   };
 }

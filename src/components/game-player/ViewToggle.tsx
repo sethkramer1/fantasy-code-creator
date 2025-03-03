@@ -3,33 +3,35 @@ import { Button } from "@/components/ui/button";
 
 interface ViewToggleProps {
   showCode: boolean;
-  setShowCode: (show: boolean) => void;
+  onToggle: (showCode: boolean) => void;
 }
 
-export function ViewToggle({ showCode, setShowCode }: ViewToggleProps) {
+export function ViewToggle({ showCode, onToggle }: ViewToggleProps) {
   return (
-    <div className="bg-zinc-900 p-0.5 rounded-full">
+    <div className="inline-flex bg-zinc-800 rounded-lg p-1 h-10">
       <Button
+        type="button"
         variant="ghost"
         size="sm"
-        className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+        className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
           !showCode 
-            ? 'bg-white text-black' 
-            : 'text-white hover:bg-white/20'
+            ? 'bg-zinc-700 text-white' 
+            : 'text-zinc-400 hover:bg-zinc-700/50 hover:text-white'
         }`}
-        onClick={() => setShowCode(false)}
+        onClick={() => onToggle(false)}
       >
         Preview
       </Button>
       <Button
+        type="button"
         variant="ghost"
         size="sm"
-        className={`rounded-full px-4 py-1.5 text-sm transition-colors ${
+        className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
           showCode 
-            ? 'bg-white text-black' 
-            : 'text-white hover:bg-white/20'
+            ? 'bg-zinc-700 text-white' 
+            : 'text-zinc-400 hover:bg-zinc-700/50 hover:text-white'
         }`}
-        onClick={() => setShowCode(true)}
+        onClick={() => onToggle(true)}
       >
         Code
       </Button>
