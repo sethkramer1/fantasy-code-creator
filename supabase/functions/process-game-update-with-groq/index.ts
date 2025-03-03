@@ -101,17 +101,13 @@ The following is an HTML document that includes HTML, CSS (in style tags), and J
 1. Understand the current structure and functionality of the code
 2. Apply the requested changes from the user
 3. Return the COMPLETE, MODIFIED HTML document with all changes incorporated
-4. Make sure to preserve all existing functionality unless directly asked to change it
+4. Make sure to preserve all existing functionality unless directly asked to change it. Other than the specific requests, keep the rest of the code the exact same.
 
 IMPORTANT GUIDELINES:
 - Return ONLY the modified code, without explanations or markdown formatting
 - Include DOCTYPE, html, head, and body tags in your response
 - Make your changes minimal and focused on what the user requested
-- Do not remove existing features or functionality
-- Keep the same overall document structure
-- Ensure all script and style blocks are preserved as they were
-- Assume the document will be viewed in various browsers and should be responsive
-- If you need placeholder images, use placeholder.com URLs with appropriate dimensions`;
+- Other than the specific requests, keep the rest of the code the exact same. `;
 
     // Add any external file or image references if provided
     const imageContext = imageUrl 
