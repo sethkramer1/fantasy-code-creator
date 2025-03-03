@@ -45,12 +45,15 @@ serve(async (req) => {
     console.log("System prompt provided:", system ? "Yes" : "No");
     console.log("Image URL provided:", imageUrl ? "Yes" : "No");
     console.log("Partial response provided:", partialResponse ? "Yes" : "No");
-    console.log("Full request:", JSON.stringify(requestData, null, 2));
     
-    if (!prompt || prompt === "Loading...") {
+    // Check that prompt is valid before proceeding
+    if (!prompt || prompt === "Loading..." || prompt.trim() === "") {
       console.error('Invalid or empty prompt received:', prompt);
       return new Response(
-        JSON.stringify({ error: 'Valid prompt is required, received: ' + prompt }),
+        JSON.stringify({ 
+          error: 'Valid prompt is required, received: ' + prompt,
+          details: 'A non-empty prompt is required to generate content'
+        }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -128,7 +131,7 @@ Do not include any explanations, markdown formatting or code blocks - only retur
     }
 
     console.log('Sending request to Anthropic API with Claude 3.7 Sonnet');
-    console.log('Request body:', JSON.stringify(requestBody, null, 2));
+    console.log('Request body message contents:', requestBody.messages);
 
     // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {

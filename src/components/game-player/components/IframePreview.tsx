@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, forwardRef } from "react";
+import React, { useRef, useEffect, forwardRef, useState } from "react";
 
 interface IframePreviewProps {
   code: string;
@@ -7,6 +7,7 @@ interface IframePreviewProps {
 export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
   ({ code }, ref) => {
     const localIframeRef = useRef<HTMLIFrameElement>(null);
+    const [iframeContent, setIframeContent] = useState<string>("");
     
     useEffect(() => {
       if (!ref) return;
@@ -20,10 +21,20 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
 
     useEffect(() => {
       console.log("IframePreview received code update, length:", code?.length);
-      if (localIframeRef.current) {
-        localIframeRef.current.focus();
+      
+      if (!code || code === iframeContent) return;
+      
+      if (code.length > 100) {
+        const preparedContent = prepareIframeContent(code);
+        setIframeContent(preparedContent);
       }
     }, [code]);
+
+    useEffect(() => {
+      if (iframeContent && localIframeRef.current) {
+        localIframeRef.current.focus();
+      }
+    }, [iframeContent]);
 
     const prepareIframeContent = (html: string) => {
       const helperScript = `
@@ -212,7 +223,7 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       >
         <iframe
           ref={localIframeRef}
-          srcDoc={prepareIframeContent(code || '')}
+          srcDoc={iframeContent}
           className="absolute inset-0 w-full h-full border border-gray-100"
           sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
           title="Generated Content"

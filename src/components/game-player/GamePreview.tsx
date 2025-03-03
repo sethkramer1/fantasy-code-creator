@@ -25,6 +25,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     const [loadAttempts, setLoadAttempts] = useState(0);
     const initialRenderRef = useRef(true);
     const loadTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const prevVersionIdRef = useRef<string | null>(null);
     
     // Validate code function
     const isValidCode = useCallback((code: string | undefined): boolean => {
@@ -41,14 +42,24 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       return hasHtmlStructure;
     }, []);
     
-    // Check and handle version changes
+    // Check and handle version changes - this is the main function that was causing issues
     useEffect(() => {
       console.log("GamePreview received currentVersion update", 
         currentVersion?.id, 
         "showCode:", showCode,
-        "code length:", currentVersion?.code?.length || 0,
-        "code starts with:", currentVersion?.code?.substring(0, 30)
+        "code length:", currentVersion?.code?.length || 0
       );
+      
+      // If version ID hasn't changed, don't proceed to avoid reload loops
+      if (currentVersion?.id === prevVersionIdRef.current && !initialRenderRef.current) {
+        console.log("Same version ID, skipping processing to avoid reload loop");
+        return;
+      }
+      
+      // Update ref to current version ID
+      if (currentVersion?.id) {
+        prevVersionIdRef.current = currentVersion.id;
+      }
       
       // Clear any existing timeout
       if (loadTimeoutRef.current) {
@@ -82,9 +93,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
           setLastValidCode(currentVersion.code);
           setLoadAttempts(0); // Reset attempts counter
         } else {
-          console.log("Invalid or incomplete code received:", 
-            currentVersion.code.substring(0, 100)
-          );
+          console.log("Invalid or incomplete code received");
           
           // Check if code is too short but not empty
           if (currentVersion.code.length < 100 && currentVersion.code.length > 0) {
@@ -141,22 +150,6 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
         });
       }
     }, [loadAttempts, lastValidCode]);
-
-    // Force reload for "Generating..." case after 5 seconds
-    useEffect(() => {
-      let reloadTimer: NodeJS.Timeout;
-      
-      if (currentVersion?.code === "Generating..." && loadAttempts > 1) {
-        reloadTimer = setTimeout(() => {
-          console.log("Game still showing 'Generating...', refreshing page");
-          window.location.reload();
-        }, 5000);
-      }
-      
-      return () => {
-        if (reloadTimer) clearTimeout(reloadTimer);
-      };
-    }, [currentVersion?.code, loadAttempts]);
 
     // Handle case when no version is available yet
     if (!currentVersion) {
