@@ -125,6 +125,60 @@ export type Database = {
         }
         Relationships: []
       }
+      netlify_auth_state: {
+        Row: {
+          created_at: string | null
+          game_id: string
+          id: string
+          state: string
+        }
+        Insert: {
+          created_at?: string | null
+          game_id: string
+          id?: string
+          state: string
+        }
+        Update: {
+          created_at?: string | null
+          game_id?: string
+          id?: string
+          state?: string
+        }
+        Relationships: []
+      }
+      netlify_tokens: {
+        Row: {
+          access_token: string
+          created_at: string | null
+          expires_at: string
+          game_id: string
+          id: string
+          refresh_token: string
+          token_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          access_token: string
+          created_at?: string | null
+          expires_at: string
+          game_id: string
+          id?: string
+          refresh_token: string
+          token_type: string
+          updated_at?: string | null
+        }
+        Update: {
+          access_token?: string
+          created_at?: string | null
+          expires_at?: string
+          game_id?: string
+          id?: string
+          refresh_token?: string
+          token_type?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

@@ -1,8 +1,17 @@
 
-import { Download } from "lucide-react";
+import { Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import JSZip from 'jszip';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 interface GameVersion {
   id: string;
@@ -99,8 +108,69 @@ export function GameActions({
         onClick={handleDownload}
       >
         <Download size={14} />
-        Download
+        Zip
       </Button>
+
+      <Dialog>
+        <DialogTrigger asChild>
+          <Button
+            variant="default"
+            size="sm"
+            className="h-8 gap-1 text-sm bg-green-500 hover:bg-green-600"
+          >
+            <Upload size={14} />
+            Deploy
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Deploy your game</DialogTitle>
+            <DialogDescription>
+              Deploy your game to the web in just a few simple steps.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <h3 className="font-medium text-sm">1. Download your game files</h3>
+              <p className="text-sm text-muted-foreground">
+                First, download your game as a zip file.
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2 gap-1"
+                onClick={handleDownload}
+              >
+                <Download size={14} />
+                Download Zip
+              </Button>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-medium text-sm">2. Go to Netlify Drop</h3>
+              <p className="text-sm text-muted-foreground">
+                Visit <a href="https://netlify.com/drop" target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:underline">netlify.com/drop</a> in your browser.
+              </p>
+            </div>
+            <div className="space-y-2">
+              <h3 className="font-medium text-sm">3. Drop your zip file</h3>
+              <p className="text-sm text-muted-foreground">
+                Drag and drop the downloaded zip file onto the Netlify Drop area. Netlify will automatically deploy your game and provide you with a unique URL.
+              </p>
+            </div>
+          </div>
+          <DialogFooter className="flex justify-between sm:justify-between">
+            <DialogDescription className="text-xs text-muted-foreground pt-2">
+              No account required. Completely free.
+            </DialogDescription>
+            <Button variant="default" size="sm">
+              <a href="https://netlify.com/drop" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                Open Netlify Drop
+              </a>
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+
