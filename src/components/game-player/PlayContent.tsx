@@ -1,5 +1,4 @@
-
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal";
 import { ViewToggle } from "@/components/game-player/ViewToggle";
 import { VersionSelector } from "@/components/game-player/VersionSelector";
@@ -36,6 +35,7 @@ export function PlayContent({
   currentVersion
 }: PlayContentProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [useResizableIframe, setUseResizableIframe] = useState(true);
 
   // Log state changes for debugging
   useEffect(() => {
@@ -80,7 +80,21 @@ export function PlayContent({
           <div className="flex items-center justify-between mb-4 flex-shrink-0">
             <div className="flex items-center gap-4">
               {!showGenerating && (
-                <ViewToggle showCode={showCode} setShowCode={setShowCode} />
+                <>
+                  <ViewToggle showCode={showCode} setShowCode={setShowCode} />
+                  <div className="flex items-center ml-4">
+                    <input
+                      type="checkbox"
+                      id="resizable-toggle"
+                      className="mr-2"
+                      checked={useResizableIframe}
+                      onChange={(e) => setUseResizableIframe(e.target.checked)}
+                    />
+                    <label htmlFor="resizable-toggle" className="text-sm text-gray-700">
+                      Resizable Canvas
+                    </label>
+                  </div>
+                </>
               )}
             </div>
             
@@ -108,7 +122,8 @@ export function PlayContent({
             ) : (
               <GamePreview 
                 currentVersion={currentVersion} 
-                showCode={showCode} 
+                showCode={showCode}
+                isResizable={useResizableIframe} 
                 ref={iframeRef}
               />
             )}
