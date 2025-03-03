@@ -43,10 +43,9 @@ export function VersionHistory({
     }
   };
 
-  // Sort versions by version_number in descending order
-  const sortedVersions = [...gameVersions].sort((a, b) => 
-    b.version_number - a.version_number
-  );
+  // Sort versions by version_number in descending order and remove duplicates
+  const uniqueVersions = [...new Map(gameVersions.map(v => [v.version_number, v])).values()];
+  const sortedVersions = uniqueVersions.sort((a, b) => b.version_number - a.version_number);
 
   if (sortedVersions.length <= 1) {
     return null;

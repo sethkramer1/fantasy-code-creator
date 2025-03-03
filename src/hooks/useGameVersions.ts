@@ -39,21 +39,27 @@ export const useGameVersions = (filteredGames: Game[]) => {
         // Create a map of gameId -> latest version code
         const latestVersions: Record<string, string> = {};
         
-        // Group versions by game_id
-        const gameVersionsMap: Record<string, GameCodeVersion[]> = {};
+        // Group versions by game_id and ensure unique version_numbers
+        const gameVersionsMap: Record<string, Map<number, GameCodeVersion>> = {};
         
         if (data) {
           data.forEach(version => {
             if (!gameVersionsMap[version.game_id]) {
-              gameVersionsMap[version.game_id] = [];
+              gameVersionsMap[version.game_id] = new Map();
             }
-            gameVersionsMap[version.game_id].push(version);
+            
+            // Only add if this version_number isn't already in the map
+            if (!gameVersionsMap[version.game_id].has(version.version_number)) {
+              gameVersionsMap[version.game_id].set(version.version_number, version);
+            }
           });
           
           // Get the latest version for each game
-          Object.entries(gameVersionsMap).forEach(([gameId, versions]) => {
-            // Sort versions by version_number in descending order
+          Object.entries(gameVersionsMap).forEach(([gameId, versionsMap]) => {
+            // Get all versions as array and sort
+            const versions = Array.from(versionsMap.values());
             const sortedVersions = versions.sort((a, b) => b.version_number - a.version_number);
+            
             if (sortedVersions.length > 0 && sortedVersions[0].code) {
               latestVersions[gameId] = sortedVersions[0].code;
             }
@@ -72,7 +78,7 @@ export const useGameVersions = (filteredGames: Game[]) => {
     };
     
     fetchGameVersions();
-  }, [filteredGames]);  // Use filteredGames as dependency without JSON.stringify
+  }, [filteredGames]);
 
   return { gameCodeVersions, fetchError, loading };
 };

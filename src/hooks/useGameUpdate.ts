@@ -57,8 +57,10 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
         return;
       }
 
+      console.log("Game updated successfully, fetching latest data");
+      
       // Fetch the updated game versions
-      fetchGame();
+      await fetchGame();
 
       toast({
         title: "Game updated",

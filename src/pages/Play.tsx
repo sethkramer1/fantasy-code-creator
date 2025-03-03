@@ -123,6 +123,10 @@ const Play = () => {
     }
   }, [hasValidContent]);
 
+  useEffect(() => {
+    setSelectedVersionId(null);
+  }, [gameVersions.length]);
+
   const handleDownload = () => {
     if (displayedVersion()) {
       const zip = new JSZip();
