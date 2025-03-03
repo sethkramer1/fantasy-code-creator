@@ -15,7 +15,18 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ChatInputProps } from "./types";
+
+interface ChatInputProps {
+  message: string;
+  setMessage: (message: string) => void;
+  imageUrl: string | null;
+  setImageUrl: (url: string | null) => void;
+  modelType: string;
+  handleModelChange: (value: string) => void;
+  handleSubmit: (e: React.FormEvent) => void;
+  loading: boolean;
+  disabled?: boolean;
+}
 
 export const ChatInput = ({ 
   message, 

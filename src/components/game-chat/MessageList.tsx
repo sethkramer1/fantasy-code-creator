@@ -2,7 +2,14 @@
 import { forwardRef } from "react";
 import { Loader2 } from "lucide-react";
 import { MessageItem } from "./MessageItem";
-import { MessageListProps } from "./types";
+import { Message } from "./types";
+
+interface MessageListProps {
+  messages: Message[];
+  loadingHistory: boolean;
+  onRevertToVersion?: (message: Message) => Promise<void>;
+  gameVersions?: any[];
+}
 
 export const MessageList = forwardRef<HTMLDivElement, MessageListProps>(
   ({ messages, loadingHistory, onRevertToVersion, gameVersions = [] }, ref) => {

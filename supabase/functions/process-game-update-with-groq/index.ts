@@ -101,13 +101,17 @@ The following is an HTML document that includes HTML, CSS (in style tags), and J
 1. Understand the current structure and functionality of the code
 2. Apply the requested changes from the user
 3. Return the COMPLETE, MODIFIED HTML document with all changes incorporated
-4. Make sure to preserve all existing functionality unless directly asked to change it. Other than the specific requests, keep the rest of the code the exact same.
+4. Make sure to preserve all existing functionality unless directly asked to change it
 
 IMPORTANT GUIDELINES:
 - Return ONLY the modified code, without explanations or markdown formatting
 - Include DOCTYPE, html, head, and body tags in your response
 - Make your changes minimal and focused on what the user requested
-- Other than the specific requests, keep the rest of the code the exact same. `;
+- Do not remove existing features or functionality
+- Keep the same overall document structure
+- Ensure all script and style blocks are preserved as they were
+- Assume the document will be viewed in various browsers and should be responsive
+- If you need placeholder images, use placeholder.com URLs with appropriate dimensions`;
 
     // Add any external file or image references if provided
     const imageContext = imageUrl 
@@ -135,7 +139,7 @@ Please modify the document according to the user's request and return the comple
         'Authorization': `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: "qwen-2.5-coder-32b",
+        model: "mixtral-8x7b-32768",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }

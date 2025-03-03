@@ -46,87 +46,70 @@ export function GenerationTerminal({
       
       // Delayed scroll for when DOM updates take time
       setTimeout(scrollToBottom, 10);
+      
+      // Even more delayed scroll for safety
       setTimeout(scrollToBottom, 100);
       
       // Final scroll with animation frame
       requestAnimationFrame(() => {
         scrollToBottom();
+        
+        // Double requestAnimationFrame for complex layouts
         requestAnimationFrame(scrollToBottom);
       });
     }
   }, [output]); // React to output changes
 
-  // Process output lines to better format code blocks and highlight thinking
+  // Process output lines to better format code blocks
   const processedOutput = output.map(line => {
-    // Check if line is a thinking output
-    if (line.startsWith('> Thinking:')) {
-      // Add some styling to thinking lines
-      return line.replace('> Thinking:', '> 🤔 Thinking:');
-    }
     // Check if line starts with "> " (code output indicator)
-    else if (line.startsWith('> ')) {
+    if (line.startsWith('> ')) {
       // Remove the prefix for display
       return line.slice(2);
     }
     return line;
   });
 
-  const terminalContent = (
-    <>
-      <div className="mb-4 flex-shrink-0">
-        <h2 className="text-green-400 text-xl font-bold">Generation Progress</h2>
-        <div className="text-green-400/70 space-y-2 mt-2">
-          <div className="flex items-center gap-2">
-            <Timer size={16} />
-            <span>Thinking for {thinkingTime} seconds...</span>
-          </div>
-          <p>Watching the AI create your content in real-time...</p>
-        </div>
-      </div>
-      
-      {/* Terminal output container with flex-1 to take remaining space */}
-      <div className="flex-1 overflow-hidden flex flex-col">
-        <div 
-          ref={terminalRef}
-          className="w-full h-full overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 pr-2"
-          style={{ 
-            overflowY: 'auto',
-            overflowX: 'hidden'
-          }}
-        >
-          <div className="whitespace-pre-wrap py-1 break-words">
-            {processedOutput.map((line, index) => {
-              // Highlight thinking lines
-              if (line.includes('🤔 Thinking:')) {
-                return (
-                  <div key={index} className="text-yellow-400 font-medium py-1">
-                    {line}
-                  </div>
-                );
-              }
-              return <div key={index} className="py-1">{line}</div>;
-            })}
-          </div>
-          
-          {loading && (
-            <div className="animate-pulse mt-2">
-              <span className="text-green-500">_</span>
-            </div>
-          )}
-          
-          {/* Scroll anchor */}
-          <div ref={scrollAnchorRef} />
-        </div>
-      </div>
-    </>
-  );
-
   // If asModal is false, render the terminal directly
   if (!asModal) {
     return (
-      <div className="bg-black text-green-400 font-mono p-6 flex flex-col overflow-hidden border border-green-500/20 rounded-lg h-full w-full" 
-           style={{ maxHeight: "100vh" }}>
-        {terminalContent}
+      <div className="bg-black text-green-400 font-mono p-6 flex flex-col overflow-hidden border border-green-500/20 rounded-lg h-full" 
+           style={{ maxHeight: "70vh" }}>
+        <div className="mb-4 flex-shrink-0">
+          <h2 className="text-green-400 text-xl font-bold">Generation Progress</h2>
+          <div className="text-green-400/70 space-y-2 mt-2">
+            <div className="flex items-center gap-2">
+              <Timer size={16} />
+              <span>Thinking for {thinkingTime} seconds...</span>
+            </div>
+            <p>Watching the AI create your content in real-time...</p>
+          </div>
+        </div>
+        
+        {/* Terminal output container with flex-1 to take remaining space */}
+        <div className="flex-1 overflow-hidden flex flex-col">
+          <div 
+            ref={terminalRef}
+            className="w-full h-full overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 pr-2"
+            style={{ 
+              overflowY: 'auto',
+              overflowX: 'hidden'
+            }}
+          >
+            <div className="whitespace-pre-wrap py-1 break-all">
+              {processedOutput.join('\n')}
+            </div>
+            
+            {loading && (
+              <div className="animate-pulse mt-2">
+                <span className="text-green-500">_</span>
+              </div>
+            )}
+            
+            {/* Scroll anchor */}
+            <div ref={scrollAnchorRef} />
+          </div>
+        </div>
       </div>
     );
   }
@@ -149,18 +132,8 @@ export function GenerationTerminal({
             ref={terminalRef}
             className="h-full w-full overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 pr-2"
           >
-            <div className="whitespace-pre-wrap py-1 break-words">
-              {processedOutput.map((line, index) => {
-                // Highlight thinking lines
-                if (line.includes('🤔 Thinking:')) {
-                  return (
-                    <div key={index} className="text-yellow-400 font-medium py-1">
-                      {line}
-                    </div>
-                  );
-                }
-                return <div key={index} className="py-1">{line}</div>;
-              })}
+            <div className="whitespace-pre-wrap py-1 break-all">
+              {processedOutput.join('\n')}
             </div>
             
             {loading && (

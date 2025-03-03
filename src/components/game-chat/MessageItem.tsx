@@ -1,7 +1,13 @@
 
 import { Button } from "@/components/ui/button";
 import { Loader2, RotateCcw } from "lucide-react";
-import { MessageItemProps } from "./types";
+import { Message } from "./types";
+
+interface MessageItemProps {
+  message: Message;
+  onRevertToVersion?: (message: Message) => Promise<void>;
+  gameVersions?: any[];
+}
 
 export const MessageItem = ({ message, onRevertToVersion, gameVersions = [] }: MessageItemProps) => {
   return (

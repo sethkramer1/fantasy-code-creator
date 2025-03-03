@@ -1,10 +1,8 @@
 
-import { Loader2, Terminal, Wand2, Info, EyeOff, Eye } from "lucide-react";
+import { Loader2, Terminal, Wand2, Info } from "lucide-react";
 import { GameTypeSelector } from "./GameTypeSelector";
 import { GamePromptInput } from "./GamePromptInput";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import {
   Tooltip,
   TooltipContent,
@@ -27,8 +25,6 @@ interface GenerationFormProps {
   modelType?: string;
   setModelType?: (type: string) => void;
   showModelPreference?: boolean;
-  visibility?: string;
-  setVisibility?: (visibility: string) => void;
 }
 
 export function GenerationForm({
@@ -43,11 +39,9 @@ export function GenerationForm({
   imageUrl,
   onImageUploaded,
   onImageRemoved,
-  modelType = "smart", 
+  modelType = "smart", // Changed default from "fast" to "smart"
   setModelType = () => {},
-  showModelPreference = false,
-  visibility = "public",
-  setVisibility = () => {}
+  showModelPreference = false
 }: GenerationFormProps) {
   return (
     <div className="glass-panel p-8 space-y-6 card-shadow">
@@ -116,53 +110,6 @@ export function GenerationForm({
             </Select>
           </div>
         )}
-        
-        {/* Visibility toggle */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <p className="font-medium text-gray-700">Visibility</p>
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="cursor-help">
-                      <Info size={16} className="text-gray-400 hover:text-gray-600" />
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs p-3">
-                    <p>Choose who can see your creation:</p>
-                    <ul className="mt-2 text-sm list-disc pl-4 space-y-1">
-                      <li><strong>Public</strong>: Anyone can view your creation</li>
-                      <li><strong>Private</strong>: Only you can view your creation</li>
-                    </ul>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-2">
-                <Label htmlFor="visibility-toggle" className="text-sm text-gray-500">
-                  {visibility === "private" ? (
-                    <div className="flex items-center gap-1">
-                      <EyeOff size={14} /> 
-                      <span>Private</span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-1">
-                      <Eye size={14} /> 
-                      <span>Public</span>
-                    </div>
-                  )}
-                </Label>
-                <Switch 
-                  id="visibility-toggle" 
-                  checked={visibility === "private"}
-                  onCheckedChange={(checked) => setVisibility(checked ? "private" : "public")}
-                />
-              </div>
-            </div>
-          </div>
-        </div>
       </div>
       
       <div className="pt-2">

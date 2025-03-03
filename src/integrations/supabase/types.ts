@@ -102,8 +102,6 @@ export type Database = {
           model_type: string | null
           prompt: string
           type: string | null
-          user_id: string | null
-          visibility: string
         }
         Insert: {
           code: string
@@ -114,8 +112,6 @@ export type Database = {
           model_type?: string | null
           prompt: string
           type?: string | null
-          user_id?: string | null
-          visibility?: string
         }
         Update: {
           code?: string
@@ -126,8 +122,6 @@ export type Database = {
           model_type?: string | null
           prompt?: string
           type?: string | null
-          user_id?: string | null
-          visibility?: string
         }
         Relationships: []
       }
