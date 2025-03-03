@@ -99,7 +99,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
         const { html, css, js } = parseCodeSections(processedCode);
         
         return (
-          <div className="h-full relative">
+          <div className="h-full relative rounded-lg overflow-hidden border border-gray-200 shadow-sm">
             <CodeEditor html={html} css={css} js={js} />
           </div>
         );

@@ -1,4 +1,3 @@
-
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -207,7 +206,7 @@ const Play = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full">
+    <div className="flex flex-col h-screen w-full bg-white">
       <PlayNavbar
         gameId={gameId}
         gameName={initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading...")}
@@ -230,7 +229,7 @@ const Play = () => {
           initialPrompt={initialPrompt}
         />
         
-        <div className="flex-1 h-full overflow-hidden">
+        <div className="flex-1 h-full overflow-hidden bg-gray-50">
           {generationInProgress ? (
             <GenerationTerminal
               open={showTerminal}
@@ -242,7 +241,7 @@ const Play = () => {
             />
           ) : (
             <div className="h-full flex flex-col">
-              <div className="flex justify-between items-center p-3 bg-white border-b border-gray-200">
+              <div className="flex justify-between items-center p-3 bg-white border-b border-gray-200 shadow-sm">
                 <ViewToggle showCode={showCode} onToggle={setShowCode} />
                 <VersionHistory 
                   gameVersions={gameVersions} 
@@ -252,7 +251,7 @@ const Play = () => {
                   selectedVersionId={selectedVersionId}
                 />
               </div>
-              <div className="flex-1 overflow-hidden bg-white">
+              <div className="flex-1 overflow-hidden bg-white p-4">
                 <GamePreview
                   key={`preview-${displayedVersion()?.id || 'loading'}`}
                   currentVersion={displayedVersion()}

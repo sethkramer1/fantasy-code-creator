@@ -8,15 +8,15 @@ interface ViewToggleProps {
 
 export function ViewToggle({ showCode, onToggle }: ViewToggleProps) {
   return (
-    <div className="inline-flex bg-gray-100 rounded-lg p-1 h-9">
+    <div className="inline-flex bg-gray-50 rounded-md p-1 shadow-sm border border-gray-100">
       <Button
         type="button"
         variant="ghost"
         size="sm"
-        className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+        className={`rounded px-4 py-1.5 text-sm font-medium transition-colors ${
           !showCode 
-            ? 'bg-white text-gray-800 shadow-sm' 
-            : 'text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+            ? 'bg-white text-gray-800 shadow-sm border border-gray-100' 
+            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
         }`}
         onClick={() => onToggle(false)}
       >
@@ -26,10 +26,10 @@ export function ViewToggle({ showCode, onToggle }: ViewToggleProps) {
         type="button"
         variant="ghost"
         size="sm"
-        className={`rounded-md px-4 py-1.5 text-sm font-medium transition-colors ${
+        className={`rounded px-4 py-1.5 text-sm font-medium transition-colors ${
           showCode 
-            ? 'bg-white text-gray-800 shadow-sm' 
-            : 'text-gray-600 hover:bg-gray-200 hover:text-gray-800'
+            ? 'bg-white text-gray-800 shadow-sm border border-gray-100' 
+            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-800'
         }`}
         onClick={() => onToggle(true)}
       >

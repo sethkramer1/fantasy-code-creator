@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -90,6 +89,43 @@
   
   .code-editor-line {
     @apply text-gray-500 text-sm border-r border-gray-200 pr-2 mr-2 text-right w-8;
+  }
+
+  /* Syntax highlighting classes */
+  .code-keyword {
+    @apply text-purple-600;
+  }
+  
+  .code-string {
+    @apply text-green-600;
+  }
+  
+  .code-comment {
+    @apply text-gray-500;
+  }
+  
+  .code-function {
+    @apply text-blue-600;
+  }
+  
+  .code-variable {
+    @apply text-blue-600;
+  }
+  
+  .code-operator {
+    @apply text-orange-500;
+  }
+  
+  .code-punctuation {
+    @apply text-gray-600;
+  }
+  
+  .code-property {
+    @apply text-blue-400;
+  }
+  
+  .code-number {
+    @apply text-orange-400;
   }
 }
 
