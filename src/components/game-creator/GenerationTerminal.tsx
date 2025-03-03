@@ -124,7 +124,7 @@ export function GenerationTerminal({
   // If asModal is false, render the terminal directly
   if (!asModal) {
     return (
-      <div className="bg-black text-green-400 font-mono p-6 flex flex-col overflow-hidden border border-green-500/20 rounded-lg h-full w-full" 
+      <div className="bg-black text-green-400 font-mono p-6 flex flex-col overflow-hidden border border-green-500/20 h-full w-full" 
            style={{ maxHeight: "100vh" }}>
         {terminalContent}
       </div>
@@ -134,7 +134,7 @@ export function GenerationTerminal({
   // Render as a modal dialog
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden border border-green-500/20">
+      <DialogContent className="bg-black text-green-400 font-mono p-6 max-w-2xl w-full max-h-[80vh] overflow-hidden border border-green-500/20 rounded-none">
         <DialogTitle className="text-green-400 mb-4">Generation Progress</DialogTitle>
         <DialogDescription className="text-green-400/70 space-y-2">
           <div className="flex items-center gap-2">
