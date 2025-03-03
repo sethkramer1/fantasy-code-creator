@@ -6,9 +6,10 @@ import { toast } from "@/hooks/use-toast";
 interface CodeWithLineNumbersProps {
   code: string;
   language: string;
+  fontFamily?: string;
 }
 
-export const CodeWithLineNumbers = ({ code, language }: CodeWithLineNumbersProps) => {
+export const CodeWithLineNumbers = ({ code, language, fontFamily = "Consolas, monospace" }: CodeWithLineNumbersProps) => {
   const lines = code.split('\n');
   
   const handleCopyCode = () => {
@@ -38,7 +39,7 @@ export const CodeWithLineNumbers = ({ code, language }: CodeWithLineNumbersProps
           </div>
         ))}
       </div>
-      <pre className="flex-1 overflow-auto pl-4 text-gray-100">
+      <pre className="flex-1 overflow-auto pl-4 text-gray-100" style={{ fontFamily }}>
         <code className={`language-${language} whitespace-pre`}>
           {code}
         </code>
