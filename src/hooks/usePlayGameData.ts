@@ -25,11 +25,14 @@ export function usePlayGameData(gameId: string | undefined) {
   const [game, setGame] = useState<GameData | null>(null);
   const [currentVersion, setCurrentVersion] = useState<GameVersion | undefined>(undefined);
   const [gameVersions, setGameVersions] = useState<GameVersion[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
 
   const fetchGame = async () => {
     if (!gameId) return;
 
+    setIsLoading(true);
+    
     try {
       const { data: gameData, error: gameError } = await supabase
         .from('games')
@@ -44,6 +47,7 @@ export function usePlayGameData(gameId: string | undefined) {
           description: gameError.message,
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
 
@@ -54,6 +58,7 @@ export function usePlayGameData(gameId: string | undefined) {
           variant: "destructive",
         });
         navigate("/");
+        setIsLoading(false);
         return;
       }
 
@@ -72,11 +77,13 @@ export function usePlayGameData(gameId: string | undefined) {
           description: versionError.message,
           variant: "destructive",
         });
+        setIsLoading(false);
         return;
       }
 
       setGameVersions(versionData);
       setCurrentVersion(versionData[0]);
+      setIsLoading(false);
     } catch (error) {
       console.error("Error fetching game data:", error);
       toast({
@@ -84,6 +91,7 @@ export function usePlayGameData(gameId: string | undefined) {
         description: error instanceof Error ? error.message : "An unexpected error occurred",
         variant: "destructive",
       });
+      setIsLoading(false);
     }
   };
 
@@ -96,6 +104,7 @@ export function usePlayGameData(gameId: string | undefined) {
     currentVersion,
     gameVersions,
     fetchGame,
-    setGame
+    setGame,
+    isLoading
   };
 }
