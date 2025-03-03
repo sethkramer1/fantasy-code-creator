@@ -139,7 +139,7 @@ Please modify the document according to the user's request and return the comple
         'Authorization': `Bearer ${GROQ_API_KEY}`
       },
       body: JSON.stringify({
-        model: "mixtral-8x7b-32768",
+        model: "qwen-2.5-coder-32b",
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt }
