@@ -1,3 +1,4 @@
+
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -241,7 +242,7 @@ const Play = () => {
             />
           ) : (
             <div className="h-full flex flex-col">
-              <div className="flex justify-between items-center p-3 bg-white border-b border-gray-200 shadow-sm">
+              <div className="flex justify-between items-center p-3 bg-white border-b border-gray-200">
                 <ViewToggle showCode={showCode} onToggle={setShowCode} />
                 <VersionHistory 
                   gameVersions={gameVersions} 

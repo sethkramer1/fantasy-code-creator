@@ -23,11 +23,11 @@ export function GameCard({ game, gameCode, onClick }: GameCardProps) {
   
   return (
     <div 
-      className="rounded-xl bg-white border border-gray-100 hover:border-gray-200 transition-all text-left group overflow-hidden cursor-pointer hover-scale card-shadow"
+      className="bg-white border border-gray-200 transition-all text-left group overflow-hidden cursor-pointer hover-scale card-shadow"
       onClick={onClick}
     >
       {/* Preview iframe */}
-      <div className="relative w-full h-40 bg-gray-50 border-b border-gray-100 overflow-hidden">
+      <div className="relative w-full h-40 bg-gray-50 border-b border-gray-200 overflow-hidden">
         {gameCode ? (
           <iframe 
             key={iframeKey}
@@ -62,14 +62,14 @@ export function GameCard({ game, gameCode, onClick }: GameCardProps) {
             
             <div className="flex items-center gap-2">
               {game.type && (
-                <span className={`text-xs px-2.5 py-1 rounded-full ${badgeColor} whitespace-nowrap flex-shrink-0 font-medium`}>
+                <span className={`text-xs px-2.5 py-1 ${badgeColor} whitespace-nowrap flex-shrink-0 font-medium`}>
                   {label.split(' ')[0]}
                 </span>
               )}
             </div>
           </div>
           
-          <div className="p-1.5 rounded-full bg-gray-50 group-hover:bg-gray-100 transition-colors">
+          <div className="p-1.5 bg-gray-50 group-hover:bg-gray-100 transition-colors">
             <ArrowUpRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
           </div>
         </div>

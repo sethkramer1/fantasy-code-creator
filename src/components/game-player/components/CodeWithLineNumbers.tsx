@@ -47,7 +47,7 @@ export const CodeWithLineNumbers = ({ code, language }: CodeWithLineNumbersProps
       </pre>
       <button
         onClick={handleCopyCode}
-        className="absolute top-2 right-2 p-1.5 bg-gray-200 hover:bg-gray-300 rounded-md text-gray-700 hover:text-gray-900 transition-colors"
+        className="absolute top-2 right-2 p-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 hover:text-gray-900 transition-colors"
         title="Copy code"
       >
         <Copy size={16} />
