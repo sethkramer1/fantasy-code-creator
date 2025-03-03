@@ -20,12 +20,20 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       }
     }, [ref]);
 
+    // This effect triggers when code or selectedFont changes
     useEffect(() => {
-      console.log("IframePreview received code update, length:", code?.length);
+      console.log("IframePreview update - Font:", selectedFont);
       if (localIframeRef.current) {
+        // Update the iframe's content when font or code changes
+        const doc = localIframeRef.current.contentDocument;
+        if (doc) {
+          doc.open();
+          doc.write(prepareIframeContent(code));
+          doc.close();
+        }
         localIframeRef.current.focus();
       }
-    }, [code]);
+    }, [code, selectedFont]);
 
     const prepareIframeContent = (html: string) => {
       // Add font style if one is selected
@@ -227,7 +235,7 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
           sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
           title="Generated Content"
           tabIndex={0}
-          onLoad={() => console.log("Iframe content loaded")}
+          onLoad={() => console.log("Iframe content loaded with font:", selectedFont)}
         />
       </div>
     );

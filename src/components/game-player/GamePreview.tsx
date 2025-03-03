@@ -47,6 +47,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     }, [currentVersion]);
 
     const handleFontChange = (value: string) => {
+      console.log("Font changed to:", value);
       setSelectedFont(value);
     };
 
@@ -94,6 +95,26 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       
       return (
         <div className="h-full relative">
+          <div className="absolute top-3 right-3 z-10 flex items-center gap-2 bg-gray-800/70 backdrop-blur-sm rounded-md px-2 py-1">
+            <Type size={14} className="text-gray-300" />
+            <Select value={selectedFont} onValueChange={handleFontChange}>
+              <SelectTrigger className="h-7 w-40 bg-gray-700/90 border-gray-600 text-xs text-white">
+                <SelectValue placeholder="Select font" />
+              </SelectTrigger>
+              <SelectContent className="max-h-60">
+                {fontOptions.map((font) => (
+                  <SelectItem 
+                    key={font.value} 
+                    value={font.value}
+                    className="text-xs"
+                    style={{ fontFamily: font.value }}
+                  >
+                    {font.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <CodeEditor 
             html={html} 
             css={css} 
