@@ -113,19 +113,17 @@ export function GameActions({
       
       toast({
         title: "Deployment Successful!",
-        description: (
-          <div>
-            Your site has been deployed to{' '}
-            <a 
-              href={data.site_url} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="underline font-medium"
-            >
-              {data.site_url}
-            </a>
-          </div>
-        )
+        description: <div>
+          Your site has been deployed to{' '}
+          <a 
+            href={data.site_url} 
+            target="_blank" 
+            rel="noopener noreferrer"
+            className="underline font-medium"
+          >
+            {data.site_url}
+          </a>
+        </div>
       });
     } catch (error) {
       console.error("Deployment error:", error);

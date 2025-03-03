@@ -16,7 +16,6 @@ export default function Play() {
   const { toast } = useToast();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCode, setShowCode] = useState(false);
-  const [input, setInput] = useState("");
   const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [modelType, setModelType] = useState<string>("smart");
 
@@ -29,18 +28,17 @@ export default function Play() {
   }
 
   // Game versions hook
-  const gameVersionsState = useGameVersions(gameId);
   const { 
     gameVersions,
     loadingVersions,
     currentVersion,
-    selectedVersionId,
-    setSelectedVersionId,
+    selectedVersion,
+    setSelectedVersion,
     isLatestVersion,
     handleRevertToVersion
-  } = gameVersionsState;
+  } = useGameVersions(gameId);
 
-  const { input: chatInput, setInput: setChatInput, messages, loading, handleSubmit } = useTerminal(gameId, selectedVersionId);
+  const { input: chatInput, setInput: setChatInput, messages, loading, handleSubmit } = useTerminal(gameId, selectedVersion);
 
   // Initial game generation hook for new games
   useInitialGeneration(gameId);
@@ -106,28 +104,28 @@ export default function Play() {
   return (
     <div className="flex h-screen flex-col">
       <PlayNavbar
-        sidebarOpen={sidebarOpen}
-        setSidebarOpen={setSidebarOpen}
         showCode={showCode}
         setShowCode={setShowCode}
         isLatestVersion={isLatestVersion}
         onRevertToVersion={handleRevertToVersion}
         currentVersion={currentVersion}
         gameId={gameId}
+        showSidebar={sidebarOpen}
+        setShowSidebar={setSidebarOpen}
       />
       <div className="relative flex flex-1 overflow-hidden">
         <PlayContent
           gameVersions={gameVersions}
-          selectedVersionId={selectedVersionId}
-          setSelectedVersionId={setSelectedVersionId}
+          selectedVersion={selectedVersion}
+          setSelectedVersion={setSelectedVersion}
           showCode={showCode}
           gameId={gameId}
         />
         
         {/* Sidebar */}
         <SidebarChat
-          open={sidebarOpen}
-          setOpen={setSidebarOpen} 
+          isOpen={sidebarOpen}
+          setIsOpen={setSidebarOpen} 
           onSubmit={handleSubmit}
           input={chatInput}
           setInput={setChatInput}
