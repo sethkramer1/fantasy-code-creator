@@ -45,6 +45,13 @@ const Play = () => {
     }
   }, [generationInProgress, gameId, generating, fetchGame]);
 
+  // Log when currentVersion changes
+  useEffect(() => {
+    if (currentVersion) {
+      console.log("Current version updated:", currentVersion.id, "Code length:", currentVersion.code?.length);
+    }
+  }, [currentVersion]);
+
   if (!gameId || !game) {
     return (
       <div className="h-screen flex items-center justify-center">

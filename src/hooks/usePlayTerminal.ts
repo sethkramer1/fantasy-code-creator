@@ -1,6 +1,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { ModelType } from "@/types/generation";
 
 export function usePlayTerminal(gameId: string | undefined, generating: boolean, initialPrompt: string, initialType: string, initialModelType: string, initialImageUrl: string) {
   const [generationInProgress, setGenerationInProgress] = useState(false);
@@ -52,7 +53,7 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
 
           setTerminalOutput(prev => [...prev, `> Using ${initialModelType === "smart" ? "Claude (Smartest)" : "Groq (Fastest)"} model`]);
           
-          // Call the generate-game function instead of process-game-update for initial generation
+          // Always use the generate-game function for initial generation
           const apiUrl = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game';
           
           setTerminalOutput(prev => [...prev, `> Connecting to generation service...`]);
@@ -60,14 +61,16 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
           const payload = {
             prompt: initialPrompt,
             gameType: initialType,
-            modelType: initialModelType,
+            modelType: initialModelType as ModelType,
             gameId: gameId,
-            stream: initialModelType === "smart" // Only stream for Claude/smart model
+            stream: true // Always stream for better UX
           };
           
           if (initialImageUrl) {
             payload['imageUrl'] = initialImageUrl;
           }
+          
+          console.log("Sending payload to generate-game:", payload);
           
           const apiResponse = await fetch(apiUrl, {
             method: 'POST',
@@ -83,13 +86,10 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
             throw new Error(`API error (${apiResponse.status}): ${errorText}`);
           }
 
-          // Always handle streaming for Claude/smart model
-          if (apiResponse && initialModelType === "smart") {
-            const reader = apiResponse.body?.getReader();
-            if (!reader) {
-              throw new Error("ReadableStream not supported in this browser.");
-            }
-
+          // Always handle streaming 
+          if (apiResponse && apiResponse.body) {
+            const reader = apiResponse.body.getReader();
+            
             let partialResponse = "";
             let decoder = new TextDecoder();
 
@@ -116,8 +116,12 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
                         try {
                           const data = JSON.parse(line.substring(6));
                           
-                          if (data.thinking) {
-                            setTerminalOutput(prev => [...prev, `> Thinking: ${data.thinking}`]);
+                          if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
+                            const thinking = data.delta.thinking || '';
+                            if (thinking && thinking.trim()) {
+                              setTerminalOutput(prev => [...prev, `> Thinking: ${thinking}`]);
+                              console.log("Thinking update:", thinking);
+                            }
                           } else if (data.delta?.text) {
                             setTerminalOutput(prev => [...prev, `> ${data.delta.text}`]);
                           }
@@ -159,10 +163,8 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
 
             processStream();
           } else {
-            // Non-streaming case (Groq/fast model)
-            const responseData = await apiResponse.json();
-            console.log("Received complete response from fast model:", responseData);
-            setTerminalOutput(prev => [...prev, "> Received complete response from fast model"]);
+            // Non-streaming fallback
+            setTerminalOutput(prev => [...prev, "> Received complete response"]);
             
             // Explicitly fetch the game version to ensure we have the latest data
             await fetchGameVersion(gameId);

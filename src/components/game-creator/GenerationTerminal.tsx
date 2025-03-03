@@ -56,10 +56,15 @@ export function GenerationTerminal({
     }
   }, [output]); // React to output changes
 
-  // Process output lines to better format code blocks
+  // Process output lines to better format code blocks and highlight thinking
   const processedOutput = output.map(line => {
+    // Check if line is a thinking output
+    if (line.startsWith('> Thinking:')) {
+      // Add some styling to thinking lines
+      return line.replace('> Thinking:', '> 🤔 Thinking:');
+    }
     // Check if line starts with "> " (code output indicator)
-    if (line.startsWith('> ')) {
+    else if (line.startsWith('> ')) {
       // Remove the prefix for display
       return line.slice(2);
     }
@@ -89,8 +94,18 @@ export function GenerationTerminal({
             overflowX: 'hidden'
           }}
         >
-          <div className="whitespace-pre-wrap py-1 break-all">
-            {processedOutput.join('\n')}
+          <div className="whitespace-pre-wrap py-1 break-words">
+            {processedOutput.map((line, index) => {
+              // Highlight thinking lines
+              if (line.includes('🤔 Thinking:')) {
+                return (
+                  <div key={index} className="text-yellow-400 font-medium py-1">
+                    {line}
+                  </div>
+                );
+              }
+              return <div key={index} className="py-1">{line}</div>;
+            })}
           </div>
           
           {loading && (
@@ -134,8 +149,18 @@ export function GenerationTerminal({
             ref={terminalRef}
             className="h-full w-full overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 pr-2"
           >
-            <div className="whitespace-pre-wrap py-1 break-all">
-              {processedOutput.join('\n')}
+            <div className="whitespace-pre-wrap py-1 break-words">
+              {processedOutput.map((line, index) => {
+                // Highlight thinking lines
+                if (line.includes('🤔 Thinking:')) {
+                  return (
+                    <div key={index} className="text-yellow-400 font-medium py-1">
+                      {line}
+                    </div>
+                  );
+                }
+                return <div key={index} className="py-1">{line}</div>;
+              })}
             </div>
             
             {loading && (

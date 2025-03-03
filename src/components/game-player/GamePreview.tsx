@@ -21,6 +21,9 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
   ({ currentVersion, showCode }, ref) => {
     useEffect(() => {
       console.log("GamePreview received currentVersion update", currentVersion?.id, "showCode:", showCode);
+      if (currentVersion?.code) {
+        console.log("Code preview available, length:", currentVersion.code.length);
+      }
     }, [currentVersion, showCode]);
 
     // Handle case when no version is available yet
@@ -35,13 +38,14 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     // Check if currentVersion has valid code
     const hasValidCode = currentVersion.code && 
                          currentVersion.code !== "Generating..." && 
-                         currentVersion.code.length > 0;
+                         currentVersion.code.length > 10; // More strict check
 
     if (!hasValidCode) {
       return (
         <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="text-gray-500">Generating content...</p>
+          <p className="text-gray-500">Loading generated content...</p>
+          <p className="text-gray-400 text-sm">This may take a moment to appear</p>
         </div>
       );
     }
