@@ -20,6 +20,48 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
       }
     }, [ref]);
 
+    // Add script to handle anchor clicks within the iframe
+    const injectAnchorClickHandlers = () => {
+      const iframe = localIframeRef.current;
+      if (!iframe || !iframe.contentWindow || !iframe.contentDocument) return;
+      
+      try {
+        // Wait for iframe to load
+        iframe.contentWindow.addEventListener('load', () => {
+          // Add script to handle anchor clicks
+          const script = iframe.contentDocument.createElement('script');
+          script.textContent = `
+            document.addEventListener('click', function(e) {
+              // Handle anchor clicks
+              if (e.target.tagName === 'A' || e.target.closest('a')) {
+                const anchor = e.target.tagName === 'A' ? e.target : e.target.closest('a');
+                const href = anchor.getAttribute('href');
+                
+                // Only handle same-page anchors
+                if (href && href.startsWith('#')) {
+                  e.preventDefault();
+                  const targetElement = document.querySelector(href);
+                  if (targetElement) {
+                    targetElement.scrollIntoView({ behavior: 'smooth' });
+                  }
+                  return false;
+                }
+              }
+            }, true);
+          `;
+          iframe.contentDocument.head.appendChild(script);
+        });
+      } catch (error) {
+        console.error("Error injecting anchor handlers:", error);
+      }
+    };
+
+    // Setup the iframe after it renders
+    useEffect(() => {
+      if (!localIframeRef.current || !code) return;
+      injectAnchorClickHandlers();
+    }, [code]);
+
     // If there's no code, show a loading state
     if (!code) {
       return (
@@ -29,13 +71,25 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
       );
     }
     
+    // Modify the HTML code to include base target
+    const enhancedCode = code.replace('<head>', 
+      `<head>
+        <base target="_self">
+        <style>
+          html, body {
+            height: 100%;
+            overflow: auto;
+            scroll-behavior: smooth;
+          }
+        </style>`);
+    
     // Render the iframe with the code
     return (
       <iframe
         ref={localIframeRef}
-        srcDoc={code}
+        srcDoc={enhancedCode}
         className="absolute inset-0 w-full h-full border border-gray-200"
-        sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-top-navigation allow-pointer-lock"
+        sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-pointer-lock"
         title="Generated Content"
         tabIndex={0}
         style={{ 
