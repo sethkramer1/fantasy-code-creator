@@ -1,4 +1,3 @@
-
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -21,17 +20,14 @@ const Play = () => {
   const { toast } = useToast();
   const contentInitializedRef = useRef(false);
   
-  // Get search params for generation
   const generating = searchParams.get("generating") === "true";
   const initialType = searchParams.get("type") || "webdesign";
   const initialModelType = searchParams.get("modelType") || "smart";
   const initialImageUrl = searchParams.get("imageUrl") || "";
   const promptFromUrl = searchParams.get("prompt") || "";
   
-  // Use a single ref to track generation handling
   const generationHandledRef = useRef(false);
   
-  // Use custom hooks for data loading
   const { 
     game, 
     currentVersion, 
@@ -48,10 +44,8 @@ const Play = () => {
     gameId, game, gameVersions, fetchGame
   );
   
-  // Set the initial prompt
   const initialPrompt = promptFromUrl || (game?.prompt || "Loading...");
   
-  // Terminal state management
   const {
     generationInProgress,
     terminalOutput,
@@ -62,44 +56,32 @@ const Play = () => {
     generationError
   } = usePlayTerminal(gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl);
 
-  // Check if content is valid
   const hasValidContent = useCallback(() => {
     return currentVersion?.code && 
            currentVersion.code !== "Generating..." && 
            currentVersion.code.length > 100;
   }, [currentVersion]);
 
-  // Reset when gameId changes
   useEffect(() => {
     generationHandledRef.current = false;
     contentInitializedRef.current = false;
   }, [gameId]);
 
-  // Handle post-generation logic once
   useEffect(() => {
-    // Only proceed if we're in generating mode and generation has completed
     if (generating && !generationInProgress && !generationHandledRef.current) {
-      // Mark as handled immediately to prevent multiple executions
       generationHandledRef.current = true;
       
-      // Try to fetch the updated game data
       const loadContent = async () => {
         try {
           await fetchGame();
-          
-          // Remove generating param after content is loaded (successful or not)
           navigate(`/play/${gameId}`, { replace: true });
         } catch (error) {
           console.error("Error refreshing game data after generation:", error);
-          
-          // Show error toast
           toast({
             title: "Error loading content",
             description: "Failed to load the generated content. Please try refreshing the page.",
             variant: "destructive"
           });
-          
-          // Remove generating param even if there was an error
           navigate(`/play/${gameId}`, { replace: true });
         }
       };
@@ -107,11 +89,9 @@ const Play = () => {
       loadContent();
     }
     
-    // Handle generation error
     if (generationError && !generationHandledRef.current) {
       generationHandledRef.current = true;
       
-      // Remove the generating parameter
       if (generating) {
         navigate(`/play/${gameId}`, { replace: true });
       }
@@ -124,7 +104,6 @@ const Play = () => {
     }
   }, [generationInProgress, gameId, fetchGame, navigate, toast, generating, generationError]);
 
-  // Mark content as initialized when valid content is available
   useEffect(() => {
     if (hasValidContent() && !contentInitializedRef.current) {
       contentInitializedRef.current = true;
@@ -132,7 +111,6 @@ const Play = () => {
     }
   }, [hasValidContent]);
 
-  // Handle missing gameId
   if (!gameId) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -141,7 +119,6 @@ const Play = () => {
     );
   }
 
-  // Show loading state for initial load
   if (gameDataLoading && !generationInProgress && !contentInitializedRef.current) {
     return (
       <div className="h-screen flex items-center justify-center">
