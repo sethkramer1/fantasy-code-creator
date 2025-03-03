@@ -35,10 +35,16 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
         ref={localIframeRef}
         srcDoc={code}
         className="absolute inset-0 w-full h-full border border-gray-200"
-        sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+        sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-top-navigation allow-pointer-lock"
         title="Generated Content"
         tabIndex={0}
-        style={{ width: '100%', height: '100%', position: 'absolute' }}
+        style={{ 
+          width: '100%', 
+          height: '100%', 
+          position: 'absolute', 
+          overflow: 'auto', 
+          pointerEvents: 'auto'
+        }}
       />
     );
   }
