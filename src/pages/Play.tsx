@@ -388,7 +388,7 @@ const Play = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen w-full">
       <PlayNavbar
         gameId={gameId}
         gameName={game.prompt}
@@ -408,13 +408,7 @@ const Play = () => {
         }}
       />
 
-      <div className="flex flex-grow">
-        <GamePreview
-          currentVersion={currentVersion}
-          showCode={showCode}
-          ref={iframeRef}
-        />
-
+      <div className="flex flex-grow w-full overflow-hidden">
         <SidebarChat
           gameId={gameId}
           generationInProgress={generationInProgress}
@@ -424,6 +418,14 @@ const Play = () => {
           gameVersions={gameVersions}
           initialPrompt={initialPrompt}
         />
+        
+        <div className="flex-1 h-full overflow-hidden">
+          <GamePreview
+            currentVersion={currentVersion}
+            showCode={showCode}
+            ref={iframeRef}
+          />
+        </div>
       </div>
 
       <GenerationTerminal
