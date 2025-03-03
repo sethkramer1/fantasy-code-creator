@@ -92,6 +92,132 @@ export function usePlayTerminal(
     };
   }, [state.generationInProgress]);
 
+  // Function to process streaming data from Anthropic API
+  const processAnthropicStream = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
+    let content = '';
+    let buffer = '';
+    let currentLineContent = '';
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) {
+          updateTerminalOutput("> Stream complete", true);
+          break;
+        }
+        
+        // Decode the chunk and add it to our buffer
+        const text = new TextDecoder().decode(value);
+        buffer += text;
+        
+        // Process complete lines from the buffer
+        let lineEnd;
+        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, lineEnd);
+          buffer = buffer.slice(lineEnd + 1);
+          
+          // Skip empty lines
+          if (!line) continue;
+          
+          // Handle Anthropic streaming format
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(5));
+              
+              switch (data.type) {
+                case 'message_start':
+                  updateTerminalOutput("> Generation started", true);
+                  break;
+                  
+                case 'content_block_start':
+                  if (data.content_block?.type === 'thinking') {
+                    updateTerminalOutput("> Thinking phase started...", true);
+                  }
+                  break;
+                  
+                case 'content_block_delta':
+                  if (data.delta?.type === 'thinking_delta') {
+                    const thinking = data.delta.thinking || '';
+                    if (thinking && thinking.trim()) {
+                      updateTerminalOutput(`> Thinking: ${thinking}`, true);
+                    }
+                  } else if (data.delta?.type === 'text_delta') {
+                    const contentChunk = data.delta.text || '';
+                    if (contentChunk) {
+                      content += contentChunk;
+                      
+                      // Handle multiline content chunks
+                      if (contentChunk.includes('\n')) {
+                        const lines = contentChunk.split('\n');
+                        
+                        // Add first line to current line
+                        if (lines[0]) {
+                          currentLineContent += lines[0];
+                          updateTerminalOutput(`> ${currentLineContent}`, false);
+                        }
+                        
+                        // Add middle lines as separate entries
+                        for (let i = 1; i < lines.length - 1; i++) {
+                          if (lines[i].trim()) {
+                            currentLineContent = lines[i];
+                            updateTerminalOutput(`> ${currentLineContent}`, true);
+                          }
+                        }
+                        
+                        // Start a new current line with the last part
+                        if (lines.length > 1) {
+                          currentLineContent = lines[lines.length - 1];
+                          if (currentLineContent) {
+                            updateTerminalOutput(`> ${currentLineContent}`, true);
+                          } else {
+                            currentLineContent = '';
+                          }
+                        }
+                      } else {
+                        // Add to current line for single-line chunks
+                        currentLineContent += contentChunk;
+                        updateTerminalOutput(`> ${currentLineContent}`, false);
+                      }
+                    }
+                  }
+                  break;
+                  
+                case 'content_block_stop':
+                  if (data.content_block?.type === 'thinking') {
+                    updateTerminalOutput("> Thinking phase completed", true);
+                  }
+                  break;
+                  
+                case 'message_delta':
+                  if (data.delta?.stop_reason) {
+                    updateTerminalOutput(`> Generation ${data.delta.stop_reason}`, true);
+                  }
+                  break;
+                  
+                case 'message_stop':
+                  updateTerminalOutput("> Generation completed!", true);
+                  break;
+                  
+                case 'error':
+                  throw new Error(data.error?.message || 'Unknown error in stream');
+              }
+            } catch (e) {
+              console.error('Error parsing SSE line:', e);
+              console.log('Raw data that failed to parse:', line.slice(5));
+            }
+          }
+        }
+      }
+      
+      return content;
+    } catch (error) {
+      console.error("Stream processing error:", error);
+      updateTerminalOutput(`> Error: ${error.message}`, true);
+      throw error;
+    }
+  };
+
   // Handle initial generation
   useEffect(() => {
     const generateInitialContent = async () => {
@@ -150,102 +276,12 @@ export function usePlayTerminal(
         updateTerminalOutput("> Connection established, receiving content...", true);
         
         // Process the streaming or non-streaming response
+        let content = '';
+        
         if (modelType === "smart" && response.body) {
           // Handle streaming response
           const reader = response.body.getReader();
-          let content = '';
-          let lastMessageTime = Date.now();
-          const IDLE_TIMEOUT = 30000; // 30 seconds timeout
-          
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              
-              if (done) {
-                updateTerminalOutput("> Stream complete", true);
-                break;
-              }
-              
-              // Reset timeout on new data
-              lastMessageTime = Date.now();
-              
-              // Decode and process the data
-              const text = new TextDecoder().decode(value);
-              content += text;
-              
-              // Check for thinking message
-              if (text.includes("thinking: ")) {
-                const thinkingMatch = text.match(/thinking: (.*?)(?=\n|$)/);
-                if (thinkingMatch && thinkingMatch[1]) {
-                  updateTerminalOutput(`> [Thinking] ${thinkingMatch[1]}`, true);
-                }
-              }
-              
-              // Check timeout during streaming
-              const checkTimeout = () => {
-                if (Date.now() - lastMessageTime > IDLE_TIMEOUT) {
-                  console.warn("Stream timeout detected");
-                  reader.cancel("Stream timeout");
-                  throw new Error("Generation timed out. The service took too long to respond.");
-                }
-              };
-              
-              // Schedule timeout check
-              setTimeout(checkTimeout, IDLE_TIMEOUT);
-            }
-            
-            // Validate the content
-            if (!content || content.length < 100) {
-              throw new Error("Received empty or invalid content from generation");
-            }
-            
-            // Check if content is valid HTML/SVG
-            if (!content.includes("<html") && !content.includes("<!DOCTYPE") && !content.includes("<svg")) {
-              throw new Error("Generated content is not valid HTML or SVG");
-            }
-            
-            updateTerminalOutput("> Processing and saving generated content...", true);
-            
-            // Save the generated content
-            await saveGeneratedGame({
-              gameContent: content,
-              prompt: initialPrompt,
-              gameType,
-              modelType: modelType as ModelType,
-              imageUrl: imageUrl || undefined,
-              existingGameId: gameId,
-              instructions: "Initial content generated successfully"
-            });
-            
-            updateTerminalOutput("> Content saved successfully", true);
-            
-            // Update game messages with success response
-            await supabase
-              .from('game_messages')
-              .update({ response: "Initial content generated successfully" })
-              .eq('game_id', gameId)
-              .is('response', null);
-              
-            console.log("Generation completed successfully");
-            
-            setState(prev => ({ 
-              ...prev, 
-              generationInProgress: false,
-              generationComplete: true
-            }));
-            
-          } catch (streamError) {
-            console.error("Stream processing error:", streamError);
-            updateTerminalOutput(`> Error: ${streamError.message}`, true);
-            
-            setState(prev => ({ 
-              ...prev, 
-              generationInProgress: false,
-              generationError: streamError.message
-            }));
-            
-            throw streamError;
-          }
+          content = await processAnthropicStream(reader);
         } else {
           // Handle non-streaming response
           const data = await response.json();
@@ -255,36 +291,66 @@ export function usePlayTerminal(
             throw new Error("Received empty or invalid content from generation");
           }
           
-          updateTerminalOutput("> Content received, saving to database...", true);
-          
-          // Save the generated content
-          await saveGeneratedGame({
-            gameContent: data.content,
-            prompt: initialPrompt,
-            gameType,
-            modelType: modelType as ModelType,
-            imageUrl: imageUrl || undefined,
-            existingGameId: gameId,
-            instructions: "Initial content generated successfully"
-          });
-          
-          updateTerminalOutput("> Content saved successfully", true);
-          
-          // Update game messages with success response
-          await supabase
-            .from('game_messages')
-            .update({ response: "Initial content generated successfully" })
-            .eq('game_id', gameId)
-            .is('response', null);
-            
-          console.log("Generation completed successfully");
-          
-          setState(prev => ({ 
-            ...prev, 
-            generationInProgress: false,
-            generationComplete: true
-          }));
+          content = data.content;
+          updateTerminalOutput("> Content received successfully", true);
         }
+        
+        // Validate the content
+        if (!content || content.length < 100) {
+          throw new Error("Received empty or invalid content from generation");
+        }
+        
+        // Check if content is valid HTML/SVG
+        if (!content.includes("<html") && !content.includes("<!DOCTYPE") && !content.includes("<svg")) {
+          updateTerminalOutput("> Warning: Generated content may not be valid HTML. Attempting to fix...", true);
+          
+          // Try to wrap the content in HTML if it's not already
+          if (content.includes('<') && content.includes('>')) {
+            content = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generated Content</title>
+</head>
+<body>
+  ${content}
+</body>
+</html>`;
+          } else {
+            throw new Error("Generated content is not valid HTML and cannot be fixed");
+          }
+        }
+        
+        updateTerminalOutput("> Processing and saving generated content...", true);
+        
+        // Save the generated content
+        await saveGeneratedGame({
+          gameContent: content,
+          prompt: initialPrompt,
+          gameType,
+          modelType: modelType as ModelType,
+          imageUrl: imageUrl || undefined,
+          existingGameId: gameId,
+          instructions: "Initial content generated successfully"
+        });
+        
+        updateTerminalOutput("> Content saved successfully", true);
+        
+        // Update game messages with success response
+        await supabase
+          .from('game_messages')
+          .update({ response: "Initial content generated successfully" })
+          .eq('game_id', gameId)
+          .is('response', null);
+          
+        console.log("Generation completed successfully");
+        
+        setState(prev => ({ 
+          ...prev, 
+          generationInProgress: false,
+          generationComplete: true
+        }));
         
         // Final message
         updateTerminalOutput("> Generation completed, switching to content view...", true);
