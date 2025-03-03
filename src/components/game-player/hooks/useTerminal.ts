@@ -10,7 +10,6 @@ export function useTerminal(initialGenerating: boolean) {
   ]);
   const [thinkingTime, setThinkingTime] = useState(0);
   const thinkingTimerRef = useRef<NodeJS.Timeout>();
-  const lastOutputRef = useRef<string>('');
 
   useEffect(() => {
     if (generationInProgress) {
@@ -30,7 +29,6 @@ export function useTerminal(initialGenerating: boolean) {
       }
       
       // When generation is complete, ensure we transition to showing the iframe
-      // after a small delay to allow final terminal messages to be seen
       if (showGenerating) {
         console.log("Generation complete, transitioning to iframe view...");
         setTimeout(() => {
@@ -46,31 +44,8 @@ export function useTerminal(initialGenerating: boolean) {
     };
   }, [generationInProgress, showGenerating]);
 
-  const updateTerminalOutput = (newContent: string, isNewMessage = false) => {
-    setTerminalOutput(prev => {
-      if (isNewMessage || 
-          newContent.startsWith("> Thinking:") || 
-          newContent.startsWith("> Generation") || 
-          newContent.includes("completed") || 
-          newContent.includes("Error:")) {
-        lastOutputRef.current = newContent;
-        return [...prev, newContent];
-      }
-      
-      if (prev.length > 0) {
-        const lastLine = prev[prev.length - 1];
-        
-        if (lastLine.startsWith("> ") && !lastLine.startsWith("> Thinking:") && 
-            newContent.startsWith("> ") && !newContent.startsWith("> Thinking:")) {
-          const updatedLastLine = lastLine + newContent.slice(1);
-          lastOutputRef.current = updatedLastLine;
-          return [...prev.slice(0, -1), updatedLastLine];
-        }
-      }
-      
-      lastOutputRef.current = newContent;
-      return [...prev, newContent];
-    });
+  const updateTerminalOutput = (newContent: string) => {
+    setTerminalOutput(prev => [...prev, newContent]);
   };
 
   const handleTerminalStatusChange = (showing: boolean, output: string[], thinking: number, isLoading: boolean) => {

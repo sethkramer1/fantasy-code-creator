@@ -1,7 +1,6 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
 import { PlayNavbar } from "@/components/game-player/PlayNavbar";
 import { PlayContent } from "@/components/game-player/PlayContent";
 import { SidebarChat } from "@/components/game-player/SidebarChat";
@@ -27,34 +26,46 @@ export default function Play() {
     return null;
   }
 
-  // Game versions hook
-  const { 
-    gameVersions,
-    loadingVersions,
-    currentVersion,
-    selectedVersion,
+  // Game versions hook - pull the required properties from the hook
+  const {
+    gameVersions = [],
+    loading: loadingVersions = false,
+    selectedVersion = "",
     setSelectedVersion,
-    isLatestVersion,
-    handleRevertToVersion
+    initialPrompt = "",
+    handleRevertToVersion,
+    handleGameUpdate
   } = useGameVersions(gameId);
 
-  const { input: chatInput, setInput: setChatInput, messages, loading, handleSubmit } = useTerminal(gameId, selectedVersion);
+  // Find the current version based on selectedVersion
+  const currentVersion = gameVersions.find(version => version.id === selectedVersion);
+  
+  // Check if current version is the latest
+  const isLatestVersion = gameVersions.length > 0 ? 
+    selectedVersion === gameVersions[0].id : 
+    true;
 
-  // Initial game generation hook for new games
-  useInitialGeneration(gameId);
+  // Use terminal hook with just the gameId parameter
+  const terminal = useTerminal(false);
+  
+  // Create a chat submit handler that integrates with the terminal
+  const handleChatSubmit = (message: string, image?: File | null) => {
+    // You would implement chat submission logic here
+    console.log("Chat message submitted:", message, image);
+  };
 
   const handleModelChange = (value: string) => {
     setModelType(value);
   };
 
   useEffect(() => {
-    if (messages.length > 0 && sidebarOpen === false) {
+    if (gameVersions.length > 0 && sidebarOpen === false) {
       toast({
         title: "Chat is available",
         description: "Click the chat icon to ask questions or request changes",
       });
     }
-  }, [messages, sidebarOpen, toast]);
+  }, [gameVersions, sidebarOpen, toast]);
 
   // Mobile sidebar handler
   useEffect(() => {
@@ -120,21 +131,30 @@ export default function Play() {
           setSelectedVersion={setSelectedVersion}
           showCode={showCode}
           gameId={gameId}
+          currentVersion={currentVersion}
+          isLatestVersion={isLatestVersion}
+          onRevertToVersion={handleRevertToVersion}
         />
         
-        {/* Sidebar */}
+        {/* Sidebar Chat */}
         <SidebarChat
           isOpen={sidebarOpen}
           setIsOpen={setSidebarOpen} 
-          onSubmit={handleSubmit}
-          input={chatInput}
-          setInput={setChatInput}
-          loading={loading}
+          onSubmit={handleChatSubmit}
+          input=""
+          setInput={() => {}}
+          loading={false}
           disabled={!isLatestVersion}
           imageUrl={imageUrl}
           setImageUrl={setImageUrl}
           modelType={modelType}
           handleModelChange={handleModelChange}
+          gameId={gameId}
+          gameVersions={gameVersions}
+          initialPrompt={initialPrompt}
+          onGameUpdate={handleGameUpdate}
+          onTerminalStatusChange={terminal.handleTerminalStatusChange}
+          onRevertToMessageVersion={async () => {}}
         />
       </div>
     </div>

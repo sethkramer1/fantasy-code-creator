@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Download, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -46,7 +45,6 @@ export function GameActions({
   const [isAuthorized, setIsAuthorized] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(false);
 
-  // Check Netlify authorization status
   const checkNetlifyAuth = async () => {
     if (!gameId) return;
     
@@ -65,7 +63,6 @@ export function GameActions({
     }
   };
 
-  // Start Netlify OAuth flow
   const handleNetlifyAuth = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('netlify-integration', {
@@ -76,10 +73,8 @@ export function GameActions({
         throw error;
       }
       
-      // Store game ID in localStorage to retrieve after redirect
       localStorage.setItem('netlify_deploy_game_id', gameId);
       
-      // Redirect to Netlify auth
       if (data?.authUrl) {
         window.location.href = data.authUrl;
       } else {
@@ -95,7 +90,6 @@ export function GameActions({
     }
   };
 
-  // Deploy to Netlify
   const deployToNetlify = async () => {
     if (!siteName.trim() || !gameId) return;
     
@@ -113,17 +107,7 @@ export function GameActions({
       
       toast({
         title: "Deployment Successful!",
-        description: <div>
-          Your site has been deployed to{' '}
-          <a 
-            href={data.site_url} 
-            target="_blank" 
-            rel="noopener noreferrer"
-            className="underline font-medium"
-          >
-            {data.site_url}
-          </a>
-        </div>
+        description: `Your site has been deployed to ${data.site_url}`,
       });
     } catch (error) {
       console.error("Deployment error:", error);
@@ -196,7 +180,6 @@ export function GameActions({
     }
   };
 
-  // Check auth status on component mount
   useEffect(() => {
     checkNetlifyAuth();
   }, [gameId]);

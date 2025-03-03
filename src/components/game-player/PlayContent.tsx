@@ -8,35 +8,37 @@ import { GameVersion } from "./hooks/useGameVersions";
 import { GameActions } from "@/components/game-player/GameActions";
 
 interface PlayContentProps {
-  showGenerating: boolean;
+  showGenerating?: boolean;
   gameVersions: GameVersion[];
   selectedVersion: string;
-  onVersionChange: (versionId: string) => void;
-  onRevertToVersion: (version: GameVersion) => Promise<void>;
+  setSelectedVersion: (versionId: string) => void;
+  onVersionChange?: (versionId: string) => void;
+  onRevertToVersion?: (version: GameVersion) => Promise<void>;
   showCode: boolean;
-  setShowCode: (show: boolean) => void;
-  terminalOutput: string[];
-  thinkingTime: number;
-  generationInProgress: boolean;
-  isLatestVersion: boolean;
+  setShowCode?: (show: boolean) => void;
+  terminalOutput?: string[];
+  thinkingTime?: number;
+  generationInProgress?: boolean;
+  isLatestVersion?: boolean;
   currentVersion?: GameVersion;
-  gameId: string; // Added gameId prop
+  gameId: string;
 }
 
 export function PlayContent({
-  showGenerating,
+  showGenerating = false,
   gameVersions,
   selectedVersion,
+  setSelectedVersion,
   onVersionChange,
   onRevertToVersion,
   showCode,
-  setShowCode,
-  terminalOutput,
-  thinkingTime,
-  generationInProgress,
-  isLatestVersion,
+  setShowCode = () => {},
+  terminalOutput = [],
+  thinkingTime = 0,
+  generationInProgress = false,
+  isLatestVersion = true,
   currentVersion,
-  gameId // Add gameId to destructuring
+  gameId
 }: PlayContentProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -91,8 +93,8 @@ export function PlayContent({
                   currentVersion={currentVersion}
                   showGenerating={showGenerating}
                   isLatestVersion={isLatestVersion}
-                  onRevertToVersion={onRevertToVersion}
-                  gameId={gameId} // Pass gameId to GameActions
+                  onRevertToVersion={onRevertToVersion || (async () => {})}
+                  gameId={gameId}
                 />
               )}
             </div>
@@ -101,8 +103,8 @@ export function PlayContent({
               <VersionSelector 
                 gameVersions={gameVersions}
                 selectedVersion={selectedVersion}
-                onVersionChange={onVersionChange}
-                onRevertToVersion={onRevertToVersion}
+                onVersionChange={onVersionChange || setSelectedVersion}
+                onRevertToVersion={onRevertToVersion || (async () => {})}
                 isLatestVersion={isLatestVersion}
               />
             )}
