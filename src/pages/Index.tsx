@@ -81,11 +81,13 @@ const Index = () => {
         return;
       }
 
+      console.log("Generating with prompt:", prompt);
+
       // Create a placeholder game record
       const { data: placeholderGame, error: placeholderError } = await supabase
         .from('games')
         .insert([{ 
-          prompt: prompt,
+          prompt: prompt, // Store the exact prompt
           code: "Generating...",
           instructions: "Content is being generated...",
           current_version: 1,
@@ -130,6 +132,9 @@ const Index = () => {
         const encodedImageUrl = encodeURIComponent(imageUrl);
         navigationParams += `&imageUrl=${encodedImageUrl}`;
       }
+      
+      // Pass the original prompt in the navigation
+      navigationParams += `&prompt=${encodeURIComponent(prompt)}`;
       
       // Navigate to the play page with generation
       console.log("Navigating to play page for generation:", placeholderGame.id);

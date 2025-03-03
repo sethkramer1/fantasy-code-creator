@@ -96,6 +96,8 @@ export const useGameGeneration = () => {
             // Use Anthropic API
             setTerminalOutput(prev => [...prev, `> Connecting to Anthropic API${retryCount > 0 ? ` (retry attempt ${retryCount})` : ''}...`]);
             
+            console.log("Sending prompt to Anthropic:", prompt);
+            
             const { gameContent: anthropicContent } = await callAnthropicApi(
               prompt,
               gameType,

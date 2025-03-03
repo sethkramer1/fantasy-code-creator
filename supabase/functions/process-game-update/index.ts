@@ -50,6 +50,7 @@ serve(async (req) => {
 
     console.log('Received request for gameId:', gameId);
     console.log('Prompt length:', prompt?.length || 0);
+    console.log('Full prompt:', prompt); // Log the full prompt for debugging
     console.log('Image URL provided:', imageUrl ? 'Yes (data URL)' : 'No');
 
     // Initialize Supabase client
@@ -60,13 +61,21 @@ serve(async (req) => {
       .from('games')
       .select('*')
       .eq('id', gameId)
-      .single();
+      .maybeSingle();  // Use maybeSingle instead of single to avoid errors
 
     if (gameError) {
       console.error('Error fetching game:', gameError);
       return new Response(
         JSON.stringify({ error: 'Failed to fetch game data' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!gameData) {
+      console.error('Game not found for id:', gameId);
+      return new Response(
+        JSON.stringify({ error: 'Game not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -87,7 +96,7 @@ serve(async (req) => {
       ? messagesData.map(msg => `User: ${msg.message}\n${msg.response ? `AI: ${msg.response}` : ''}`).join('\n\n')
       : '';
 
-    // Assemble the full prompt with context
+    // Assemble the full prompt with context - this is critical for the user input to flow through
     const fullPrompt = `
 You're helping modify this code. Please update it according to this request: "${prompt}"
 
@@ -194,9 +203,6 @@ Follow these structure requirements precisely and generate clean, semantic, and 
     }
 
     console.log('Successfully got response from Anthropic API');
-
-    // If everything is successful, create a new game version
-    const versionNumber = gameData.current_version ? gameData.current_version + 1 : 1;
     
     return new Response(response.body, {
       headers: {

@@ -86,7 +86,8 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
       
       if (!gameCheck) {
         console.error(`Game with ID ${existingGameId} not found, creating new game instead`);
-        // Fall through to the creation logic below with existingGameId set to undefined
+        
+        // Create new game since the existing one wasn't found
         const { data: newGameData, error: gameError } = await supabase
           .from('games')
           .insert([{ 
@@ -100,16 +101,11 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
             visibility: visibility
           }])
           .select()
-          .maybeSingle();
+          .single();
 
         if (gameError) {
           console.error("Failed to create new game after update failed:", gameError);
           throw gameError;
-        }
-        
-        if (!newGameData) {
-          console.error("New game data is null after insert");
-          throw new Error("Failed to create new game: No data returned from insert");
         }
         
         gameData = newGameData;
@@ -140,16 +136,11 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
           })
           .eq('id', existingGameId)
           .select()
-          .maybeSingle();
+          .single();
         
         if (updateError) {
           console.error("Failed to update game:", updateError);
           throw updateError;
-        }
-        
-        if (!updateData) {
-          console.error("Update game data is null after update");
-          throw new Error("Failed to update game: No data returned");
         }
         
         gameData = updateData;
@@ -216,16 +207,11 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
           visibility: visibility
         }])
         .select()
-        .maybeSingle();
+        .single();
 
       if (gameError) {
         console.error("Failed to save new game:", gameError);
         throw gameError;
-      }
-      
-      if (!newGameData) {
-        console.error("New game data is null after insert");
-        throw new Error("Failed to create new game: No data returned from insert");
       }
       
       gameData = newGameData;

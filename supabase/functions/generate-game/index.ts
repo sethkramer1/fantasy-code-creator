@@ -36,7 +36,8 @@ serve(async (req) => {
   try {
     const { prompt, imageUrl, contentType, system, partialResponse, model = "claude-3-7-sonnet-20250219" } = await req.json();
     
-    console.log("Received request with prompt length:", prompt?.length || 0);
+    console.log("Received request with prompt:", prompt);
+    console.log("Prompt length:", prompt?.length || 0);
     console.log("Content type:", contentType);
     console.log("Model:", model);
     console.log("System prompt provided:", system ? "Yes" : "No");
@@ -123,6 +124,7 @@ Do not include any explanations, markdown formatting or code blocks - only retur
     }
 
     console.log('Sending request to Anthropic API with Claude 3.7 Sonnet');
+    console.log('Request body:', JSON.stringify(requestBody));
 
     // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {

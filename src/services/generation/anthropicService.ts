@@ -1,5 +1,5 @@
 
-import { ContentTypeInstructions, ModelType } from "@/types/generation";
+import { ModelType } from "@/types/generation";
 import { contentTypes } from "@/types/game";
 import { getContentTypeInstructions } from "@/utils/contentTypeInstructions";
 
@@ -26,6 +26,7 @@ export const callAnthropicApi = async (
   const selectedType = contentTypes.find(type => type.id === gameType);
   if (!selectedType) throw new Error("Invalid content type selected");
 
+  // Enhanced prompt formatting
   const enhancedPrompt = selectedType.promptPrefix + " " + prompt;
   const { systemInstructions } = getContentTypeInstructions(gameType);
   
@@ -35,6 +36,7 @@ export const callAnthropicApi = async (
   callbacks?.onStreamStart();
 
   console.log("Calling Anthropic API with:", {
+    prompt: finalPrompt,
     promptLength: finalPrompt.length,
     systemLength: systemInstructions.length,
     hasImage: !!imageUrl
