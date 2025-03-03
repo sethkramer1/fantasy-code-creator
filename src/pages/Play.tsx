@@ -1,5 +1,5 @@
 
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
 import { PlayNavbar } from "@/components/game-player/PlayNavbar";
@@ -36,6 +36,14 @@ const Play = () => {
     handleTerminalStatusChange,
     setShowTerminal
   } = usePlayTerminal(gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl);
+
+  // When generation completes, refresh the game data to get the latest version
+  useEffect(() => {
+    if (!generationInProgress && gameId && generating) {
+      console.log("Generation completed, refreshing game data");
+      fetchGame();
+    }
+  }, [generationInProgress, gameId, generating, fetchGame]);
 
   if (!gameId || !game) {
     return (

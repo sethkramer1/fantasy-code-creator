@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useRef } from "react";
-import { processGameUpdate } from "@/components/game-chat/api-service";
+import { supabase } from "@/integrations/supabase/client";
 
 export function usePlayTerminal(gameId: string | undefined, generating: boolean, initialPrompt: string, initialType: string, initialModelType: string, initialImageUrl: string) {
   const [generationInProgress, setGenerationInProgress] = useState(false);
@@ -45,27 +45,46 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
         try {
           console.log("Fetching initial content with:", {
             prompt: initialPrompt,
+            type: initialType,
             modelType: initialModelType,
             imageUrl: initialImageUrl
           });
 
           setTerminalOutput(prev => [...prev, `> Using ${initialModelType === "smart" ? "Claude (Smartest)" : "Groq (Fastest)"} model`]);
           
-          const { apiResponse, modelType } = await processGameUpdate(
-            gameId,
-            initialPrompt,
-            initialModelType,
-            initialImageUrl,
-            (text, isNewMessage) => {
-              setTerminalOutput(prev => {
-                const newOutput = isNewMessage ? [...prev, text] : [...prev.slice(0, -1), text];
-                return newOutput;
-              });
-            }
-          );
+          // Call the generate-game function instead of process-game-update for initial generation
+          const apiUrl = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game';
+          
+          setTerminalOutput(prev => [...prev, `> Connecting to generation service...`]);
+          
+          const payload = {
+            prompt: initialPrompt,
+            gameType: initialType,
+            modelType: initialModelType,
+            gameId: gameId,
+            stream: initialModelType === "smart" // Only stream for Claude/smart model
+          };
+          
+          if (initialImageUrl) {
+            payload['imageUrl'] = initialImageUrl;
+          }
+          
+          const apiResponse = await fetch(apiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
+            },
+            body: JSON.stringify(payload)
+          });
+
+          if (!apiResponse.ok) {
+            const errorText = await apiResponse.text();
+            throw new Error(`API error (${apiResponse.status}): ${errorText}`);
+          }
 
           // Always handle streaming for Claude/smart model
-          if (apiResponse && modelType === "smart") {
+          if (apiResponse && initialModelType === "smart") {
             const reader = apiResponse.body?.getReader();
             if (!reader) {
               throw new Error("ReadableStream not supported in this browser.");
@@ -121,7 +140,14 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
 
                 setTerminalOutput(prev => [...prev, "> Generation completed successfully!"]);
                 console.log("Stream processing completed");
-                setGenerationInProgress(false);
+                
+                // Explicitly fetch the game version to ensure we have the latest data
+                await fetchGameVersion(gameId);
+                
+                // Set a slight delay to ensure everything is complete before showing iframe
+                setTimeout(() => {
+                  setGenerationInProgress(false);
+                }, 1000);
               } catch (e) {
                 console.error("Streaming error:", e);
                 setTerminalOutput(prev => [...prev, `> Error: ${e.message}`]);
@@ -134,14 +160,52 @@ export function usePlayTerminal(gameId: string | undefined, generating: boolean,
             processStream();
           } else {
             // Non-streaming case (Groq/fast model)
+            const responseData = await apiResponse.json();
+            console.log("Received complete response from fast model:", responseData);
             setTerminalOutput(prev => [...prev, "> Received complete response from fast model"]);
-            setGenerationInProgress(false);
+            
+            // Explicitly fetch the game version to ensure we have the latest data
+            await fetchGameVersion(gameId);
+            
+            // Set a slight delay to ensure everything is complete before showing iframe
+            setTimeout(() => {
+              setGenerationInProgress(false);
+            }, 1000);
           }
         } catch (error) {
           console.error("Error during initial content fetch:", error);
           setTerminalOutput(prev => [...prev, `> Error: ${error.message}`]);
           setGenerationInProgress(false);
         }
+      }
+    };
+
+    // Helper function to fetch the latest game version
+    const fetchGameVersion = async (gameId: string) => {
+      try {
+        setTerminalOutput(prev => [...prev, "> Fetching the latest game version..."]);
+        const { data, error } = await supabase
+          .from('game_versions')
+          .select('*')
+          .eq('game_id', gameId)
+          .order('version_number', { ascending: false })
+          .limit(1)
+          .single();
+          
+        if (error) {
+          console.error("Error fetching game version:", error);
+          setTerminalOutput(prev => [...prev, `> Error fetching game version: ${error.message}`]);
+          return;
+        }
+        
+        if (data) {
+          setTerminalOutput(prev => [...prev, `> Successfully fetched game version ${data.version_number}`]);
+          console.log("Fetched game version:", data);
+        } else {
+          setTerminalOutput(prev => [...prev, `> No game version found`]);
+        }
+      } catch (error) {
+        console.error("Error in fetchGameVersion:", error);
       }
     };
 
