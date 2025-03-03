@@ -34,14 +34,9 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       };
     }, []);
 
-    // Update iframe content when code changes - with enhanced stability checks
+    // Update iframe content when code changes
     useEffect(() => {
-      // If we already have stable content and the code hasn't changed, do nothing
-      if (contentStabilizedRef.current && code === prevCodeRef.current) {
-        return;
-      }
-      
-      // Basic validation to avoid processing invalid code
+      // Skip empty or invalid code
       if (!code || code.length < 10) {
         return;
       }
@@ -51,18 +46,13 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
         clearTimeout(timerRef.current);
       }
       
-      // Set a timer to update the content with debouncing
-      timerRef.current = setTimeout(() => {
-        // Update refs and state only if the code is different
-        if (code !== prevCodeRef.current) {
-          console.log("Updating iframe content");
-          setIframeContent(code);
-          prevCodeRef.current = code;
-          setIsStable(true);
-          contentStabilizedRef.current = true;
-        }
-        timerRef.current = null;
-      }, 300); // Increased debounce time
+      // Always update the content when code changes
+      // This is critical to ensure we display content even after loading state
+      console.log("Setting iframe content with code length:", code.length);
+      setIframeContent(code);
+      prevCodeRef.current = code;
+      setIsStable(true);
+      contentStabilizedRef.current = true;
       
     }, [code]);
 

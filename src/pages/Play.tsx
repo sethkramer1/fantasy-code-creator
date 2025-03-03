@@ -24,6 +24,7 @@ const Play = () => {
   const dataRefreshRef = useRef<boolean>(false);
   const stableDataRef = useRef<boolean>(false);
   const stableVersionIdRef = useRef<string | null>(null);
+  const gamePreviewKey = useRef<string>("initial");
 
   // Get search params for generation
   const generating = searchParams.get("generating") === "true";
@@ -78,6 +79,9 @@ const Play = () => {
       console.log("Stable version detected, updating reference:", currentVersion.id);
       stableVersionIdRef.current = currentVersion.id;
       stableDataRef.current = true;
+      
+      // Set a stable key that won't change
+      gamePreviewKey.current = `stable-${currentVersion.id}`;
     }
   }, [currentVersion]);
 
@@ -222,6 +226,7 @@ const Play = () => {
     dataRefreshRef.current = false;
     stableDataRef.current = false;
     stableVersionIdRef.current = null;
+    gamePreviewKey.current = "initial";
   }, [gameId]);
 
   // Handle missing gameId
@@ -242,17 +247,6 @@ const Play = () => {
       </div>
     );
   }
-
-  // Memoize the GamePreview key to prevent unnecessary re-renders
-  const gamePreviewKey = useCallback(() => {
-    if (stableDataRef.current && currentVersion?.id) {
-      // Once we have stable data, use a fixed key to prevent remounting
-      return `stable-${currentVersion.id}`;
-    }
-    
-    // Default case during loading or transitions
-    return `loading-${currentVersion?.id || 'initial'}`;
-  }, [currentVersion?.id, stableDataRef.current]);
 
   return (
     <div className="flex flex-col h-screen w-full">
@@ -298,7 +292,7 @@ const Play = () => {
             />
           ) : (
             <GamePreview
-              key={gamePreviewKey()}
+              key={gamePreviewKey.current}
               currentVersion={currentVersion}
               showCode={showCode}
               ref={iframeRef}
