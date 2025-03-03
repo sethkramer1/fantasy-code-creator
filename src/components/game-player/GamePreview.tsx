@@ -5,6 +5,7 @@ import { CodeEditor } from "./components/CodeEditor";
 import { IframePreview } from "./components/IframePreview";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Type } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 
 // Define font options with display names and CSS values
 const fontOptions = [
@@ -36,11 +37,19 @@ interface GameVersion {
 interface GamePreviewProps {
   currentVersion: GameVersion | undefined;
   showCode: boolean;
+  onCodeUpdate?: (gameId: string, newCode: string) => void;
 }
 
 export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
-  ({ currentVersion, showCode }, ref) => {
+  ({ currentVersion, showCode, onCodeUpdate }, ref) => {
     const [selectedFont, setSelectedFont] = useState<string>(fontOptions[0].value);
+    const [localCode, setLocalCode] = useState<string>("");
+    
+    useEffect(() => {
+      if (currentVersion?.code) {
+        setLocalCode(currentVersion.code);
+      }
+    }, [currentVersion]);
 
     useEffect(() => {
       console.log("GamePreview received currentVersion update", currentVersion?.id);
@@ -49,6 +58,22 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     const handleFontChange = (value: string) => {
       console.log("Font changed to:", value);
       setSelectedFont(value);
+    };
+    
+    const handleCodeChange = (newCode: string) => {
+      console.log("Code updated with new font styling");
+      setLocalCode(newCode);
+      
+      // Notify the parent component about the code change
+      if (currentVersion && onCodeUpdate) {
+        onCodeUpdate(currentVersion.id, newCode);
+        
+        toast({
+          title: "Font Applied",
+          description: "The font has been applied to the selected text and the code has been updated.",
+          duration: 3000,
+        });
+      }
     };
 
     // Handle case when no version is available yet
@@ -84,14 +109,15 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
             </Select>
           </div>
           <IframePreview 
-            code={currentVersion.code || ""} 
+            code={localCode || currentVersion.code || ""} 
             ref={ref}
             selectedFont={selectedFont}
+            onCodeChange={handleCodeChange}
           />
         </div>
       );
     } else {
-      const { html, css, js } = parseCodeSections(currentVersion.code || "");
+      const { html, css, js } = parseCodeSections(localCode || currentVersion.code || "");
       
       return (
         <div className="h-full relative">

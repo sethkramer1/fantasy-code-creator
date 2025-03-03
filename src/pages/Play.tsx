@@ -10,6 +10,7 @@ import { GameActions } from "@/components/game-player/GameActions";
 import { PlayContent } from "@/components/game-player/PlayContent";
 import { SidebarChat } from "@/components/game-player/SidebarChat";
 import { Message } from "@/components/game-chat/types";
+import { toast } from "@/hooks/use-toast";
 
 const Play = () => {
   const { id } = useParams();
@@ -78,6 +79,36 @@ const Play = () => {
     }
   }, [gameVersions.loading, gameVersions.selectedVersion]);
 
+  const handleCodeUpdate = async (gameId: string, newCode: string) => {
+    try {
+      // We're using the existing updateGame function from the gameVersions hook
+      // but we create a simplified version of a message to trigger the update
+      const updateMessage: Message = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        created_at: new Date().toISOString(),
+        content: "Updated font styling in the HTML",
+        game_id: id!,
+        // Include the minimum required fields
+        metadata: {
+          code: newCode,
+          thinking: "",
+          files_changed: ["Font styling updated"]
+        }
+      };
+      
+      await gameVersions.handleGameUpdate(updateMessage);
+      console.log("Code with new font styling saved successfully");
+    } catch (error) {
+      console.error("Failed to update code with new font:", error);
+      toast({
+        title: "Update Failed",
+        description: "Failed to save the font changes. Please try again.",
+        variant: "destructive"
+      });
+    }
+  };
+
   const currentVersion = gameVersions.gameVersions.find(v => v.id === gameVersions.selectedVersion);
   const isLatestVersion = currentVersion?.version_number === gameVersions.gameVersions[0]?.version_number;
 
@@ -124,6 +155,7 @@ const Play = () => {
           generationInProgress={terminal.generationInProgress}
           isLatestVersion={isLatestVersion}
           currentVersion={currentVersion}
+          onCodeUpdate={handleCodeUpdate}
         />
       </div>
     </div>

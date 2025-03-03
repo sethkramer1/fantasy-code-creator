@@ -1,27 +1,27 @@
 
-import { useRef, useEffect } from "react";
-import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal";
-import { ViewToggle } from "@/components/game-player/ViewToggle";
-import { VersionSelector } from "@/components/game-player/VersionSelector";
-import { GamePreview } from "@/components/game-player/GamePreview";
-import { GameVersion } from "./hooks/useGameVersions";
+import { useState } from "react";
+import { GamePreview } from "./GamePreview";
+import { VersionSelector } from "./VersionSelector";
+import { Terminal } from "./Terminal";
+import { ViewToggle } from "./ViewToggle";
 
 interface PlayContentProps {
   showGenerating: boolean;
-  gameVersions: GameVersion[];
-  selectedVersion: string;
+  gameVersions: any[];
+  selectedVersion: string | null;
   onVersionChange: (versionId: string) => void;
-  onRevertToVersion: (version: GameVersion) => Promise<void>;
+  onRevertToVersion: (versionId: string) => Promise<void>;
   showCode: boolean;
   setShowCode: (show: boolean) => void;
-  terminalOutput: string[];
+  terminalOutput: string;
   thinkingTime: number;
   generationInProgress: boolean;
   isLatestVersion: boolean;
-  currentVersion?: GameVersion;
+  currentVersion: any;
+  onCodeUpdate?: (gameId: string, newCode: string) => void;
 }
 
-export function PlayContent({
+export const PlayContent = ({
   showGenerating,
   gameVersions,
   selectedVersion,
@@ -33,88 +33,40 @@ export function PlayContent({
   thinkingTime,
   generationInProgress,
   isLatestVersion,
-  currentVersion
-}: PlayContentProps) {
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // Log state changes for debugging
-  useEffect(() => {
-    console.log("PlayContent state:", { 
-      showGenerating, 
-      generationInProgress, 
-      hasCurrentVersion: !!currentVersion,
-      versionId: currentVersion?.id 
-    });
-  }, [showGenerating, generationInProgress, currentVersion]);
-
-  // Ensure the iframe gets focus when it becomes visible
-  useEffect(() => {
-    if (!showGenerating && currentVersion && iframeRef.current) {
-      console.log("Generation view hidden, focusing iframe");
-      // Use a slightly longer timeout to ensure everything is ready
-      setTimeout(() => {
-        if (iframeRef.current) {
-          iframeRef.current.focus();
-        }
-      }, 250);
-    }
-  }, [showGenerating, currentVersion]);
-
-  // This effect handles the transition from generation to preview
-  useEffect(() => {
-    if (!showGenerating && !generationInProgress && currentVersion) {
-      console.log("Generation complete, focusing iframe");
-      // Ensure DOM is updated before focusing
-      setTimeout(() => {
-        if (iframeRef.current) {
-          iframeRef.current.focus();
-        }
-      }, 250);
-    }
-  }, [showGenerating, generationInProgress, currentVersion]);
+  currentVersion,
+  onCodeUpdate
+}: PlayContentProps) => {
+  const currentVersionObj = gameVersions.find(v => v.id === selectedVersion);
 
   return (
-    <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
-      <div className="max-w-[1200px] mx-auto w-full flex-1 flex flex-col">
-        <div className="glass-panel bg-white border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-4 flex-shrink-0">
-            <div className="flex items-center gap-4">
-              {!showGenerating && (
-                <ViewToggle showCode={showCode} setShowCode={setShowCode} />
-              )}
-            </div>
-            
-            {!showGenerating && gameVersions.length > 0 && (
-              <VersionSelector 
-                gameVersions={gameVersions}
-                selectedVersion={selectedVersion}
-                onVersionChange={onVersionChange}
-                onRevertToVersion={onRevertToVersion}
-                isLatestVersion={isLatestVersion}
-              />
-            )}
-          </div>
-
-          <div className="flex-1 bg-white rounded-lg overflow-hidden">
-            {showGenerating ? (
-              <GenerationTerminal
-                open={true}
-                onOpenChange={() => {}}
-                output={terminalOutput}
-                thinkingTime={thinkingTime}
-                loading={generationInProgress}
-                asModal={false}
-              />
-            ) : (
-              <GamePreview 
-                currentVersion={currentVersion} 
-                showCode={showCode} 
-                ref={iframeRef}
-              />
-            )}
-          </div>
-        </div>
+    <div className="flex-1 overflow-hidden flex flex-col h-full">
+      <div className="px-2 py-1 border-b border-gray-200 flex justify-between items-center">
+        <VersionSelector 
+          gameVersions={gameVersions} 
+          selectedVersion={selectedVersion}
+          onVersionChange={onVersionChange}
+          isLatestVersion={isLatestVersion}
+          disabled={showGenerating || generationInProgress}
+        />
+        
+        <ViewToggle showCode={showCode} setShowCode={setShowCode} />
+      </div>
+      
+      <div className="flex-1 overflow-hidden relative">
+        {showGenerating ? (
+          <Terminal 
+            output={terminalOutput} 
+            thinkingTime={thinkingTime} 
+            generationInProgress={generationInProgress} 
+          />
+        ) : (
+          <GamePreview 
+            currentVersion={currentVersionObj} 
+            showCode={showCode}
+            onCodeUpdate={onCodeUpdate}
+          />
+        )}
       </div>
     </div>
   );
-}
+};

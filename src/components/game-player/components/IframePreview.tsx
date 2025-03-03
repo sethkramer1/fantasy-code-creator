@@ -1,14 +1,16 @@
 
-import React, { useRef, useEffect, forwardRef } from "react";
+import React, { useRef, useEffect, forwardRef, useState } from "react";
 
 interface IframePreviewProps {
   code: string;
-  selectedFont?: string;
+  selectedFont: string;
+  onCodeChange?: (newCode: string) => void;
 }
 
 export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
-  ({ code, selectedFont }, ref) => {
+  ({ code, selectedFont, onCodeChange }, ref) => {
     const localIframeRef = useRef<HTMLIFrameElement>(null);
+    const [selectedText, setSelectedText] = useState<{ text: string, range: Range | null }>({ text: "", range: null });
     
     useEffect(() => {
       if (!ref) return;
@@ -30,10 +32,60 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
           doc.open();
           doc.write(prepareIframeContent(code));
           doc.close();
+          
+          // Set up selection event listeners
+          setupSelectionListeners(doc);
         }
         localIframeRef.current.focus();
       }
     }, [code, selectedFont]);
+    
+    // Setup selection listeners in the iframe
+    const setupSelectionListeners = (doc: Document) => {
+      doc.addEventListener('selectionchange', () => {
+        const selection = doc.getSelection();
+        if (selection && selection.toString().trim() !== '') {
+          setSelectedText({ text: selection.toString(), range: selection.getRangeAt(0) });
+        } else {
+          setSelectedText({ text: "", range: null });
+        }
+      });
+      
+      // Prevent selection from being lost when dropdown is clicked
+      doc.addEventListener('mouseup', (e) => {
+        e.stopPropagation();
+      });
+    };
+    
+    // Apply font to selected text
+    const applyFontToSelection = () => {
+      if (!selectedText.range || !selectedText.text || !localIframeRef.current) return;
+      
+      const doc = localIframeRef.current.contentDocument;
+      if (!doc) return;
+      
+      try {
+        // Create a span with the selected font
+        const span = doc.createElement('span');
+        span.style.fontFamily = selectedFont;
+        
+        // Wrap the selection with the span
+        selectedText.range.surroundContents(span);
+        
+        // Extract and update the modified HTML
+        const updatedHtml = doc.documentElement.outerHTML;
+        
+        // Pass the updated code back to parent
+        if (onCodeChange) {
+          onCodeChange(updatedHtml);
+        }
+        
+        // Reset selection
+        setSelectedText({ text: "", range: null });
+      } catch (e) {
+        console.error("Error applying font to selection:", e);
+      }
+    };
 
     const prepareIframeContent = (html: string) => {
       // Add font style if one is selected
@@ -49,6 +101,30 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
           document.addEventListener('DOMContentLoaded', function() {
             console.log('DOM fully loaded, setting up UI enhancements');
             
+            // Track font changes from parent window
+            window.addEventListener('message', function(event) {
+              if (event.data && event.data.type === 'applyFontToSelection') {
+                const selection = document.getSelection();
+                if (selection && selection.rangeCount > 0) {
+                  try {
+                    const range = selection.getRangeAt(0);
+                    const span = document.createElement('span');
+                    span.style.fontFamily = event.data.font;
+                    range.surroundContents(span);
+                    
+                    // Notify parent the HTML has changed
+                    window.parent.postMessage({
+                      type: 'htmlUpdated',
+                      html: document.documentElement.outerHTML
+                    }, '*');
+                  } catch(e) {
+                    console.error('Error applying font:', e);
+                  }
+                }
+              }
+            });
+            
+            // Setup other UI enhancements
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
               anchor.addEventListener('click', function(e) {
                 e.preventDefault();
@@ -226,7 +302,13 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
     return (
       <div 
         className="h-full relative"
-        onClick={() => localIframeRef.current?.focus()}
+        onClick={() => {
+          if (selectedText.text && selectedText.range) {
+            applyFontToSelection();
+          } else {
+            localIframeRef.current?.focus();
+          }
+        }}
       >
         <iframe
           ref={localIframeRef}
@@ -237,6 +319,12 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
           tabIndex={0}
           onLoad={() => console.log("Iframe content loaded with font:", selectedFont)}
         />
+        
+        {selectedText.text && (
+          <div className="absolute bottom-3 left-3 z-10 bg-gray-800/90 text-white text-xs px-3 py-1.5 rounded-md">
+            Text selected: {selectedText.text.slice(0, 20)}{selectedText.text.length > 20 ? '...' : ''}
+          </div>
+        )}
       </div>
     );
   }
