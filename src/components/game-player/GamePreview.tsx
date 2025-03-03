@@ -1,4 +1,3 @@
-
 import { useState, useEffect, forwardRef } from "react";
 import { parseCodeSections } from "./utils/CodeParser";
 import { CodeEditor } from "./components/CodeEditor";
@@ -70,8 +69,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
         
         toast({
           title: "Font Applied",
-          description: "The font has been applied to the selected text and the code has been updated.",
-          duration: 3000,
+          description: "The font has been applied to the selected text and the code has been updated."
         });
       }
     };

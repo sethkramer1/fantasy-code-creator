@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
@@ -81,15 +80,11 @@ const Play = () => {
 
   const handleCodeUpdate = async (gameId: string, newCode: string) => {
     try {
-      // We're using the existing updateGame function from the gameVersions hook
-      // but we create a simplified version of a message to trigger the update
       const updateMessage: Message = {
         id: crypto.randomUUID(),
-        role: "assistant",
         created_at: new Date().toISOString(),
         content: "Updated font styling in the HTML",
         game_id: id!,
-        // Include the minimum required fields
         metadata: {
           code: newCode,
           thinking: "",
@@ -150,7 +145,7 @@ const Play = () => {
           onRevertToVersion={gameVersions.handleRevertToVersion}
           showCode={showCode}
           setShowCode={setShowCode}
-          terminalOutput={terminal.terminalOutput}
+          terminalOutput={terminal.terminalOutput.join('\n')}
           thinkingTime={terminal.thinkingTime}
           generationInProgress={terminal.generationInProgress}
           isLatestVersion={isLatestVersion}
