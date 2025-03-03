@@ -1,85 +1,86 @@
 
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
-const NetlifyCallback = () => {
-  const navigate = useNavigate();
+export default function NetlifyCallback() {
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [processing, setProcessing] = useState(true);
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
 
   useEffect(() => {
-    async function processCallback() {
+    const handleCallback = async () => {
       try {
-        // Get URL parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        const code = urlParams.get('code');
-        const state = urlParams.get('state');
-        
+        setLoading(true);
+        const params = new URLSearchParams(location.search);
+        const code = params.get("code");
+        const state = params.get("state");
+
         if (!code || !state) {
-          setError("Missing required parameters");
-          setProcessing(false);
-          return;
+          throw new Error("Missing required parameters");
         }
-        
-        // Complete the OAuth flow
-        const { data, error } = await supabase.functions.invoke('netlify-integration', {
-          method: 'GET',
-          query: { 
-            path: 'callback',
-            code,
-            state
-          }
+
+        // Exchange the code for a token
+        const { data, error } = await supabase.functions.invoke("netlify-integration", {
+          body: { path: "exchange-code", code, state }
         });
-        
+
         if (error) {
           throw error;
         }
+
+        toast({
+          title: "Successfully connected to Netlify",
+          description: "You can now deploy your games to Netlify"
+        });
+
+        // Retrieve the game ID from localStorage
+        const gameId = localStorage.getItem("netlify_deploy_game_id");
         
-        // Get the game ID from the response or localStorage
-        const gameId = data.gameId || localStorage.getItem('netlify_deploy_game_id');
-        
-        // Clean up localStorage
-        localStorage.removeItem('netlify_deploy_game_id');
-        
-        // Redirect back to the game
+        // Navigate back to the game page
         if (gameId) {
+          localStorage.removeItem("netlify_deploy_game_id");
           navigate(`/play/${gameId}`);
         } else {
-          navigate('/');
+          navigate("/");
         }
-      } catch (error) {
-        console.error("Error processing callback:", error);
-        setError("Failed to complete authorization");
-        setProcessing(false);
+      } catch (err) {
+        console.error("Netlify callback error:", err);
+        setError(err instanceof Error ? err.message : "Failed to authenticate with Netlify");
+        toast({
+          title: "Authentication Failed",
+          description: "Could not connect to Netlify. Please try again.",
+          variant: "destructive"
+        });
+      } finally {
+        setLoading(false);
       }
-    }
-    
-    processCallback();
-  }, [navigate]);
+    };
+
+    handleCallback();
+  }, [location, navigate, toast]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white">
-      <div className="max-w-md w-full p-8 bg-white rounded-lg shadow-md">
-        <h1 className="text-2xl font-bold text-center mb-6">
-          {error ? "Authorization Failed" : "Completing Authorization"}
-        </h1>
+    <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="p-8 bg-white rounded-lg shadow-md max-w-md w-full">
+        <h1 className="text-2xl font-bold mb-4">Netlify Authentication</h1>
         
-        {processing && !error && (
-          <div className="text-center">
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent mb-4"></div>
-            <p>Connecting to Netlify...</p>
+        {loading && (
+          <div className="flex flex-col items-center justify-center py-8">
+            <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-gray-600">Connecting to Netlify...</p>
           </div>
         )}
         
         {error && (
-          <div className="text-center">
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-              {error}
-            </div>
+          <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+            <p><strong>Error:</strong> {error}</p>
             <button 
-              onClick={() => navigate('/')}
-              className="px-4 py-2 bg-black text-white rounded-md hover:bg-gray-800"
+              onClick={() => navigate("/")}
+              className="mt-4 bg-red-500 hover:bg-red-600 text-white px-6 py-2 rounded"
             >
               Return Home
             </button>
@@ -88,6 +89,4 @@ const NetlifyCallback = () => {
       </div>
     </div>
   );
-};
-
-export default NetlifyCallback;
+}

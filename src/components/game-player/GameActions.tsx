@@ -1,5 +1,5 @@
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Download, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -52,12 +52,12 @@ export function GameActions({
     
     setIsCheckingAuth(true);
     try {
-      const { data } = await supabase.functions.invoke('netlify-integration', {
-        method: 'GET',
-        query: { path: 'check-token', gameId }
+      const { data, error } = await supabase.functions.invoke('netlify-integration', {
+        body: { path: 'check-token', gameId }
       });
       
-      setIsAuthorized(data.authorized);
+      if (error) throw error;
+      setIsAuthorized(data?.authorized || false);
     } catch (error) {
       console.error("Error checking Netlify auth:", error);
     } finally {
@@ -69,8 +69,7 @@ export function GameActions({
   const handleNetlifyAuth = async () => {
     try {
       const { data, error } = await supabase.functions.invoke('netlify-integration', {
-        method: 'GET',
-        query: { path: 'start-oauth', gameId }
+        body: { path: 'start-oauth', gameId }
       });
       
       if (error) {
@@ -81,7 +80,11 @@ export function GameActions({
       localStorage.setItem('netlify_deploy_game_id', gameId);
       
       // Redirect to Netlify auth
-      window.location.href = data.authUrl;
+      if (data?.authUrl) {
+        window.location.href = data.authUrl;
+      } else {
+        throw new Error("No auth URL received");
+      }
     } catch (error) {
       console.error("Error starting Netlify auth:", error);
       toast({
@@ -99,9 +102,7 @@ export function GameActions({
     setDeploying(true);
     try {
       const { data, error } = await supabase.functions.invoke('netlify-integration', {
-        method: 'POST',
-        query: { path: 'deploy' },
-        body: { gameId, siteName: siteName.trim() }
+        body: { path: 'deploy', gameId, siteName: siteName.trim() }
       });
       
       if (error) {
@@ -124,7 +125,7 @@ export function GameActions({
               {data.site_url}
             </a>
           </div>
-        ),
+        )
       });
     } catch (error) {
       console.error("Deployment error:", error);
@@ -198,9 +199,9 @@ export function GameActions({
   };
 
   // Check auth status on component mount
-  useState(() => {
+  useEffect(() => {
     checkNetlifyAuth();
-  });
+  }, [gameId]);
 
   if (showGenerating || !currentVersion) {
     return null;
