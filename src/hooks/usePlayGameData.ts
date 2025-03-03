@@ -1,6 +1,5 @@
 
 import { useState, useEffect, useRef } from "react";
-import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 
@@ -27,9 +26,25 @@ export function usePlayGameData(gameId: string | undefined) {
   const [currentVersion, setCurrentVersion] = useState<GameVersion | undefined>(undefined);
   const [gameVersions, setGameVersions] = useState<GameVersion[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const { toast } = useToast();
   const fetchAttemptsRef = useRef(0);
   const maxFetchAttempts = 3;
+
+  const addSystemMessage = async (message: string, response: string) => {
+    if (!gameId) return;
+    
+    try {
+      await supabase
+        .from('game_messages')
+        .insert({
+          game_id: gameId,
+          message,
+          response,
+          is_system: true
+        });
+    } catch (error) {
+      console.error("Error adding system message:", error);
+    }
+  };
 
   const fetchGame = async () => {
     if (!gameId) return;
@@ -47,11 +62,10 @@ export function usePlayGameData(gameId: string | undefined) {
 
       if (gameError) {
         console.error("Error fetching game:", gameError);
-        toast({
-          title: "Error fetching game",
-          description: gameError.message,
-          variant: "destructive",
-        });
+        addSystemMessage(
+          "Error fetching game", 
+          `❌ ${gameError.message}`
+        );
         setIsLoading(false);
         return;
       }
@@ -61,11 +75,10 @@ export function usePlayGameData(gameId: string | undefined) {
         
         // If we've tried multiple times and still can't find the game, redirect
         if (fetchAttemptsRef.current >= maxFetchAttempts) {
-          toast({
-            title: "Game not found",
-            description: "The requested game does not exist or is still being generated.",
-            variant: "destructive",
-          });
+          addSystemMessage(
+            "Game not found", 
+            "❌ The requested game does not exist or is still being generated."
+          );
           navigate("/");
           setIsLoading(false);
           return;
@@ -90,11 +103,10 @@ export function usePlayGameData(gameId: string | undefined) {
 
       if (versionError) {
         console.error("Error fetching game versions:", versionError);
-        toast({
-          title: "Error fetching game versions",
-          description: versionError.message,
-          variant: "destructive",
-        });
+        addSystemMessage(
+          "Error fetching game versions", 
+          `❌ ${versionError.message}`
+        );
         setIsLoading(false);
         return;
       }
@@ -121,11 +133,10 @@ export function usePlayGameData(gameId: string | undefined) {
       setIsLoading(false);
     } catch (error) {
       console.error("Error fetching game data:", error);
-      toast({
-        title: "Error fetching game data",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive",
-      });
+      addSystemMessage(
+        "Error fetching game data", 
+        `❌ ${error instanceof Error ? error.message : "An unexpected error occurred"}`
+      );
       setIsLoading(false);
     }
   };

@@ -1,7 +1,5 @@
-
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { Message } from "@/components/game-chat/types";
 import { ModelType } from "@/types/generation";
 import { 
@@ -39,7 +37,6 @@ export function useChatMessages({
   const [modelType, setModelType] = useState<ModelType>("smart");
   const [initialMessageId, setInitialMessageId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const { toast } = useToast();
 
   // Initialize timer for thinking time
   useEffect(() => {
@@ -95,22 +92,55 @@ export function useChatMessages({
         
         setMessages(typedData);
       } catch (error) {
-        toast({
-          title: "Error loading chat history",
-          description: error instanceof Error ? error.message : "Please try again",
-          variant: "destructive"
-        });
+        console.error("Error loading chat history:", error);
       } finally {
         setLoadingHistory(false);
       }
     };
     
     loadChatHistory();
-  }, [gameId, toast, initialMessage]);
+  }, [gameId, initialMessage]);
 
   const updateTerminalOutputWrapper = (newContent: string, isNewMessage = false) => {
     updateTerminalOutput(setTerminalOutput, newContent, isNewMessage);
   };
+
+  // Method to add system messages to the chat
+  const addSystemMessage = useCallback(async (message: string, response: string) => {
+    if (!gameId) return;
+    
+    try {
+      const { data: messageData, error } = await supabase
+        .from('game_messages')
+        .insert({
+          game_id: gameId,
+          message,
+          response,
+          is_system: true
+        })
+        .select('*')
+        .single();
+      
+      if (error) {
+        console.error("Error adding system message:", error);
+        return;
+      }
+      
+      // Update the messages state with the new system message
+      if (messageData) {
+        const newMessage: Message = {
+          ...messageData,
+          model_type: messageData.model_type === "smart" ? "smart" as ModelType : 
+                      messageData.model_type === "fast" ? "fast" as ModelType : null
+        };
+        
+        setMessages(prev => [...prev, newMessage]);
+      }
+      
+    } catch (error) {
+      console.error("Error in addSystemMessage:", error);
+    }
+  }, [gameId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -228,10 +258,11 @@ export function useChatMessages({
         }, 3000);
       }
       
-      toast({
-        title: "Content updated successfully",
-        description: "The changes have been applied successfully."
-      });
+      // Instead of toast, add a system message
+      addSystemMessage(
+        "Update complete", 
+        "✅ Content updated successfully! The changes have been applied."
+      );
     } catch (error) {
       console.error("Error in handleSubmit:", error);
       
@@ -240,11 +271,11 @@ export function useChatMessages({
         true
       );
       
-      toast({
-        title: "Error processing message",
-        description: error instanceof Error ? error.message : "Please try again",
-        variant: "destructive"
-      });
+      // Add error message to chat instead of toast
+      addSystemMessage(
+        "Error", 
+        `❌ Error processing message: ${error instanceof Error ? error.message : "Please try again"}`
+      );
       
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
       
@@ -275,6 +306,7 @@ export function useChatMessages({
     handleSubmit,
     initialMessageId,
     setInitialMessageId,
-    terminalOutput
+    terminalOutput,
+    addSystemMessage
   };
 }

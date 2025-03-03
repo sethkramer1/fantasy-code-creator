@@ -32,7 +32,8 @@ export const GameChat = ({
     handleModelChange,
     handleSubmit,
     initialMessageId,
-    setInitialMessageId
+    setInitialMessageId,
+    addSystemMessage
   } = useChatMessages({
     gameId,
     onGameUpdate,
@@ -81,15 +82,11 @@ export const GameChat = ({
           if (isGeneratingMessage) {
             console.log("Adding confirmation message after generation");
             
-            // Add a confirmation message from the system
-            await supabase
-              .from('game_messages')
-              .insert({
-                game_id: gameId,
-                message: "Initial generation complete",
-                response: "✅ Content generated successfully! You can now ask me to modify the content or add new features.",
-                is_system: true
-              });
+            // Use the addSystemMessage method instead of direct DB call
+            addSystemMessage(
+              "Initial generation complete",
+              "✅ Content generated successfully! You can now ask me to modify the content or add new features."
+            );
               
             // Reset the flag
             setGenerationComplete(false);
@@ -110,7 +107,7 @@ export const GameChat = ({
         generationHandledRef.current = false;
       }
     };
-  }, [generationComplete, gameId, messages, initialMessage]);
+  }, [generationComplete, gameId, messages, initialMessage, addSystemMessage]);
 
   return (
     <div className="flex flex-col h-full w-full max-w-[400px] mx-auto bg-white">

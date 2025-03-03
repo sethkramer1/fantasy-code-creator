@@ -1,12 +1,27 @@
 
 import { useState } from "react";
-import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { GameData, GameVersion } from "./usePlayGameData";
 import { Message } from "@/components/game-chat/types";
 
 export function useGameUpdate(gameId: string | undefined, game: GameData | null, gameVersions: GameVersion[], fetchGame: () => Promise<void>) {
-  const { toast } = useToast();
+
+  const addSystemMessage = async (message: string, response: string) => {
+    if (!gameId) return;
+    
+    try {
+      await supabase
+        .from('game_messages')
+        .insert({
+          game_id: gameId,
+          message,
+          response,
+          is_system: true
+        });
+    } catch (error) {
+      console.error("Error adding system message:", error);
+    }
+  };
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     if (!gameId || !game) return;
@@ -29,11 +44,10 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
 
       if (newVersionError) {
         console.error("Error saving new game version:", newVersionError);
-        toast({
-          title: "Error saving new game version",
-          description: newVersionError.message,
-          variant: "destructive",
-        });
+        addSystemMessage(
+          "Error", 
+          `❌ Error saving new game version: ${newVersionError.message}`
+        );
         return;
       }
 
@@ -49,11 +63,10 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
 
       if (updateError) {
         console.error("Error updating game:", updateError);
-        toast({
-          title: "Error updating game",
-          description: updateError.message,
-          variant: "destructive",
-        });
+        addSystemMessage(
+          "Error", 
+          `❌ Error updating game: ${updateError.message}`
+        );
         return;
       }
 
@@ -62,17 +75,16 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
       // Fetch the updated game versions
       await fetchGame();
 
-      toast({
-        title: "Game updated",
-        description: "The game has been updated successfully.",
-      });
+      addSystemMessage(
+        "Game updated", 
+        "✅ The game has been updated successfully."
+      );
     } catch (error) {
       console.error("Error updating game:", error);
-      toast({
-        title: "Error updating game",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
-        variant: "destructive",
-      });
+      addSystemMessage(
+        "Error", 
+        `❌ Error updating game: ${error instanceof Error ? error.message : "An unexpected error occurred"}`
+      );
     }
   };
 
@@ -126,17 +138,16 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
       // Fetch the updated game versions
       await fetchGame();
 
-      toast({
-        title: "Version restored",
-        description: `Reverted to version ${versionToRevert.version_number} as a new version (${nextVersionNumber})`,
-      });
+      addSystemMessage(
+        "Version restored",
+        `✅ Reverted to version ${versionToRevert.version_number} as a new version (${nextVersionNumber}).`
+      );
     } catch (error) {
       console.error("Error in revertToVersion:", error);
-      toast({
-        title: "Error",
-        description: "Failed to revert to the selected version",
-        variant: "destructive"
-      });
+      addSystemMessage(
+        "Error", 
+        "❌ Failed to revert to the selected version."
+      );
       throw error;
     }
   };
@@ -144,22 +155,20 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
   const revertToMessageVersion = async (message: Message) => {
     try {
       if (!message.version_id) {
-        toast({
-          title: "Cannot revert to this version",
-          description: "This message doesn't have an associated version",
-          variant: "destructive"
-        });
+        addSystemMessage(
+          "Error", 
+          "❌ Cannot revert to this version. This message doesn't have an associated version."
+        );
         return;
       }
 
       await revertToVersion(message.version_id);
     } catch (error) {
       console.error("Error in revertToMessageVersion:", error);
-      toast({
-        title: "Error",
-        description: "Failed to revert to the selected version",
-        variant: "destructive"
-      });
+      addSystemMessage(
+        "Error", 
+        "❌ Failed to revert to the selected version."
+      );
     }
   };
 

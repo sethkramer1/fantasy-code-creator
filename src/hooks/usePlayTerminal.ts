@@ -1,8 +1,7 @@
 
 import { useState, useEffect, useRef } from "react";
-import { useToast } from "@/components/ui/use-toast";
-import { ModelType } from "@/types/generation";
 import { supabase } from "@/integrations/supabase/client";
+import { ModelType } from "@/types/generation";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { useAuth } from "@/context/AuthContext";
 import { updateTerminalOutput, processAnthropicStream } from "@/components/game-chat/terminal-utils";
@@ -34,7 +33,6 @@ export function usePlayTerminal(
   });
   
   const timerRef = useRef<NodeJS.Timeout | undefined>();
-  const { toast } = useToast();
   const isInitialMount = useRef(true);
   const { user } = useAuth();
   const retryCount = useRef(0);
@@ -342,10 +340,23 @@ export function usePlayTerminal(
         setTimeout(() => {
           setState(prev => ({ ...prev, showTerminal: false }));
           
-          toast({
-            title: "Generation Complete",
-            description: "Content has been generated successfully.",
-          });
+          // Instead of toast, add a system message through the game_messages table directly
+          if (gameId) {
+            supabase
+              .from('game_messages')
+              .insert({
+                game_id: gameId,
+                message: "Generation Complete",
+                response: "✅ Content has been generated successfully. You can now ask me to modify it!",
+                is_system: true
+              })
+              .then(() => {
+                console.log("Added system message about successful generation");
+              })
+              .catch(error => {
+                console.error("Error adding system message:", error);
+              });
+          }
         }, 1500);
         
       } catch (error) {
@@ -360,11 +371,23 @@ export function usePlayTerminal(
           generationError: error.message
         }));
         
-        toast({
-          title: "Generation Error",
-          description: error.message || "Failed to generate content",
-          variant: "destructive",
-        });
+        // Add error message to chat directly instead of toast
+        if (gameId) {
+          supabase
+            .from('game_messages')
+            .insert({
+              game_id: gameId,
+              message: "Generation Error",
+              response: `❌ ${error.message || "Failed to generate content"}${gameContentRef.current.length > 500 ? " (partial content may be available)" : ""}`,
+              is_system: true
+            })
+            .then(() => {
+              console.log("Added system message about generation error");
+            })
+            .catch(err => {
+              console.error("Error adding system message:", err);
+            });
+        }
       }
     };
     
@@ -376,7 +399,7 @@ export function usePlayTerminal(
         timerRef.current = undefined;
       }
     };
-  }, [gameId, generating, initialPrompt, gameType, modelType, imageUrl, toast, user]);
+  }, [gameId, generating, initialPrompt, gameType, modelType, imageUrl, user]);
 
   return {
     generationInProgress: state.generationInProgress,
