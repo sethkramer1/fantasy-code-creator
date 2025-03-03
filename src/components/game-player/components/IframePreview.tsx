@@ -88,7 +88,7 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
       <iframe
         ref={localIframeRef}
         srcDoc={enhancedCode}
-        className="absolute inset-0 w-full h-full border border-gray-200"
+        className="absolute inset-0 w-full h-full"
         sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-pointer-lock"
         title="Generated Content"
         tabIndex={0}
