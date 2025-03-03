@@ -4,11 +4,18 @@ export interface GenerationOptions {
   gameType: string;
   imageUrl?: string;
   existingGameId?: string;
-  modelType?: string;
+  modelType?: ModelType;
   visibility?: string;
 }
 
 export interface GenerationResult {
   id: string;
   [key: string]: any;
+}
+
+export type ModelType = 'smart' | 'fast';
+
+export interface ContentTypeInstructions {
+  systemInstructions: string;
+  promptPrefix: string;
 }

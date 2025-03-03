@@ -38,6 +38,7 @@ export function usePlayTerminal(
   const { user } = useAuth();
   const retryCount = useRef(0);
   const maxRetries = 2;
+  const gameContentRef = useRef<string>('');
 
   const setShowTerminal = (show: boolean) => {
     setState(prev => ({ ...prev, showTerminal: show }));
@@ -145,6 +146,7 @@ export function usePlayTerminal(
                     const contentChunk = data.delta.text || '';
                     if (contentChunk) {
                       content += contentChunk;
+                      gameContentRef.current += contentChunk;
                       
                       if (contentChunk.includes('\n')) {
                         const lines = contentChunk.split('\n');
@@ -233,15 +235,18 @@ export function usePlayTerminal(
       const apiUrl = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game';
       
       console.log("Calling generate-game function with payload:", {
-        gameId,
+        gameIdLength: gameId?.length,
         promptLength: initialPrompt.length,
         gameType,
         modelType,
         hasImage: !!imageUrl,
-        userId: user?.id ? "present" : "not present"
+        hasUserId: !!user?.id
       });
       
       updateTerminalOutput("> Connecting to AI service...", true);
+      
+      // Reset the game content reference
+      gameContentRef.current = '';
       
       const response = await fetch(apiUrl, {
         method: 'POST',
@@ -282,6 +287,11 @@ export function usePlayTerminal(
         updateTerminalOutput("> Content received successfully", true);
       }
       
+      // Use accumulated content from the stream reference if available
+      if (gameContentRef.current && gameContentRef.current.length > 100) {
+        content = gameContentRef.current;
+      }
+      
       if (!content || content.length < 100) {
         throw new Error("Received empty or invalid content from generation");
       }
@@ -309,29 +319,37 @@ export function usePlayTerminal(
       
       updateTerminalOutput("> Processing and saving generated content...", true);
       
-      await saveGeneratedGame({
-        gameContent: content,
-        prompt: initialPrompt,
-        gameType,
-        modelType: modelType as ModelType,
-        imageUrl: imageUrl || undefined,
-        existingGameId: gameId,
-        instructions: "Initial content generated successfully",
-        userId: user?.id
-      });
-      
-      updateTerminalOutput("> Content saved successfully", true);
-      
-      await supabase
-        .from('game_messages')
-        .update({ response: "Initial content generated successfully" })
-        .eq('game_id', gameId)
-        .is('response', null);
+      // Save the game to the database
+      try {
+        await saveGeneratedGame({
+          gameContent: content,
+          prompt: initialPrompt,
+          gameType,
+          modelType: modelType as ModelType,
+          imageUrl: imageUrl || undefined,
+          existingGameId: gameId,
+          instructions: "Initial content generated successfully",
+          userId: user?.id
+        });
         
-      console.log("Generation completed successfully");
-      
-      // Reset retry counter on success
-      retryCount.current = 0;
+        updateTerminalOutput("> Content saved successfully", true);
+        
+        // Update message if needed
+        await supabase
+          .from('game_messages')
+          .update({ response: "Initial content generated successfully" })
+          .eq('game_id', gameId)
+          .is('response', null);
+          
+        console.log("Generation completed successfully");
+        
+        // Reset retry counter on success
+        retryCount.current = 0;
+      } catch (saveError) {
+        console.error("Error saving game:", saveError);
+        updateTerminalOutput(`> Error saving game: ${saveError.message}`, true);
+        throw saveError;
+      }
       
       return true;
     } catch (error) {

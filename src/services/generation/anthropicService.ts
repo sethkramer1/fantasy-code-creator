@@ -1,4 +1,5 @@
 
+import { ContentTypeInstructions, ModelType } from "@/types/generation";
 import { contentTypes } from "@/types/game";
 import { getContentTypeInstructions } from "@/utils/contentTypeInstructions";
 
@@ -28,16 +29,15 @@ export const callAnthropicApi = async (
   const enhancedPrompt = selectedType.promptPrefix + " " + prompt;
   const { systemInstructions } = getContentTypeInstructions(gameType);
   
-  // Combine the system instructions with the enhanced prompt and image URL
+  // Combine the system instructions with the enhanced prompt
   const finalPrompt = `${enhancedPrompt}\n\n${partialResponse ? "Use this as a starting point: " + partialResponse : ""}`;
   
   callbacks?.onStreamStart();
 
   console.log("Calling Anthropic API with:", {
-    prompt: finalPrompt.substring(0, 50) + "...",
-    systemInstructions: systemInstructions.substring(0, 50) + "...",
-    imageUrl: imageUrl ? "Yes (provided)" : "No",
-    partialResponse: partialResponse ? "Yes (length: " + partialResponse.length + ")" : "No"
+    promptLength: finalPrompt.length,
+    systemLength: systemInstructions.length,
+    hasImage: !!imageUrl
   });
   
   const response = await fetch(

@@ -1,12 +1,13 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { formatSvgContent, ensureValidHtml } from "@/utils/contentTypeInstructions";
+import { ModelType } from "@/types/generation";
 
 export interface SaveGameOptions {
   gameContent: string;
   prompt: string;
   gameType: string;
-  modelType: string;
+  modelType: ModelType;
   imageUrl?: string;
   existingGameId?: string;
   instructions?: string;
@@ -28,12 +29,12 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
   } = options;
 
   console.log("Saving game with options:", { 
-    prompt, 
+    promptLength: prompt?.length || 0, 
     gameType, 
     modelType, 
     existingGameId,
     contentLength: gameContent?.length || 0,
-    userId: userId ? "provided" : "not provided",
+    hasUserId: !!userId,
     visibility
   });
 
@@ -44,7 +45,7 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
   }
 
   if (gameContent.length < 100) {
-    console.error("Game content too short for saving:", gameContent?.substring(0, 100));
+    console.error("Game content too short for saving:", gameContent.substring(0, 100));
     throw new Error("Game content too short (less than 100 characters)");
   }
 
@@ -71,7 +72,7 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
     if (existingGameId) {
       console.log(`Updating existing game: ${existingGameId}`);
       
-      // Check if game exists - using maybeSingle() to handle no results gracefully
+      // Check if game exists
       const { data: gameCheck, error: checkError } = await supabase
         .from('games')
         .select('id')
@@ -99,7 +100,7 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
             visibility: visibility
           }])
           .select()
-          .maybeSingle(); // Changed from .single() to .maybeSingle()
+          .maybeSingle();
 
         if (gameError) {
           console.error("Failed to create new game after update failed:", gameError);
@@ -139,7 +140,7 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
           })
           .eq('id', existingGameId)
           .select()
-          .maybeSingle(); // Changed from .single() to .maybeSingle()
+          .maybeSingle();
         
         if (updateError) {
           console.error("Failed to update game:", updateError);
@@ -170,7 +171,7 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
           ? versionData[0].version_number 
           : 0;
         
-        // Update the game version with the generated content
+        // Insert a new game version with the generated content
         const { error: versionError } = await supabase
           .from('game_versions')
           .insert([{
@@ -184,11 +185,22 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
           console.error("Failed to create new game version:", versionError);
           // Don't throw here, as the game was already updated
         }
+        
+        // Update the game's current version
+        const { error: currentVersionError } = await supabase
+          .from('games')
+          .update({ current_version: latestVersionNumber + 1 })
+          .eq('id', existingGameId);
+          
+        if (currentVersionError) {
+          console.error("Failed to update current version:", currentVersionError);
+          // Don't throw here either
+        }
       }
       
       console.log("Game updated successfully:", gameData?.id);
     } else {
-      console.log("Creating new game", userId ? "for user" : "without user");
+      console.log("Creating new game with model type:", modelType);
       
       // Create a new game
       const { data: newGameData, error: gameError } = await supabase
@@ -204,7 +216,7 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
           visibility: visibility
         }])
         .select()
-        .maybeSingle(); // Changed from .single() to .maybeSingle()
+        .maybeSingle();
 
       if (gameError) {
         console.error("Failed to save new game:", gameError);

@@ -42,7 +42,7 @@ serve(async (req) => {
     console.log("System prompt provided:", system ? "Yes" : "No");
     console.log("Image URL provided:", imageUrl ? "Yes" : "No");
     console.log("Partial response provided:", partialResponse ? "Yes" : "No");
-
+    
     if (!prompt) {
       return new Response(
         JSON.stringify({ error: 'prompt is required' }),
@@ -122,8 +122,7 @@ Do not include any explanations, markdown formatting or code blocks - only retur
       ];
     }
 
-    console.log('Sending request to Anthropic API with properly structured body');
-    console.log('System message is:', systemMessage.substring(0, 50) + '...');
+    console.log('Sending request to Anthropic API with Claude 3.7 Sonnet');
 
     // Make the request to Anthropic
     const response = await fetch('https://api.anthropic.com/v1/messages', {

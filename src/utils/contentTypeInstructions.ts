@@ -1,228 +1,132 @@
 
+import { contentTypes } from "@/types/game";
 import { ContentTypeInstructions } from "../types/generation";
 
-export const getContentTypeInstructions = (gameType: string): ContentTypeInstructions => {
-  let systemInstructions = "";
+export const getContentTypeInstructions = (contentTypeId: string): ContentTypeInstructions => {
+  const contentType = contentTypes.find(type => type.id === contentTypeId);
   
-  switch (gameType) {
-    case 'game':
-      systemInstructions = `
-GAME REQUIREMENTS:
-1. Structure:
-   - Encapsulated Game class with proper states (loading, playing, paused, game over)
-   - No global variables, use requestAnimationFrame for game loop
-   - Proper event handling and cleanup
-
-2. Core Features:
-   - Functional start/pause/restart buttons
-   - Persistent score/lives tracking
-   - Mobile-friendly touch controls (44px+ touch areas)
-   - Simple asset loading with visual indicators that load correctly
-
-3. Quality & UX:
-   - Bounds checking and error prevention
-   - Clear instructions, feedback, and game states
-   - Visual feedback for all player actions
-   - Responsive design for all screen sizes
-   - NO music or external APIs
-   - Handle orientation changes on mobile
-
-4. Code Quality:
-   - Descriptive names and comments for key functions
-   - Try-catch blocks around critical functions
-   - Performance optimization for mobile
-   - Canvas that adjusts to iframe container size
-   - Self-contained code (no external dependencies)
-`;
-      break;
-    case 'svg':
-      systemInstructions = `
-SVG REQUIREMENTS:
-1. Structure:
-- Use proper SVG namespace
-- Implement clean, semantic element structure
-- Optimize paths and shapes
-- Use appropriate viewBox dimensions
-- Include proper metadata
-
-2. Styling:
-- Use efficient CSS styling
-- Implement proper fill and stroke attributes
-- Use transforms where appropriate
-- Add animations if specified
-- Include responsive scaling
-
-3. Optimization:
-- Minimize path points
-- Remove unnecessary attributes
-- Use appropriate precision
-- Implement proper grouping
-- Clean and format code`;
-      break;
+  if (!contentType) {
+    return {
+      systemInstructions: getDefaultInstructions(),
+      promptPrefix: "Create"
+    };
+  }
+  
+  switch (contentTypeId) {
     case 'webdesign':
-      systemInstructions = `
-WEB DESIGN REQUIREMENTS:
-1. Structure:
-- If the user asks for a mobile design, mobile UI, or anything similar for a mobile device, the design should be wrapped in an iPhone container showing the status bar and home indicator.
- In this case, create a mobile UI design inside an iPhone frame so the user can see what the design mock up looks like in an iphone frame since it is a mobile UI design.
-- Use semantic HTML5 elements
-- Implement proper heading hierarchy
-- Include meta tags
-- Add responsive viewport settings
-- Use proper document structure
-
-2. Styling:
-- Implement mobile-first responsive design
-- Use modern CSS features
-- Include hover and focus states
-- Add smooth transitions
-- Support dark/light modes
-
-3. Components:
-- Create reusable components
-- Add proper spacing
-- Include loading states
-- Implement error states
-- Use consistent styling
-
-4. Accessibility:
-- Add ARIA labels
-- Use semantic HTML
-- Include keyboard navigation
-- Implement proper color contrast
-- Add focus indicators
-
-5. Container:
-- If the user asks for a mobile UI, wrap the design in an iphone container
-
-6. Image Usage:
-- When using Unsplash images, ONLY use valid, real Unsplash URLs (https://source.unsplash.com/...)
-- Never make up or invent Unsplash image URLs
-- If you need a placeholder image, use a proper placeholder service instead of making up an Unsplash URL
-`;
-      break;
-    case 'dataviz':
-      systemInstructions = `
-DATA VISUALIZATION REQUIREMENTS:
-1. Structure:
-- Use appropriate chart type
-- Implement proper axes
-- Add clear labels
-- Include legends where needed
-- Use responsive sizing
-
-2. Interaction:
-- Add hover states
-- Include tooltips
-- Implement zooming if needed
-- Add click interactions
-- Support touch devices
-
-3. Accessibility:
-- Add ARIA labels
-- Include alt text
-- Support keyboard navigation
-- Use proper color contrast
-- Add screen reader support`;
-      break;
-    case 'diagram':
-      systemInstructions = `
-DIAGRAM REQUIREMENTS:
-1. Structure:
-- Use clear layout
-- Implement proper spacing
-- Add directional indicators
-- Include proper labels
-- Use consistent styling
-
-2. Components:
-- Create clear nodes
-- Add proper connections
-- Include labels
-- Use appropriate icons
-- Implement grouping
-
-3. Styling:
-- Use consistent colors
-- Add proper spacing
-- Include hover states
-- Implement highlights
-- Use appropriate fonts`;
-      break;
-    case 'infographic':
-      systemInstructions = `
-INFOGRAPHIC REQUIREMENTS:
-1. Structure:
-- Use clear sections
-- Implement proper flow
-- Add visual hierarchy
-- Include proper spacing
-- Use consistent layout
-
-2. Content:
-- Create clear headings
-- Add proper icons
-- Include data visualizations
-- Use appropriate typography
-- Implement consistent styling
-
-3. Accessibility:
-- Add alt text
-- Use proper contrast
-- Include screen reader support
-- Implement proper spacing
-- Use semantic structure`;
-      break;
+      return {
+        systemInstructions: getWebDesignInstructions(),
+        promptPrefix: "Design a website for"
+      };
+    case 'webcomponent':
+      return {
+        systemInstructions: getWebComponentInstructions(),
+        promptPrefix: "Create a web component for"
+      };
+    case 'svg':
+      return {
+        systemInstructions: getSvgInstructions(),
+        promptPrefix: "Create an SVG illustration of"
+      };
+    case 'visualization':
+      return {
+        systemInstructions: getVisualizationInstructions(),
+        promptPrefix: "Create a data visualization for"
+      };
+    case 'animation':
+      return {
+        systemInstructions: getAnimationInstructions(),
+        promptPrefix: "Create an animation of"
+      };
+    case 'ui':
+      return {
+        systemInstructions: getUIInstructions(),
+        promptPrefix: "Design a user interface for"
+      };
     default:
-      systemInstructions = "Create content based on the user's requirements with clean, maintainable code.";
+      return {
+        systemInstructions: getDefaultInstructions(),
+        promptPrefix: "Create"
+      };
   }
-
-  // Image usage instructions for all content types
-  systemInstructions += `
-
-IMPORTANT IMAGE USAGE INSTRUCTIONS:
-- When using Unsplash images, ONLY use valid, real Unsplash URLs (https://source.unsplash.com/...)
-- Never make up or invent Unsplash image URLs
-- If you need a placeholder image, use a proper placeholder service instead of making up an Unsplash URL
-
-IMPORTANT CODE LIMITATIONS:
-- The resulting code will be written in HTML, JS, and CSS only
-- Do not include server-side code, backend functionality, or external APIs that require server implementation
-- Keep all functionality client-side and self-contained
-`;
-
-  // Enhanced emphasis for mobile UI wrapping in iPhone container
-  if (gameType === 'webdesign') {
-    const mobileEmphasis = `
-IMPORTANT MOBILE INSTRUCTION:
-This is a mobile UI design request. You MUST wrap the final design in an iPhone container showing 
-the status bar at the top and home indicator at the bottom. The design should appear as if it's 
-being displayed on an actual iPhone device to provide proper context for the mobile UI design.
-
-ENSURE INTERACTION CAPABILITIES:
-- The content inside the iPhone container MUST be fully functional
-- Users should be able to scroll the content if it extends beyond the viewport
-- All interactive elements (buttons, links, inputs) should be clickable and functional
-- Touch events should work properly on the content within the frame
-- Test that the scrolling works by adding sufficient content to require scrolling
-- Make sure to use proper overflow settings to enable scrolling
-`;
-    systemInstructions = mobileEmphasis + systemInstructions;
-  }
-
-  return { gameType, systemInstructions };
 };
 
 export const formatSvgContent = (content: string): string => {
-  // For SVG content type, wrap the SVG in basic HTML if it's just raw SVG
-  if (!content.includes('<!DOCTYPE html>')) {
-    return `
-<!DOCTYPE html>
+  // Check if content is already valid SVG
+  if (content.trim().startsWith('<svg') && content.trim().endsWith('</svg>')) {
+    return wrapSvgInHtml(content);
+  }
+  
+  // Try to extract SVG from HTML content
+  const svgMatch = content.match(/<svg[\s\S]*?<\/svg>/);
+  if (svgMatch && svgMatch[0]) {
+    return wrapSvgInHtml(svgMatch[0]);
+  }
+  
+  // If no SVG found, return original content wrapped in HTML
+  return ensureValidHtml(content);
+};
+
+// Wrap SVG content in proper HTML document for rendering
+const wrapSvgInHtml = (svgContent: string): string => {
+  return `<!DOCTYPE html>
 <html>
 <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SVG Illustration</title>
   <style>
-    body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-    svg { max-width: 100%; max-height: 100vh; }
+    body {
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      background-color: #f5f5f5;
+    }
+    .svg-container {
+      max-width: 90vw;
+      max-height: 90vh;
+    }
+    svg {
+      width: 100%;
+      height: 100%;
+      max-width: 800px;
+    }
+  </style>
+</head>
+<body>
+  <div class="svg-container">
+    ${svgContent}
+  </div>
+</body>
+</html>`;
+};
+
+// Ensure content is valid HTML
+export const ensureValidHtml = (content: string): string => {
+  if (content.includes('<html') || content.includes('<!DOCTYPE')) {
+    return content;
+  }
+  
+  // Content has HTML elements but is not a full document
+  if (content.includes('<') && content.includes('>')) {
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Generated Content</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
   </style>
 </head>
 <body>
@@ -230,26 +134,157 @@ export const formatSvgContent = (content: string): string => {
 </body>
 </html>`;
   }
-  return content;
-};
-
-export const ensureValidHtml = (content: string): string => {
-  // Final check to ensure we have valid HTML content
-  if (!content.includes('<html') && !content.includes('<!DOCTYPE')) {
-    // If we've collected enough content, try to make it valid HTML
-    if (content.length > 500) {
-      return `<!DOCTYPE html>
+  
+  // Plain text content
+  return `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Generated Content</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+      line-height: 1.6;
+      color: #333;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+  </style>
 </head>
 <body>
-  ${content}
+  <pre>${content}</pre>
 </body>
 </html>`;
-    }
-  }
-  return content;
+};
+
+// Default system instructions
+const getDefaultInstructions = (): string => {
+  return `You are an expert HTML, CSS, and JavaScript developer who creates interactive web content.
+Please generate complete, self-contained HTML code based on the user's request.
+Your HTML should:
+- Include proper doctype, html, head and body tags
+- Have all CSS in a style tag in the head
+- Have all JavaScript in a script tag at the end of the body
+- Be ready to render in a browser with no additional files
+- Be visually appealing with a clean, modern design
+- Be responsive and mobile-friendly
+- Use semantic HTML5 elements
+- Be accessible with proper ARIA attributes where needed
+- Avoid external dependencies when possible (no CDN links)
+- Include helpful comments explaining key parts of your code
+
+Return ONLY the complete HTML code with no additional text, explanations, or markdown formatting.`;
+};
+
+// Domain-specific system instructions
+const getWebDesignInstructions = (): string => {
+  return `You are an expert web designer and frontend developer who creates beautiful, modern websites.
+Please generate complete, self-contained HTML code for a website based on the user's description.
+Your HTML should:
+- Include proper doctype, html, head and body tags
+- Include viewport meta tag and other appropriate meta tags
+- Have all CSS in a style tag in the head
+- Have all JavaScript in a script tag at the end of the body
+- Be ready to render in a browser with no additional files
+- Be visually appealing with a clean, modern design
+- Be fully responsive and mobile-friendly
+- Include proper navigation, hero section, and other typical website components
+- Use semantic HTML5 elements and follow accessibility best practices
+- Avoid external dependencies when possible (no CDN links)
+
+Return ONLY the complete HTML code with no additional text, explanations, or markdown formatting.`;
+};
+
+const getWebComponentInstructions = (): string => {
+  return `You are an expert frontend developer who specializes in creating reusable web components.
+Please generate complete, self-contained HTML code for a web component based on the user's description.
+Your HTML should:
+- Include proper doctype, html, head and body tags for demonstration
+- Have all CSS in a style tag in the head
+- Have all JavaScript in a script tag at the end of the body
+- Implement the component using either native Web Components (Custom Elements) or a clean vanilla JS approach
+- Be ready to render in a browser with no additional files
+- Be visually appealing with a clean, modern design
+- Be responsive and mobile-friendly
+- Use semantic HTML5 elements and follow accessibility best practices
+- Avoid external dependencies when possible (no CDN links)
+- Include helpful comments explaining how to use and customize the component
+
+Return ONLY the complete HTML code with no additional text, explanations, or markdown formatting.`;
+};
+
+const getSvgInstructions = (): string => {
+  return `You are an expert SVG artist and developer who creates beautiful vector graphics and illustrations.
+Please generate complete, self-contained SVG code based on the user's description.
+Your SVG should:
+- Be well-formed with proper namespace declarations
+- Use appropriate SVG elements (path, circle, rect, g, etc.)
+- Include a viewBox attribute
+- Have clean, optimized code
+- Use a harmonious color scheme
+- Include subtle details and artistic elements to enhance visual appeal
+- Avoid unnecessary complexity that would increase file size
+- Use CSS for styling when appropriate
+- Include descriptive IDs and classes for elements
+- Be accessible with proper ARIA attributes where needed
+
+Return the SVG code embedded in a simple HTML document for viewing.
+Return ONLY the complete HTML code with no additional text, explanations, or markdown formatting.`;
+};
+
+const getVisualizationInstructions = (): string => {
+  return `You are an expert data visualization developer who creates interactive, insightful visual representations of data.
+Please generate complete, self-contained HTML code for a data visualization based on the user's description.
+Your HTML should:
+- Include proper doctype, html, head and body tags
+- Have all CSS in a style tag in the head
+- Have all JavaScript in a script tag at the end of the body
+- Use vanilla JavaScript or simple SVG manipulation (no external libraries)
+- Include sample data that's relevant to the visualization type
+- Be ready to render in a browser with no additional files
+- Be visually appealing with a clean, modern design
+- Include appropriate labels, legends, axes, and other elements needed for understanding
+- Use an appropriate color scheme for data representation
+- Be responsive where appropriate
+- Use semantic HTML5 elements and follow accessibility best practices
+
+Return ONLY the complete HTML code with no additional text, explanations, or markdown formatting.`;
+};
+
+const getAnimationInstructions = (): string => {
+  return `You are an expert web animator who creates engaging, performant animations using CSS and JavaScript.
+Please generate complete, self-contained HTML code for an animation based on the user's description.
+Your HTML should:
+- Include proper doctype, html, head and body tags
+- Have all CSS in a style tag in the head
+- Have all JavaScript in a script tag at the end of the body
+- Use CSS animations/transitions or requestAnimationFrame for optimal performance
+- Avoid heavy animation libraries
+- Be ready to render in a browser with no additional files
+- Be visually appealing with a clean, modern design
+- Have smooth, fluid animations that run at 60fps
+- Include controls to play/pause/reset when appropriate
+- Use semantic HTML5 elements and follow accessibility best practices (including respecting prefers-reduced-motion)
+
+Return ONLY the complete HTML code with no additional text, explanations, or markdown formatting.`;
+};
+
+const getUIInstructions = (): string => {
+  return `You are an expert UI designer and frontend developer who creates beautiful, functional user interfaces.
+Please generate complete, self-contained HTML code for a user interface based on the user's description.
+Your HTML should:
+- Include proper doctype, html, head and body tags
+- Have all CSS in a style tag in the head
+- Have all JavaScript in a script tag at the end of the body
+- Implement a clean, modern UI with appropriate interactions
+- Be ready to render in a browser with no additional files
+- Be visually appealing with careful attention to typography, spacing, and color
+- Be fully responsive and mobile-friendly
+- Include appropriate hover, focus, and active states for interactive elements
+- Use semantic HTML5 elements and follow accessibility best practices
+- Avoid external dependencies when possible (no CDN links)
+
+Return ONLY the complete HTML code with no additional text, explanations, or markdown formatting.`;
 };
