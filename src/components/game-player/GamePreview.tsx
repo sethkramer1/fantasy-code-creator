@@ -20,7 +20,7 @@ interface GamePreviewProps {
 export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
   ({ currentVersion, showCode }, ref) => {
     const [processedCode, setProcessedCode] = useState<string | null>(null);
-    const isInitialRender = useRef(true);
+    const processedVersionId = useRef<string | null>(null);
     
     // Validate code function
     const isValidCode = useCallback((code: string | undefined): boolean => {
@@ -36,23 +36,29 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       return hasHtmlStructure;
     }, []);
     
-    // Process the code when currentVersion changes
+    // Process the code when currentVersion changes - with more stable logic
     useEffect(() => {
       // Skip if no version is available
-      if (!currentVersion?.code) {
+      if (!currentVersion?.code || !currentVersion?.id) {
+        return;
+      }
+      
+      // Skip if we've already processed this exact version
+      if (processedVersionId.current === currentVersion.id && processedCode) {
         return;
       }
       
       // Check if current code is valid
       if (isValidCode(currentVersion.code)) {
-        console.log("Valid code detected in GamePreview, length:", currentVersion.code.length);
+        console.log("Valid code detected in GamePreview, version:", currentVersion.id);
         setProcessedCode(currentVersion.code);
+        processedVersionId.current = currentVersion.id;
       } 
       // Handle short HTML snippets by wrapping them
-      else if (currentVersion.code.length < 100 && 
-               currentVersion.code.length > 0 && 
+      else if (currentVersion.code.length > 0 && 
                currentVersion.code.includes('<') && 
                currentVersion.code.includes('>')) {
+        console.log("Wrapping HTML snippet in GamePreview, version:", currentVersion.id);
         const wrappedCode = `<!DOCTYPE html>
 <html>
 <head>
@@ -66,10 +72,8 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
 </html>`;
         
         setProcessedCode(wrappedCode);
+        processedVersionId.current = currentVersion.id;
       }
-      
-      // After first render, clear the initial flag
-      isInitialRender.current = false;
     }, [currentVersion, isValidCode]);
 
     // Handle case when no version is available yet
@@ -82,36 +86,32 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       );
     }
 
-    // Show loading state only if we don't have processed code
-    if (!processedCode) {
-      return (
-        <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="text-gray-500">Processing content...</p>
-          <p className="text-gray-400 text-sm max-w-md text-center px-4">
-            Please wait while the content is being prepared...
-          </p>
-        </div>
-      );
+    // When we have processed code, render the appropriate view
+    if (processedCode) {
+      if (!showCode) {
+        return (
+          <div className="h-full relative">
+            <IframePreview code={processedCode} ref={ref} />
+          </div>
+        );
+      } else {
+        const { html, css, js } = parseCodeSections(processedCode);
+        
+        return (
+          <div className="h-full relative">
+            <CodeEditor html={html} css={css} js={js} />
+          </div>
+        );
+      }
     }
 
-    // Determine which view to show based on showCode flag
-    if (!showCode) {
-      return (
-        <IframePreview 
-          code={processedCode} 
-          ref={ref} 
-        />
-      );
-    } else {
-      const { html, css, js } = parseCodeSections(processedCode);
-      
-      return (
-        <div className="h-full relative">
-          <CodeEditor html={html} css={css} js={js} />
-        </div>
-      );
-    }
+    // Show loading state only if we don't have processed code
+    return (
+      <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+        <p className="text-gray-500">Processing content...</p>
+      </div>
+    );
   }
 );
 

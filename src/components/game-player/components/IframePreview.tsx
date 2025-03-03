@@ -1,5 +1,5 @@
 
-import React, { useRef, useEffect, forwardRef, useState, useCallback } from "react";
+import React, { useRef, useEffect, forwardRef, useState } from "react";
 
 interface IframePreviewProps {
   code: string;
@@ -9,10 +9,8 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
   ({ code }, ref) => {
     const localIframeRef = useRef<HTMLIFrameElement>(null);
     const [iframeContent, setIframeContent] = useState<string>("");
-    const prevCodeRef = useRef<string>("");
-    const [isStable, setIsStable] = useState(false);
     const contentStabilizedRef = useRef<boolean>(false);
-    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const prevCodeRef = useRef<string>("");
     
     // Forward the ref to parent component
     useEffect(() => {
@@ -25,53 +23,44 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       }
     }, [ref]);
 
-    // Cleanup timers on unmount
-    useEffect(() => {
-      return () => {
-        if (timerRef.current) {
-          clearTimeout(timerRef.current);
-        }
-      };
-    }, []);
-
     // Update iframe content when code changes
     useEffect(() => {
-      // Skip empty or invalid code
+      // Skip if code is exactly the same as previous to prevent unnecessary rerenders
+      if (prevCodeRef.current === code) {
+        return;
+      }
+      
+      // Skip empty code
       if (!code || code.length < 10) {
         return;
       }
       
-      // Clear any existing timer to prevent race conditions
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
-      
-      // Always update the content when code changes
-      // This is critical to ensure we display content even after loading state
       console.log("Setting iframe content with code length:", code.length);
       setIframeContent(code);
       prevCodeRef.current = code;
-      setIsStable(true);
       contentStabilizedRef.current = true;
       
     }, [code]);
 
+    // Simply render the iframe when we have content
+    if (iframeContent) {
+      return (
+        <iframe
+          ref={localIframeRef}
+          srcDoc={iframeContent}
+          className="absolute inset-0 w-full h-full border border-gray-100"
+          sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
+          title="Generated Content"
+          tabIndex={0}
+          style={{ width: '100%', height: '100%', position: 'absolute' }}
+        />
+      );
+    }
+    
+    // Loading state when no content
     return (
-      <div className="h-full relative">
-        {iframeContent ? (
-          <iframe
-            ref={localIframeRef}
-            srcDoc={iframeContent}
-            className="absolute inset-0 w-full h-full border border-gray-100"
-            sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
-            title="Generated Content"
-            tabIndex={0}
-          />
-        ) : (
-          <div className="h-full flex items-center justify-center bg-gray-50">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          </div>
-        )}
+      <div className="h-full flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
       </div>
     );
   }

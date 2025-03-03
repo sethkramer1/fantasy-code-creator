@@ -1,4 +1,5 @@
-import { useRef, useState, useEffect, useCallback } from "react";
+
+import { useRef, useState, useEffect } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
 import { PlayNavbar } from "@/components/game-player/PlayNavbar";
@@ -22,10 +23,8 @@ const Play = () => {
   const [refreshAttempts, setRefreshAttempts] = useState(0);
   const maxRefreshAttempts = 5;
   const dataRefreshRef = useRef<boolean>(false);
-  const stableDataRef = useRef<boolean>(false);
   const stableVersionIdRef = useRef<string | null>(null);
-  const gamePreviewKey = useRef<string>("initial");
-
+  
   // Get search params for generation
   const generating = searchParams.get("generating") === "true";
   const initialType = searchParams.get("type") || "webdesign";
@@ -49,7 +48,6 @@ const Play = () => {
   );
   
   // Set the initial prompt prioritizing URL param over database value
-  // This ensures we use the fresh user input rather than any placeholder
   const initialPrompt = promptFromUrl || (game?.prompt || "Loading...");
   
   // Log the selected prompt source for debugging
@@ -71,17 +69,13 @@ const Play = () => {
     generationError
   } = usePlayTerminal(gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl);
 
-  // When version changes and is stable, update reference to prevent re-renders
+  // We use a stable reference for the current version ID
   useEffect(() => {
     if (currentVersion?.id && currentVersion.id !== stableVersionIdRef.current && 
         currentVersion.code && currentVersion.code !== "Generating..." &&
         currentVersion.code.length > 100) {
       console.log("Stable version detected, updating reference:", currentVersion.id);
       stableVersionIdRef.current = currentVersion.id;
-      stableDataRef.current = true;
-      
-      // Set a stable key that won't change
-      gamePreviewKey.current = `stable-${currentVersion.id}`;
     }
   }, [currentVersion]);
 
@@ -121,7 +115,6 @@ const Play = () => {
                 }
                 
                 // Mark data as stable to prevent further refresh cycles
-                stableDataRef.current = true;
                 dataRefreshRef.current = false;
               }, 1000);
               
@@ -224,9 +217,7 @@ const Play = () => {
     setHasRefreshedAfterGeneration(false);
     setRefreshAttempts(0);
     dataRefreshRef.current = false;
-    stableDataRef.current = false;
     stableVersionIdRef.current = null;
-    gamePreviewKey.current = "initial";
   }, [gameId]);
 
   // Handle missing gameId
@@ -292,7 +283,7 @@ const Play = () => {
             />
           ) : (
             <GamePreview
-              key={gamePreviewKey.current}
+              key={currentVersion?.id || 'loading'}
               currentVersion={currentVersion}
               showCode={showCode}
               ref={iframeRef}
