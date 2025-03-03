@@ -5,6 +5,7 @@ import { ViewToggle } from "@/components/game-player/ViewToggle";
 import { VersionSelector } from "@/components/game-player/VersionSelector";
 import { GamePreview } from "@/components/game-player/GamePreview";
 import { GameVersion } from "./hooks/useGameVersions";
+import { GameActions } from "@/components/game-player/GameActions";
 
 interface PlayContentProps {
   showGenerating: boolean;
@@ -19,6 +20,7 @@ interface PlayContentProps {
   generationInProgress: boolean;
   isLatestVersion: boolean;
   currentVersion?: GameVersion;
+  gameId: string; // Added gameId prop
 }
 
 export function PlayContent({
@@ -33,7 +35,8 @@ export function PlayContent({
   thinkingTime,
   generationInProgress,
   isLatestVersion,
-  currentVersion
+  currentVersion,
+  gameId // Add gameId to destructuring
 }: PlayContentProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -81,6 +84,16 @@ export function PlayContent({
             <div className="flex items-center gap-4">
               {!showGenerating && (
                 <ViewToggle showCode={showCode} setShowCode={setShowCode} />
+              )}
+              
+              {!showGenerating && (
+                <GameActions 
+                  currentVersion={currentVersion}
+                  showGenerating={showGenerating}
+                  isLatestVersion={isLatestVersion}
+                  onRevertToVersion={onRevertToVersion}
+                  gameId={gameId} // Pass gameId to GameActions
+                />
               )}
             </div>
             

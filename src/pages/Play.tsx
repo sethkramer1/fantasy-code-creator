@@ -1,129 +1,140 @@
-
-import { useState, useEffect, useRef } from "react";
-import { useParams, useSearchParams, useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
-import { useTerminal } from "@/components/game-player/hooks/useTerminal";
-import { useGameVersions } from "@/components/game-player/hooks/useGameVersions";
-import { useInitialGeneration } from "@/components/game-player/hooks/useInitialGeneration";
+import { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { PlayNavbar } from "@/components/game-player/PlayNavbar";
-import { GameActions } from "@/components/game-player/GameActions";
-import { PlayContent } from "@/components/game-player/PlayContent";
 import { SidebarChat } from "@/components/game-player/SidebarChat";
-import { Message } from "@/components/game-chat/types";
+import { PlayContent } from "@/components/game-player/PlayContent";
+import { useGameVersions } from "@/components/game-player/hooks/useGameVersions";
+import { useGameChat } from "@/components/game-chat/useGameChat";
+import { useToast } from "@/hooks/use-toast";
 
 const Play = () => {
-  const { id } = useParams();
-  const [searchParams] = useSearchParams();
-  const isGenerating = searchParams.get('generating') === 'true';
-  const gameType = searchParams.get('type') || '';
-  const encodedImageUrl = searchParams.get('imageUrl') || '';
-  const imageUrl = encodedImageUrl ? decodeURIComponent(encodedImageUrl) : '';
-  
+  const { gameId } = useParams<{ gameId: string }>();
+  const navigate = useNavigate();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showCode, setShowCode] = useState(false);
-  
-  const iframeRef = useRef<HTMLIFrameElement>(null);
-  
-  const terminal = useTerminal(isGenerating);
-  const gameVersions = useGameVersions(id);
-  const initialGeneration = useInitialGeneration();
+  const [generating, setGenerating] = useState(false);
+  const [modelType, setModelType] = useState<string>("smart");
+  const { toast } = useToast();
+
+  const {
+    gameVersions,
+    selectedVersion,
+    onVersionChange,
+    onRevertToVersion,
+    isLatestVersion,
+    currentVersion,
+    isLoading: versionsLoading,
+  } = useGameVersions(gameId as string);
+
+  const {
+    messages,
+    input,
+    setInput,
+    imageUrl,
+    setImageUrl,
+    handleSubmit,
+    loading: chatLoading,
+    disabled: chatDisabled,
+    terminalOutput,
+    thinkingTime,
+    generationInProgress,
+    setTerminalOutput,
+    setThinkingTime,
+    timerRef
+  } = useGameChat(gameId as string, modelType);
 
   useEffect(() => {
-    if (isGenerating && id && !initialGeneration.generationStartedRef.current) {
-      initialGeneration.generationStartedRef.current = true;
-      initialGeneration.handleInitialGeneration(
-        id, 
-        terminal.updateTerminalOutput, 
-        terminal.setThinkingTime, 
-        terminal.setGenerationInProgress, 
-        imageUrl, 
-        gameType, 
-        gameVersions.fetchGame
-      );
+    const urlParams = new URLSearchParams(window.location.search);
+    const generatingParam = urlParams.get('generating');
+    const typeParam = urlParams.get('type');
+    const modelTypeParam = urlParams.get('modelType');
+    const imageUrlParam = urlParams.get('imageUrl');
+
+    if (generatingParam === 'true') {
+      setGenerating(true);
     }
-  }, [isGenerating, id]);
+
+    if (typeParam) {
+      // No longer setting gameType here
+    }
+
+    if (modelTypeParam) {
+      setModelType(modelTypeParam);
+    }
+
+    if (imageUrlParam) {
+      setImageUrl(decodeURIComponent(imageUrlParam));
+    }
+  }, [setImageUrl]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
-        return;
+    if (generationInProgress) {
+      setThinkingTime(0);
+      timerRef.current = setInterval(() => {
+        setThinkingTime(prev => prev + 1);
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
       }
-      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "PageUp", "PageDown", "Home", "End"].includes(e.key)) {
-        e.preventDefault();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    }
+
     return () => {
-      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     };
-  }, []);
+  }, [generationInProgress, timerRef, setThinkingTime]);
 
-  useEffect(() => {
-    gameVersions.fetchGame();
-  }, [id]);
+  const handleModelChange = (value: string) => {
+    setModelType(value);
+  };
 
-  useEffect(() => {
-    if (!gameVersions.loading && iframeRef.current) {
-      iframeRef.current.focus();
-      
-      const handleIframeMessage = (event: MessageEvent) => {
-        if (event.source === iframeRef.current?.contentWindow) {
-          console.log('Message from iframe:', event.data);
-        }
-      };
-      
-      window.addEventListener('message', handleIframeMessage);
-      return () => {
-        window.removeEventListener('message', handleIframeMessage);
-      };
-    }
-  }, [gameVersions.loading, gameVersions.selectedVersion]);
-
-  const currentVersion = gameVersions.gameVersions.find(v => v.id === gameVersions.selectedVersion);
-  const isLatestVersion = currentVersion?.version_number === gameVersions.gameVersions[0]?.version_number;
-
-  if (gameVersions.loading && !terminal.showGenerating) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin" size={32} />
-      </div>
-    );
+  if (!gameId) {
+    return <div>Error: Game ID is required.</div>;
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white">
-      <PlayNavbar>
-        <GameActions 
-          currentVersion={currentVersion}
-          showGenerating={terminal.showGenerating}
-          isLatestVersion={isLatestVersion}
-          onRevertToVersion={gameVersions.handleRevertToVersion}
-        />
-      </PlayNavbar>
-      
-      <div className="flex flex-1 overflow-hidden">
-        <SidebarChat 
-          gameId={id!}
-          generationInProgress={terminal.generationInProgress}
-          onGameUpdate={gameVersions.handleGameUpdate}
-          onTerminalStatusChange={terminal.handleTerminalStatusChange}
-          onRevertToMessageVersion={gameVersions.handleRevertToMessageVersion}
-          gameVersions={gameVersions.gameVersions}
-          initialPrompt={gameVersions.initialPrompt || initialGeneration.initialPrompt}
-        />
-
-        <PlayContent 
-          showGenerating={terminal.showGenerating}
-          gameVersions={gameVersions.gameVersions}
-          selectedVersion={gameVersions.selectedVersion}
-          onVersionChange={gameVersions.handleVersionChange}
-          onRevertToVersion={gameVersions.handleRevertToVersion}
+    <div className="flex flex-col h-screen">
+      <PlayNavbar 
+        gameId={gameId}
+        sidebarOpen={sidebarOpen}
+        setSidebarOpen={setSidebarOpen}
+        showCode={showCode}
+        setShowCode={setShowCode}
+        isLatestVersion={isLatestVersion}
+        onRevertToVersion={onRevertToVersion}
+        currentVersion={currentVersion}
+      />
+      <div className="flex-1 flex overflow-hidden">
+        {sidebarOpen && (
+          <SidebarChat 
+            messages={messages}
+            input={input}
+            setInput={setInput}
+            imageUrl={imageUrl}
+            setImageUrl={setImageUrl}
+            handleSubmit={handleSubmit}
+            loading={chatLoading}
+            disabled={chatDisabled || generationInProgress}
+            modelType={modelType}
+            handleModelChange={handleModelChange}
+          />
+        )}
+        <PlayContent
+          showGenerating={generating}
+          gameVersions={gameVersions}
+          selectedVersion={selectedVersion}
+          onVersionChange={onVersionChange}
+          onRevertToVersion={onRevertToVersion}
           showCode={showCode}
           setShowCode={setShowCode}
-          terminalOutput={terminal.terminalOutput}
-          thinkingTime={terminal.thinkingTime}
-          generationInProgress={terminal.generationInProgress}
+          terminalOutput={terminalOutput}
+          thinkingTime={thinkingTime}
+          generationInProgress={generationInProgress}
           isLatestVersion={isLatestVersion}
           currentVersion={currentVersion}
+          gameId={gameId} // Add this line to pass the gameId
         />
       </div>
     </div>
