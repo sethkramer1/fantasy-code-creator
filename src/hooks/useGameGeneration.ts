@@ -22,7 +22,8 @@ export const useGameGeneration = () => {
     gameType,
     imageUrl,
     existingGameId,
-    modelType: requestModelType
+    modelType: requestModelType,
+    visibility = "public"
   }: GenerationOptions): Promise<GenerationResult | null> => {
     if (!prompt.trim()) {
       toast({
@@ -182,6 +183,7 @@ export const useGameGeneration = () => {
         modelType: activeModelType,
         imageUrl,
         existingGameId,
+        visibility
       });
       
       setTerminalOutput(prev => [...prev, "> Saved successfully!"]);
@@ -203,7 +205,8 @@ export const useGameGeneration = () => {
             modelType: activeModelType,
             imageUrl,
             existingGameId,
-            instructions: `Partial content (network error: ${error instanceof Error ? error.message : String(error)})`
+            instructions: `Partial content (network error: ${error instanceof Error ? error.message : String(error)})`,
+            visibility
           });
           
           setTerminalOutput(prev => [...prev, "> Saved partial content to database"]);

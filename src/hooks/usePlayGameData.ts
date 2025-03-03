@@ -1,5 +1,5 @@
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +10,7 @@ export interface GameData {
   instructions: string | null;
   current_version: number | null;
   prompt: string;
+  visibility?: string;
 }
 
 export interface GameVersion {
@@ -27,11 +28,14 @@ export function usePlayGameData(gameId: string | undefined) {
   const [gameVersions, setGameVersions] = useState<GameVersion[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const { toast } = useToast();
+  const fetchAttemptsRef = useRef(0);
+  const maxFetchAttempts = 3;
 
   const fetchGame = async () => {
     if (!gameId) return;
 
     setIsLoading(true);
+    fetchAttemptsRef.current += 1;
     
     try {
       // First, check if the game exists
@@ -54,16 +58,26 @@ export function usePlayGameData(gameId: string | undefined) {
 
       if (!gameData) {
         console.log("Game not found:", gameId);
-        toast({
-          title: "Game not found",
-          description: "The requested game does not exist.",
-          variant: "destructive",
-        });
-        navigate("/");
+        
+        // If we've tried multiple times and still can't find the game, redirect
+        if (fetchAttemptsRef.current >= maxFetchAttempts) {
+          toast({
+            title: "Game not found",
+            description: "The requested game does not exist or is still being generated.",
+            variant: "destructive",
+          });
+          navigate("/");
+          setIsLoading(false);
+          return;
+        }
+        
+        // If we haven't reached max attempts, we'll try again on next useEffect cycle
         setIsLoading(false);
         return;
       }
 
+      // Reset the fetch attempts counter once we successfully get the game
+      fetchAttemptsRef.current = 0;
       setGame(gameData);
       console.log("Game data fetched successfully:", gameData.id);
 
@@ -119,6 +133,19 @@ export function usePlayGameData(gameId: string | undefined) {
   useEffect(() => {
     if (gameId) {
       fetchGame();
+      
+      // If the game data wasn't loaded successfully and we haven't reached max attempts,
+      // set up a retry mechanism
+      const retryInterval = setInterval(() => {
+        if (!game && fetchAttemptsRef.current < maxFetchAttempts) {
+          console.log(`Retrying game fetch (attempt ${fetchAttemptsRef.current + 1}/${maxFetchAttempts})...`);
+          fetchGame();
+        } else {
+          clearInterval(retryInterval);
+        }
+      }, 2000); // Retry every 2 seconds
+      
+      return () => clearInterval(retryInterval);
     }
   }, [gameId]);
 

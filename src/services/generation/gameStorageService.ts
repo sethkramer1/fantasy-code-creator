@@ -11,6 +11,7 @@ export interface SaveGameOptions {
   existingGameId?: string;
   instructions?: string;
   userId?: string;
+  visibility?: string;
 }
 
 export const saveGeneratedGame = async (options: SaveGameOptions) => {
@@ -22,7 +23,8 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
     imageUrl,
     existingGameId,
     instructions = "Content generated successfully",
-    userId
+    userId,
+    visibility = "public"
   } = options;
 
   console.log("Saving game with options:", { 
@@ -31,7 +33,8 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
     modelType, 
     existingGameId,
     contentLength: gameContent?.length || 0,
-    userId: userId ? "provided" : "not provided"
+    userId: userId ? "provided" : "not provided",
+    visibility
   });
 
   // Validate game content
@@ -68,7 +71,7 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
     if (existingGameId) {
       console.log(`Updating existing game: ${existingGameId}`);
       
-      // Check if game exists - using maybeSingle() instead of single() to handle no results gracefully
+      // Check if game exists - using maybeSingle() to handle no results gracefully
       const { data: gameCheck, error: checkError } = await supabase
         .from('games')
         .select('id')
@@ -83,7 +86,6 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
       if (!gameCheck) {
         console.error(`Game with ID ${existingGameId} not found, creating new game instead`);
         // Fall through to the creation logic below with existingGameId set to undefined
-        // to create a new game instead
         const { data: newGameData, error: gameError } = await supabase
           .from('games')
           .insert([{ 
@@ -93,14 +95,20 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
             current_version: 1,
             type: gameType,
             model_type: modelType,
-            user_id: userId
+            user_id: userId,
+            visibility: visibility
           }])
           .select()
-          .single();
+          .maybeSingle(); // Changed from .single() to .maybeSingle()
 
         if (gameError) {
           console.error("Failed to create new game after update failed:", gameError);
           throw gameError;
+        }
+        
+        if (!newGameData) {
+          console.error("New game data is null after insert");
+          throw new Error("Failed to create new game: No data returned from insert");
         }
         
         gameData = newGameData;
@@ -117,6 +125,7 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
 
         if (versionError) {
           console.error("Failed to save game version:", versionError);
+          // Continue without throwing, as the game was created
         }
       } else {
         // Game exists, proceed with update
@@ -125,15 +134,21 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
           .update({ 
             code: formattedContent,
             instructions: instructions,
-            user_id: userId
+            user_id: userId,
+            visibility: visibility
           })
           .eq('id', existingGameId)
           .select()
-          .single();
+          .maybeSingle(); // Changed from .single() to .maybeSingle()
         
         if (updateError) {
           console.error("Failed to update game:", updateError);
           throw updateError;
+        }
+        
+        if (!updateData) {
+          console.error("Update game data is null after update");
+          throw new Error("Failed to update game: No data returned");
         }
         
         gameData = updateData;
@@ -185,14 +200,20 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
           current_version: 1,
           type: gameType,
           model_type: modelType,
-          user_id: userId
+          user_id: userId,
+          visibility: visibility
         }])
         .select()
-        .single();
+        .maybeSingle(); // Changed from .single() to .maybeSingle()
 
       if (gameError) {
         console.error("Failed to save new game:", gameError);
         throw gameError;
+      }
+      
+      if (!newGameData) {
+        console.error("New game data is null after insert");
+        throw new Error("Failed to create new game: No data returned from insert");
       }
       
       gameData = newGameData;
