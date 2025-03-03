@@ -1,4 +1,3 @@
-
 import { useEffect, forwardRef, useState, useCallback, useRef, memo } from "react";
 import { parseCodeSections } from "./utils/CodeParser";
 import { CodeEditor } from "./components/CodeEditor";
@@ -77,7 +76,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       }
     }, [currentVersion, isValidCode, processedCode]);
 
-    // Handle case when no version is available
+    // If there's no code, show a loading state
     if (!currentVersion) {
       return (
         <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">

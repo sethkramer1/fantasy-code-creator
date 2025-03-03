@@ -1,4 +1,3 @@
-
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -252,7 +251,7 @@ const Play = () => {
                   selectedVersionId={selectedVersionId}
                 />
               </div>
-              <div className="flex-1 overflow-hidden bg-white p-4">
+              <div className="flex-1 overflow-hidden bg-white">
                 <GamePreview
                   key={`preview-${displayedVersion()?.id || 'loading'}`}
                   currentVersion={displayedVersion()}
