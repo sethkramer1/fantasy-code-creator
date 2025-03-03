@@ -1,6 +1,5 @@
 
 import React from 'react';
-import { ThinkingAnimation } from '@/components/game-creator/GenerationTerminal';
 
 interface TerminalProps {
   output: string[];
@@ -31,7 +30,11 @@ export function Terminal({ output, thinkingTime, generationInProgress }: Termina
           <span>
             Thinking time: {formatThinkingTime()}
           </span>
-          {generationInProgress && <ThinkingAnimation />}
+          {generationInProgress && (
+            <div className="animate-pulse">
+              <span className="text-green-500">_</span>
+            </div>
+          )}
         </div>
       </div>
       <div
