@@ -23,6 +23,15 @@ export const callAnthropicApi = async (
 ): Promise<{ response: Response, gameContent: string }> => {
   let gameContent = '';
   
+  if (!prompt || prompt === "Loading...") {
+    const error = new Error("Invalid or empty prompt provided: " + prompt);
+    console.error(error);
+    if (callbacks?.onError) {
+      callbacks.onError(error);
+    }
+    throw error;
+  }
+  
   const selectedType = contentTypes.find(type => type.id === gameType);
   if (!selectedType) throw new Error("Invalid content type selected");
 
@@ -33,10 +42,13 @@ export const callAnthropicApi = async (
   // Combine the system instructions with the enhanced prompt
   const finalPrompt = `${enhancedPrompt}\n\n${partialResponse ? "Use this as a starting point: " + partialResponse : ""}`;
   
-  callbacks?.onStreamStart();
+  if (callbacks?.onStreamStart) {
+    callbacks.onStreamStart();
+  }
 
   console.log("Calling Anthropic API with:", {
     prompt: finalPrompt,
+    originalPrompt: prompt,
     promptLength: finalPrompt.length,
     systemLength: systemInstructions.length,
     hasImage: !!imageUrl

@@ -136,6 +136,10 @@ const Index = () => {
       // Pass the original prompt in the navigation
       navigationParams += `&prompt=${encodeURIComponent(prompt)}`;
       
+      // Log the exact prompt being passed
+      console.log("Navigating with prompt:", prompt);
+      console.log("Encoded prompt in URL:", encodeURIComponent(prompt));
+      
       // Navigate to the play page with generation
       console.log("Navigating to play page for generation:", placeholderGame.id);
       navigate(`/play/${placeholderGame.id}${navigationParams}`);

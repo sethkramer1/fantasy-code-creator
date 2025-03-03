@@ -28,7 +28,10 @@ const Play = () => {
   const initialType = searchParams.get("type") || "webdesign";
   const initialModelType = searchParams.get("modelType") || "smart";
   const initialImageUrl = searchParams.get("imageUrl") || "";
-
+  
+  // Get the prompt directly from URL params first
+  const promptFromUrl = searchParams.get("prompt") || "";
+  
   // Use custom hooks
   const { 
     game, 
@@ -42,8 +45,17 @@ const Play = () => {
     gameId, game, gameVersions, fetchGame
   );
   
-  // Set the initial prompt for terminal
-  const initialPrompt = game?.prompt || "Loading...";
+  // Set the initial prompt prioritizing URL param over database value
+  // This ensures we use the fresh user input rather than any placeholder
+  const initialPrompt = promptFromUrl || (game?.prompt || "Loading...");
+  
+  useEffect(() => {
+    if (promptFromUrl) {
+      console.log("Using prompt from URL:", promptFromUrl);
+    } else if (game?.prompt) {
+      console.log("Using prompt from database:", game.prompt);
+    }
+  }, [promptFromUrl, game]);
   
   const {
     generationInProgress,
@@ -236,7 +248,7 @@ const Play = () => {
     <div className="flex flex-col h-screen w-full">
       <PlayNavbar
         gameId={gameId}
-        gameName={game?.prompt || "Loading..."}
+        gameName={initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading...")}
         showCodeEditor={showCode}
         onShowCodeEditorChange={setShowCode}
         onExport={() => {

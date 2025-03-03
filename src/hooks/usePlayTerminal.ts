@@ -221,6 +221,11 @@ export function usePlayTerminal(
       updateTerminalOutput(`> Attempt ${retryCount.current + 1} to generate content...`, true);
       
       console.log("Starting generation process for gameId:", gameId);
+      console.log("Using prompt:", initialPrompt);
+      
+      if (!initialPrompt || initialPrompt === "Loading...") {
+        throw new Error("Invalid prompt: The prompt is empty or still showing 'Loading...'");
+      }
       
       const payload = {
         gameId,
@@ -237,6 +242,7 @@ export function usePlayTerminal(
       console.log("Calling generate-game function with payload:", {
         gameIdLength: gameId?.length,
         promptLength: initialPrompt.length,
+        promptContent: initialPrompt.substring(0, 50) + "...",
         gameType,
         modelType,
         hasImage: !!imageUrl,
@@ -244,6 +250,7 @@ export function usePlayTerminal(
       });
       
       updateTerminalOutput("> Connecting to AI service...", true);
+      updateTerminalOutput(`> Using prompt: "${initialPrompt}"`, true);
       
       // Reset the game content reference
       gameContentRef.current = '';
@@ -321,16 +328,39 @@ export function usePlayTerminal(
       
       // Save the game to the database
       try {
-        await saveGeneratedGame({
-          gameContent: content,
-          prompt: initialPrompt,
-          gameType,
-          modelType: modelType as ModelType,
-          imageUrl: imageUrl || undefined,
-          existingGameId: gameId,
-          instructions: "Initial content generated successfully",
-          userId: user?.id
-        });
+        const modelTypeForSave = modelType === "smart" ? "smart" : "fast";
+        
+        // Save the game directly using supabase client to avoid type errors
+        // First update the game
+        const { error: gameUpdateError } = await supabase
+          .from('games')
+          .update({
+            code: content,
+            instructions: "Initial content generated successfully",
+            model_type: modelTypeForSave,
+            prompt: initialPrompt // Make sure we save the actual prompt
+          })
+          .eq('id', gameId);
+          
+        if (gameUpdateError) {
+          console.error("Error updating game:", gameUpdateError);
+          throw new Error(`Database error: ${gameUpdateError.message}`);
+        }
+          
+        // Then update the game version
+        const { error: versionUpdateError } = await supabase
+          .from('game_versions')
+          .update({
+            code: content,
+            instructions: "Initial content generated successfully"
+          })
+          .eq('game_id', gameId)
+          .eq('version_number', 1);
+        
+        if (versionUpdateError) {
+          console.error("Error updating game version:", versionUpdateError);
+          throw new Error(`Database error: ${versionUpdateError.message}`);
+        }
         
         updateTerminalOutput("> Content saved successfully", true);
         
