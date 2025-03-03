@@ -6,8 +6,10 @@ export interface GenerationOptions {
   gameType: string;
   imageUrl?: string;
   existingGameId?: string;
-  modelType?: "smart" | "fast";
+  modelType?: ModelType;
 }
+
+export type ModelType = "smart" | "fast";
 
 export interface GenerationState {
   loading: boolean;
@@ -15,7 +17,7 @@ export interface GenerationState {
   terminalOutput: string[];
   thinkingTime: number;
   gameId: string | null;
-  modelType: "smart" | "fast";
+  modelType: ModelType;
 }
 
 export interface GenerationResult {
@@ -39,5 +41,5 @@ export interface GenerationHookResult extends GenerationState {
   generateGame: (options: GenerationOptions) => Promise<GenerationResult | null>;
   timerRef: React.MutableRefObject<NodeJS.Timeout | undefined>;
   setGameId: (id: string | null) => void;
-  setModelType: (type: "smart" | "fast") => void;
+  setModelType: (type: ModelType) => void;
 }
