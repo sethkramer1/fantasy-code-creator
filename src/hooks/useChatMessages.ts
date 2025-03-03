@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Message } from "@/components/game-chat/types";
+import { ModelType } from "@/types/generation";
 import { 
   fetchChatHistory, 
   saveMessage, 
@@ -35,7 +36,7 @@ export function useChatMessages({
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [thinkingTime, setThinkingTime] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [modelType, setModelType] = useState<string>("smart");
+  const [modelType, setModelType] = useState<ModelType>("smart");
   const [initialMessageId, setInitialMessageId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { toast } = useToast();
@@ -81,11 +82,18 @@ export function useChatMessages({
       try {
         const data = await fetchChatHistory(gameId, initialMessage);
         
-        if (data.length === 1 && data[0].id === 'initial-message') {
+        // Convert model_type from string to ModelType
+        const typedData: Message[] = data.map(msg => ({
+          ...msg,
+          model_type: (msg.model_type as string) === "smart" ? "smart" as ModelType : 
+                      (msg.model_type as string) === "fast" ? "fast" as ModelType : null
+        }));
+        
+        if (typedData.length === 1 && typedData[0].id === 'initial-message') {
           setInitialMessageId('initial-message');
         }
         
-        setMessages(data);
+        setMessages(typedData);
       } catch (error) {
         toast({
           title: "Error loading chat history",
@@ -121,7 +129,7 @@ export function useChatMessages({
     }
     
     const tempId = crypto.randomUUID();
-    const tempMessage = {
+    const tempMessage: Message = {
       id: tempId,
       message: message.trim(),
       created_at: new Date().toISOString(),
@@ -153,7 +161,7 @@ export function useChatMessages({
       updateTerminalOutputWrapper("> Message saved successfully", true);
       
       setMessages(prev => 
-        prev.map(msg => msg.id === tempId ? {...insertedMessage, isLoading: true} : msg)
+        prev.map(msg => msg.id === tempId ? {...insertedMessage, isLoading: true} as Message : msg)
       );
       
       console.log("Calling process-game-update function...");
@@ -204,7 +212,14 @@ export function useChatMessages({
         .order('created_at', { ascending: true });
         
       if (updatedMessages) {
-        setMessages(updatedMessages);
+        // Convert model_type from string to ModelType
+        const typedMessages: Message[] = updatedMessages.map(msg => ({
+          ...msg,
+          model_type: msg.model_type === "smart" ? "smart" as ModelType : 
+                      msg.model_type === "fast" ? "fast" as ModelType : null
+        }));
+        
+        setMessages(typedMessages);
       }
       
       if (onTerminalStatusChange) {
@@ -244,7 +259,7 @@ export function useChatMessages({
   };
 
   const handleModelChange = (value: string) => {
-    setModelType(value);
+    setModelType(value as ModelType);
   };
 
   return {

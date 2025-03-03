@@ -1,4 +1,3 @@
-
 import { ModelType } from "@/types/generation";
 
 export interface Message {
@@ -10,6 +9,7 @@ export interface Message {
   image_url?: string | null;
   model_type?: ModelType | null;
   isLoading?: boolean;
+  game_id?: string;
 }
 
 export interface GameChatProps {
