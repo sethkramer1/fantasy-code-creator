@@ -212,7 +212,7 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       >
         <iframe
           ref={localIframeRef}
-          srcDoc={prepareIframeContent(code || '')}
+          srcDoc={prepareIframeContent(code)}
           className="absolute inset-0 w-full h-full border border-gray-100"
           sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
           title="Generated Content"

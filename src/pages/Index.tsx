@@ -10,18 +10,15 @@ import { useGames } from "@/hooks/useGames";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Sparkles } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
   const [gameType, setGameType] = useState<string>("webdesign");
   const [imageUrl, setImageUrl] = useState<string>("");
-  const [visibility, setVisibility] = useState<string>("public");
   // Always use "smart" model (Claude) from the index page
   const modelType = "smart";
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { user } = useAuth();
   
   const { games, gamesLoading } = useGames();
   const {
@@ -89,9 +86,7 @@ const Index = () => {
           instructions: "Content is being generated...",
           current_version: 1,
           type: gameType,
-          model_type: modelType,
-          user_id: user?.id || null, // Add the user ID if user is logged in
-          visibility: visibility // Add the visibility setting
+          model_type: modelType
         }])
         .select()
         .single();
@@ -173,8 +168,6 @@ const Index = () => {
             onImageRemoved={handleImageRemoved}
             modelType={modelType}
             showModelPreference={false} // Don't show model preference on index page
-            visibility={visibility}
-            setVisibility={setVisibility}
           />
         </div>
       </div>
