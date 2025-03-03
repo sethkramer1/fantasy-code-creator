@@ -10,6 +10,7 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
     const [iframeContent, setIframeContent] = useState<string>("");
     const prevCodeRef = useRef<string>("");
     const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const contentStableRef = useRef<boolean>(false);
     
     // Forward the ref to parent component
     useEffect(() => {
@@ -205,24 +206,33 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
 
     // Update iframe content when code changes, with debounce
     useEffect(() => {
-      // Clear any existing timer
-      if (updateTimerRef.current) {
-        clearTimeout(updateTimerRef.current);
+      // Skip if code is empty, unchanged, or too short
+      if (!code || code.length < 10) {
+        return;
       }
       
-      // Skip if code is unchanged or too short
-      if (!code || code === prevCodeRef.current || code.length < 100) {
+      // If content is already stable and code hasn't changed, don't update
+      if (contentStableRef.current && code === prevCodeRef.current) {
+        console.log("IframePreview: Content stable, skipping update");
         return;
       }
       
       console.log("IframePreview preparing to update with new code, length:", code.length);
       
-      // Set a small delay to debounce updates
+      // Clear any existing timer
+      if (updateTimerRef.current) {
+        clearTimeout(updateTimerRef.current);
+      }
+      
+      // Set a small delay to debounce updates and prevent flicker
       updateTimerRef.current = setTimeout(() => {
-        const preparedContent = prepareIframeContent(code);
-        setIframeContent(preparedContent);
-        prevCodeRef.current = code;
-        console.log("IframePreview content updated");
+        if (code !== prevCodeRef.current) {
+          const preparedContent = prepareIframeContent(code);
+          setIframeContent(preparedContent);
+          prevCodeRef.current = code;
+          contentStableRef.current = true;
+          console.log("IframePreview content updated and stable");
+        }
       }, 300);
       
       return () => {
@@ -252,7 +262,10 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
             sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
             title="Generated Content"
             tabIndex={0}
-            onLoad={() => console.log("Iframe content loaded")}
+            onLoad={() => {
+              console.log("Iframe content loaded");
+              contentStableRef.current = true;
+            }}
           />
         ) : (
           <div className="h-full flex items-center justify-center bg-gray-50">

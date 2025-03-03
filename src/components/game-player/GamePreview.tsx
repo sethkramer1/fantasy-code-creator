@@ -28,6 +28,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     const prevVersionIdRef = useRef<string | null>(null);
     const stabilityTimerRef = useRef<NodeJS.Timeout | null>(null);
     const processingRef = useRef(false);
+    const stableContentRef = useRef(false);
     
     // Validate code function
     const isValidCode = useCallback((code: string | undefined): boolean => {
@@ -49,8 +50,16 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       console.log("GamePreview received currentVersion update", 
         currentVersion?.id, 
         "showCode:", showCode,
-        "code length:", currentVersion?.code?.length || 0
+        "code length:", currentVersion?.code?.length || 0,
+        "processing:", processingRef.current,
+        "stable:", stableContentRef.current
       );
+      
+      // If content is stable, don't reprocess
+      if (stableContentRef.current && currentVersion?.id === prevVersionIdRef.current) {
+        console.log("Content is stable, skipping processing");
+        return;
+      }
       
       // Prevent processing while another operation is in progress
       if (processingRef.current) {
@@ -108,6 +117,9 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
           setLastValidCode(currentVersion.code);
           setLoadAttempts(0); // Reset attempts counter
           
+          // Mark content as stable to prevent unnecessary reloads
+          stableContentRef.current = true;
+          
           // Use a stability timer to prevent immediate state changes
           stabilityTimerRef.current = setTimeout(() => {
             processingRef.current = false;
@@ -136,6 +148,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
               console.log("Attempted to wrap short code in HTML");
               setLastValidCode(wrappedCode);
               setContentReady(true);
+              stableContentRef.current = true;
               
               // Use a stability timer
               stabilityTimerRef.current = setTimeout(() => {
@@ -149,6 +162,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
           // If we already have valid code, don't use the invalid one
           if (lastValidCode && isValidCode(lastValidCode)) {
             console.log("Using previously saved valid code");
+            stableContentRef.current = true;
             
             // Use a stability timer
             stabilityTimerRef.current = setTimeout(() => {

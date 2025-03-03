@@ -24,6 +24,7 @@ const Play = () => {
   const maxRefreshAttempts = 5;
   const dataRefreshRef = useRef<boolean>(false);
   const stableDataRef = useRef<boolean>(false);
+  const stableVersionIdRef = useRef<string | null>(null);
 
   // Get search params for generation
   const generating = searchParams.get("generating") === "true";
@@ -69,6 +70,17 @@ const Play = () => {
     setShowTerminal,
     generationError
   } = usePlayTerminal(gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl);
+
+  // When version changes and is stable, update reference to prevent re-renders
+  useEffect(() => {
+    if (currentVersion?.id && currentVersion.id !== stableVersionIdRef.current && 
+        currentVersion.code && currentVersion.code !== "Generating..." &&
+        currentVersion.code.length > 100) {
+      console.log("Stable version detected, updating reference:", currentVersion.id);
+      stableVersionIdRef.current = currentVersion.id;
+      stableDataRef.current = true;
+    }
+  }, [currentVersion]);
 
   // When generation completes, refresh the game data to get the latest version
   useEffect(() => {
@@ -210,6 +222,7 @@ const Play = () => {
     setRefreshAttempts(0);
     dataRefreshRef.current = false;
     stableDataRef.current = false;
+    stableVersionIdRef.current = null;
   }, [gameId]);
 
   // Handle missing gameId
@@ -230,6 +243,9 @@ const Play = () => {
       </div>
     );
   }
+
+  // Memoize the GamePreview key to prevent unnecessary re-renders
+  const gamePreviewKey = `${currentVersion?.id || 'initial'}-${stableDataRef.current ? 'stable' : 'loading'}`;
 
   return (
     <div className="flex flex-col h-screen w-full">
@@ -275,7 +291,7 @@ const Play = () => {
             />
           ) : (
             <GamePreview
-              key={`${currentVersion?.id || 'initial'}-${stableDataRef.current ? 'stable' : 'loading'}`}
+              key={gamePreviewKey}
               currentVersion={currentVersion}
               showCode={showCode}
               ref={iframeRef}
