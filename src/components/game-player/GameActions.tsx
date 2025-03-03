@@ -1,8 +1,10 @@
+
 import { Download, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import JSZip from 'jszip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
 interface GameVersion {
   id: string;
   version_number: number;
@@ -10,21 +12,36 @@ interface GameVersion {
   instructions: string | null;
   created_at: string;
 }
+
 interface GameActionsProps {
   currentVersion: GameVersion | undefined;
   showGenerating: boolean;
   isLatestVersion: boolean;
   onRevertToVersion: (version: GameVersion) => Promise<void>;
+  onExport?: () => void;
+  onDownload?: () => void;
+  onFork?: () => void;
+  onShare?: () => void;
+  showCodeEditor?: boolean;
+  onShowCodeEditorChange?: (show: boolean) => void;
 }
+
 export function GameActions({
   currentVersion,
   showGenerating,
   isLatestVersion,
-  onRevertToVersion
+  onRevertToVersion,
+  onExport,
+  onDownload,
+  onFork,
+  onShare,
+  showCodeEditor,
+  onShowCodeEditorChange
 }: GameActionsProps) {
   const {
     toast
   } = useToast();
+  
   const handleDownload = async () => {
     if (!currentVersion) return;
     try {
@@ -76,11 +93,13 @@ export function GameActions({
       });
     }
   };
+  
   if (showGenerating || !currentVersion) {
     return null;
   }
+  
   return <div className="flex items-center gap-2">
-      <Button variant="outline" size="sm" className="h-8 gap-1 text-sm" onClick={handleDownload}>
+      <Button variant="outline" size="sm" className="h-8 gap-1 text-sm" onClick={onDownload || handleDownload}>
         <Download size={14} />
         Zip
       </Button>
@@ -101,7 +120,7 @@ export function GameActions({
             <div className="space-y-2">
               <h3 className="font-medium text-sm">1. Download your files</h3>
               <p className="text-sm text-muted-foreground">First, download as a zip file.</p>
-              <Button variant="outline" size="sm" className="mt-2 gap-1" onClick={handleDownload}>
+              <Button variant="outline" size="sm" className="mt-2 gap-1" onClick={onDownload || handleDownload}>
                 <Download size={14} />
                 Download Zip
               </Button>
