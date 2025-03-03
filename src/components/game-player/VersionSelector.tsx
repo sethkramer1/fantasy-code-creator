@@ -14,11 +14,10 @@ interface GameVersion {
 
 interface VersionSelectorProps {
   gameVersions: GameVersion[];
-  selectedVersion: string | null;
+  selectedVersion: string;
   onVersionChange: (versionId: string) => void;
   onRevertToVersion?: (version: GameVersion) => Promise<void>;
   isLatestVersion: boolean;
-  disabled?: boolean; // Added disabled prop
 }
 
 export function VersionSelector({ 
@@ -26,8 +25,7 @@ export function VersionSelector({
   selectedVersion, 
   onVersionChange,
   onRevertToVersion,
-  isLatestVersion,
-  disabled = false // Default to false
+  isLatestVersion 
 }: VersionSelectorProps) {
   if (gameVersions.length === 0) return null;
   
@@ -41,7 +39,6 @@ export function VersionSelector({
           size="sm" 
           className="h-8 gap-1 text-sm"
           onClick={() => onRevertToVersion(currentVersion)}
-          disabled={disabled}
         >
           <RotateCcw size={14} />
           Create new version from this
@@ -50,11 +47,7 @@ export function VersionSelector({
       
       <div className="flex items-center gap-2">
         <History size={16} className="text-gray-500" />
-        <Select 
-          value={selectedVersion || ''} 
-          onValueChange={onVersionChange}
-          disabled={disabled}
-        >
+        <Select value={selectedVersion} onValueChange={onVersionChange}>
           <SelectTrigger className="w-[140px] h-8 bg-white border-gray-200 text-sm">
             <SelectValue placeholder="Select version" />
           </SelectTrigger>

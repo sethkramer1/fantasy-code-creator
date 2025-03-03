@@ -8,11 +8,9 @@ interface CodeEditorProps {
   html: string;
   css: string;
   js: string;
-  selectedFont: string;
-  onFontChange: (font: string) => void;
 }
 
-export const CodeEditor = ({ html, css, js, selectedFont }: CodeEditorProps) => {
+export const CodeEditor = ({ html, css, js }: CodeEditorProps) => {
   const [activeTab, setActiveTab] = useState<string>("html");
 
   return (
@@ -23,7 +21,7 @@ export const CodeEditor = ({ html, css, js, selectedFont }: CodeEditorProps) => 
         onValueChange={setActiveTab}
         className="flex-1 flex flex-col overflow-hidden"
       >
-        <div className="flex items-center justify-between px-2 bg-gray-800 border-b border-gray-700">
+        <div className="flex items-center px-2 bg-gray-800 border-b border-gray-700">
           <TabsList className="flex gap-1 bg-transparent h-10">
             <TabsTrigger 
               value="html" 
@@ -55,15 +53,15 @@ export const CodeEditor = ({ html, css, js, selectedFont }: CodeEditorProps) => 
         
         <div className="flex-1 overflow-auto">
           <TabsContent value="html" className="m-0 h-full p-0">
-            <CodeWithLineNumbers code={html} language="html" fontFamily={selectedFont} />
+            <CodeWithLineNumbers code={html} language="html" />
           </TabsContent>
           
           <TabsContent value="css" className="m-0 h-full p-0">
-            <CodeWithLineNumbers code={css} language="css" fontFamily={selectedFont} />
+            <CodeWithLineNumbers code={css} language="css" />
           </TabsContent>
           
           <TabsContent value="js" className="m-0 h-full p-0">
-            <CodeWithLineNumbers code={js} language="javascript" fontFamily={selectedFont} />
+            <CodeWithLineNumbers code={js} language="javascript" />
           </TabsContent>
         </div>
       </Tabs>
