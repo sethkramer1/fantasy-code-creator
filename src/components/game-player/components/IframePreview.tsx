@@ -9,8 +9,7 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
     const localIframeRef = useRef<HTMLIFrameElement>(null);
     const [iframeContent, setIframeContent] = useState<string>("");
     const prevCodeRef = useRef<string>("");
-    const updateTimerRef = useRef<NodeJS.Timeout | null>(null);
-    const contentStableRef = useRef<boolean>(false);
+    const [isStable, setIsStable] = useState(false);
     
     // Forward the ref to parent component
     useEffect(() => {
@@ -23,237 +22,25 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       }
     }, [ref]);
 
-    // Memoized function to prepare iframe content
-    const prepareIframeContent = useCallback((html: string) => {
-      const helperScript = `
-        <script>
-          document.addEventListener('DOMContentLoaded', function() {
-            console.log('DOM fully loaded, setting up UI enhancements');
-            
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-              anchor.addEventListener('click', function(e) {
-                e.preventDefault();
-                const targetId = this.getAttribute('href').substring(1);
-                const targetElement = document.getElementById(targetId);
-                
-                if (targetElement) {
-                  targetElement.scrollIntoView({
-                    behavior: 'smooth',
-                    block: 'start'
-                  });
-                }
-              });
-            });
-            
-            const setupDataTabs = function() {
-              const tabs = document.querySelectorAll('[data-tab]');
-              if (tabs.length > 0) {
-                console.log('Found data-tab tabs:', tabs.length);
-                tabs.forEach(tab => {
-                  tab.addEventListener('click', function() {
-                    const target = this.getAttribute('data-tab');
-                    
-                    document.querySelectorAll('[data-tab-content]').forEach(content => {
-                      content.style.display = 'none';
-                    });
-                    
-                    if (target) {
-                      const targetContent = document.querySelector('[data-tab-content="' + target + '"]');
-                      if (targetContent) {
-                        targetContent.style.display = 'block';
-                      }
-                    }
-                    
-                    tabs.forEach(t => t.classList.remove('active'));
-                    this.classList.add('active');
-                  });
-                });
-                
-                if (!document.querySelector('[data-tab].active')) {
-                  const firstTab = document.querySelector('[data-tab]');
-                  if (firstTab) {
-                    firstTab.click();
-                  }
-                }
-              }
-            };
-            
-            const setupAriaTabs = function() {
-              const tabButtons = document.querySelectorAll('[role="tab"]');
-              if (tabButtons.length > 0) {
-                console.log('Found ARIA tabs:', tabButtons.length);
-                tabButtons.forEach(button => {
-                  button.addEventListener('click', function() {
-                    const controls = this.getAttribute('aria-controls');
-                    const tablist = this.closest('[role="tablist"]');
-                    
-                    if (tablist) {
-                      tablist.querySelectorAll('[role="tab"]').forEach(tab => {
-                        tab.setAttribute('aria-selected', 'false');
-                        tab.classList.remove('active');
-                      });
-                      
-                      this.setAttribute('aria-selected', 'true');
-                      this.classList.add('active');
-                      
-                      document.querySelectorAll('[role="tabpanel"]').forEach(panel => {
-                        panel.setAttribute('hidden', '');
-                        panel.style.display = 'none';
-                      });
-                      
-                      if (controls) {
-                        const panel = document.getElementById(controls);
-                        if (panel) {
-                          panel.removeAttribute('hidden');
-                          panel.style.display = 'block';
-                        }
-                      }
-                    }
-                  });
-                });
-                
-                if (!document.querySelector('[role="tablist"][aria-selected="true"]')) {
-                  const firstTab = document.querySelector('[role="tab"]');
-                  if (firstTab) {
-                    firstTab.click();
-                  }
-                }
-              }
-            };
-            
-            const setupClassTabs = function() {
-              const tabButtons = document.querySelectorAll('.tabs .tab, .tab-list .tab, .tabs-nav .tab-link');
-              if (tabButtons.length > 0) {
-                console.log('Found class-based tabs:', tabButtons.length);
-                tabButtons.forEach(button => {
-                  button.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    
-                    let target = this.getAttribute('href');
-                    if (!target || !target.startsWith('#')) {
-                      target = this.dataset.target || this.dataset.href;
-                    } else {
-                      target = target.substring(1);
-                    }
-                    
-                    const tabContainer = this.closest('.tabs, .tab-container, .tabs-wrapper');
-                    
-                    if (tabContainer) {
-                      tabContainer.querySelectorAll('.tab, .tab-link').forEach(tab => {
-                        tab.classList.remove('active');
-                      });
-                      
-                      this.classList.add('active');
-                      
-                      tabContainer.querySelectorAll('.tab-content, .tab-pane, .tabs-content > div').forEach(panel => {
-                        panel.style.display = 'none';
-                        panel.classList.remove('active');
-                      });
-                      
-                      if (target) {
-                        const panel = document.getElementById(target) || 
-                                      tabContainer.querySelector('[data-tab="' + target + '"]') ||
-                                      tabContainer.querySelector('.' + target);
-                        
-                        if (panel) {
-                          panel.style.display = 'block';
-                          panel.classList.add('active');
-                        }
-                      }
-                    }
-                  });
-                });
-                
-                if (!document.querySelector('.tabs, .tab-container, .tabs-wrapper .tab.active, .tabs, .tab-container, .tabs-wrapper .tab-link.active')) {
-                  const firstTab = document.querySelector('.tabs, .tab-container, .tabs-wrapper .tab, .tabs, .tab-container, .tabs-wrapper .tab-link');
-                  if (firstTab) {
-                    firstTab.click();
-                  }
-                }
-              }
-            };
-            
-            setupDataTabs();
-            setupAriaTabs();
-            setupClassTabs();
-            
-            setTimeout(() => {
-              document.querySelectorAll('.tabs .active, [role="tab"][aria-selected="true"], [data-tab].active')
-                .forEach(activeTab => {
-                  console.log('Triggering click on already active tab to ensure content is visible');
-                  activeTab.click();
-                });
-              
-              window.dispatchEvent(new Event('resize'));
-            }, 300);
-          });
-
-          window.addEventListener('load', function() {
-            console.log('Window loaded, re-running tab initialization');
-            window.dispatchEvent(new Event('resize'));
-          });
-        </script>
-      `;
-
-      if (html.includes('<head>')) {
-        return html.replace('<head>', '<head>' + helperScript);
-      } else if (html.includes('<html')) {
-        return html.replace(/<html[^>]*>/, '$&<head>' + helperScript + '</head>');
-      } else {
-        return helperScript + html;
-      }
-    }, []);
-
-    // Update iframe content when code changes, with debounce
+    // Update iframe content when code changes
     useEffect(() => {
       // Skip if code is empty, unchanged, or too short
-      if (!code || code.length < 10) {
+      if (!code || code.length < 10 || (code === prevCodeRef.current && isStable)) {
         return;
       }
       
-      // If content is already stable and code hasn't changed, don't update
-      if (contentStableRef.current && code === prevCodeRef.current) {
-        console.log("IframePreview: Content stable, skipping update");
-        return;
-      }
+      // Update the content after a short delay to prevent flicker
+      const timer = setTimeout(() => {
+        setIframeContent(code);
+        prevCodeRef.current = code;
+        setIsStable(true);
+      }, 100);
       
-      console.log("IframePreview preparing to update with new code, length:", code.length);
-      
-      // Clear any existing timer
-      if (updateTimerRef.current) {
-        clearTimeout(updateTimerRef.current);
-      }
-      
-      // Set a small delay to debounce updates and prevent flicker
-      updateTimerRef.current = setTimeout(() => {
-        if (code !== prevCodeRef.current) {
-          const preparedContent = prepareIframeContent(code);
-          setIframeContent(preparedContent);
-          prevCodeRef.current = code;
-          contentStableRef.current = true;
-          console.log("IframePreview content updated and stable");
-        }
-      }, 300);
-      
-      return () => {
-        if (updateTimerRef.current) {
-          clearTimeout(updateTimerRef.current);
-        }
-      };
-    }, [code, prepareIframeContent]);
-
-    // Focus iframe when content changes
-    useEffect(() => {
-      if (iframeContent && localIframeRef.current) {
-        localIframeRef.current.focus();
-      }
-    }, [iframeContent]);
+      return () => clearTimeout(timer);
+    }, [code]);
 
     return (
-      <div 
-        className="h-full relative"
-        onClick={() => localIframeRef.current?.focus()}
-      >
+      <div className="h-full relative">
         {iframeContent ? (
           <iframe
             ref={localIframeRef}
@@ -262,10 +49,6 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
             sandbox="allow-scripts allow-forms allow-popups allow-same-origin"
             title="Generated Content"
             tabIndex={0}
-            onLoad={() => {
-              console.log("Iframe content loaded");
-              contentStableRef.current = true;
-            }}
           />
         ) : (
           <div className="h-full flex items-center justify-center bg-gray-50">
