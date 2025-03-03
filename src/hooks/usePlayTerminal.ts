@@ -1,284 +1,339 @@
 
 import { useState, useEffect, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 import { ModelType } from "@/types/generation";
+import { supabase } from "@/integrations/supabase/client";
+import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 
-export function usePlayTerminal(gameId: string | undefined, generating: boolean, initialPrompt: string, initialType: string, initialModelType: string, initialImageUrl: string) {
-  const [generationInProgress, setGenerationInProgress] = useState(false);
-  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
-  const [showTerminal, setShowTerminal] = useState(false);
-  const [thinkingTime, setThinkingTime] = useState(0);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const gameVersionLoaded = useRef(false);
+interface TerminalState {
+  generationInProgress: boolean;
+  terminalOutput: string[];
+  showTerminal: boolean;
+  thinkingTime: number;
+  generationComplete: boolean;
+  generationError: string | null;
+}
 
+export function usePlayTerminal(
+  gameId: string | undefined,
+  generating: boolean,
+  initialPrompt: string,
+  gameType: string,
+  modelType: string = "smart",
+  imageUrl: string = ""
+) {
+  const [state, setState] = useState<TerminalState>({
+    generationInProgress: generating,
+    terminalOutput: [],
+    showTerminal: generating,
+    thinkingTime: 0,
+    generationComplete: false,
+    generationError: null
+  });
+  
+  const timerRef = useRef<NodeJS.Timeout | undefined>();
+  const { toast } = useToast();
+  const isInitialMount = useRef(true);
+
+  const setShowTerminal = (show: boolean) => {
+    setState(prev => ({ ...prev, showTerminal: show }));
+  };
+
+  const handleTerminalStatusChange = (
+    showing: boolean,
+    output: string[],
+    thinking: number,
+    isLoading: boolean
+  ) => {
+    setState(prev => ({
+      ...prev,
+      showTerminal: showing,
+      terminalOutput: output,
+      thinkingTime: thinking,
+      generationInProgress: isLoading
+    }));
+  };
+
+  // Function to update terminal output
+  const updateTerminalOutput = (newOutput: string, isNewMessage = false) => {
+    setState(prev => ({
+      ...prev,
+      terminalOutput: isNewMessage 
+        ? [...prev.terminalOutput, newOutput] 
+        : [...prev.terminalOutput.slice(0, -1), newOutput]
+    }));
+  };
+
+  // Start the thinking timer when generation begins
   useEffect(() => {
-    if (generating && gameId) {
-      console.log("Starting generation process for game:", gameId);
-      setGenerationInProgress(true);
-      setShowTerminal(true); // Automatically show terminal when generating
-      setTerminalOutput([`> Starting generation for: "${initialPrompt}"`]);
-      gameVersionLoaded.current = false;
-    }
-  }, [generating, gameId, initialPrompt]);
-
-  useEffect(() => {
-    if (generationInProgress && gameId) {
-      // Start the timer when generation starts
-      setThinkingTime(0);
-      timerRef.current = setInterval(() => {
-        setThinkingTime(prev => prev + 1);
-      }, 1000);
-    } else {
-      // Clear the timer when generation is complete or stopped
+    if (state.generationInProgress) {
+      setState(prev => ({ ...prev, thinkingTime: 0 }));
+      
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = undefined;
+      }
+      
+      timerRef.current = setInterval(() => {
+        setState(prev => ({ ...prev, thinkingTime: prev.thinkingTime + 1 }));
+      }, 1000);
+    } else {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = undefined;
       }
     }
-
+    
     return () => {
       if (timerRef.current) {
         clearInterval(timerRef.current);
+        timerRef.current = undefined;
       }
     };
-  }, [generationInProgress, gameId]);
+  }, [state.generationInProgress]);
 
+  // Handle initial generation
   useEffect(() => {
-    const fetchInitialContent = async () => {
-      if (gameId && generating) {
-        try {
-          console.log("Fetching initial content with:", {
-            prompt: initialPrompt,
-            type: initialType,
-            modelType: initialModelType,
-            imageUrl: initialImageUrl
-          });
-
-          setTerminalOutput(prev => [...prev, `> Using ${initialModelType === "smart" ? "Claude (Smartest)" : "Groq (Fastest)"} model`]);
-          
-          // Always use the generate-game function for initial generation
-          const apiUrl = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game';
-          
-          setTerminalOutput(prev => [...prev, `> Connecting to generation service...`]);
-          
-          const payload = {
-            prompt: initialPrompt,
-            gameType: initialType,
-            modelType: initialModelType as ModelType,
-            gameId: gameId,
-            stream: true // Always stream for better UX
-          };
-          
-          if (initialImageUrl) {
-            payload['imageUrl'] = initialImageUrl;
-          }
-          
-          console.log("Sending payload to generate-game:", payload);
-          
-          const apiResponse = await fetch(apiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
-            },
-            body: JSON.stringify(payload)
-          });
-
-          if (!apiResponse.ok) {
-            const errorText = await apiResponse.text();
-            throw new Error(`API error (${apiResponse.status}): ${errorText}`);
-          }
-
-          // Always handle streaming 
-          if (apiResponse && apiResponse.body) {
-            const reader = apiResponse.body.getReader();
-            
-            let partialResponse = "";
-            let decoder = new TextDecoder();
-
-            const processStream = async () => {
-              try {
-                let result;
-                let processingComplete = false;
-                
-                do {
-                  result = await reader.read();
-                  if (result.value) {
-                    const chunk = decoder.decode(result.value);
-                    console.log("Received chunk:", chunk.substring(0, 100) + "...");
-                    
-                    partialResponse += chunk;
-                    
-                    // Split by lines to process each event
-                    const lines = partialResponse.split("\n");
-                    
-                    // Process complete lines
-                    for (let i = 0; i < lines.length - 1; i++) {
-                      const line = lines[i].trim();
-                      if (line.startsWith('data: ')) {
-                        try {
-                          const data = JSON.parse(line.substring(6));
-                          
-                          if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
-                            const thinking = data.delta.thinking || '';
-                            if (thinking && thinking.trim()) {
-                              setTerminalOutput(prev => [...prev, `> Thinking: ${thinking}`]);
-                              console.log("Thinking update:", thinking);
-                            }
-                          } else if (data.delta?.text) {
-                            setTerminalOutput(prev => [...prev, `> ${data.delta.text}`]);
-                          }
-                          
-                          // Check if we're done
-                          if (data.type === 'message_stop' || 
-                             (data.delta && data.delta.stop_reason)) {
-                            processingComplete = true;
-                          }
-                        } catch (e) {
-                          console.error("Error parsing data:", e, "Line:", line);
-                        }
-                      }
-                    }
-                    
-                    // Keep the last line which might be incomplete
-                    partialResponse = lines[lines.length - 1];
-                  }
-                } while (!result.done && !processingComplete);
-
-                setTerminalOutput(prev => [...prev, "> Generation completed successfully!"]);
-                console.log("Stream processing completed");
-                
-                // Add a slight delay to ensure database has been updated
-                await new Promise(resolve => setTimeout(resolve, 1000));
-                
-                // Explicitly fetch the latest game version to ensure we have the updated content
-                await fetchLatestGameVersion(gameId);
-                
-                // Complete the generation process
-                setGenerationInProgress(false);
-              } catch (e) {
-                console.error("Streaming error:", e);
-                setTerminalOutput(prev => [...prev, `> Error: ${e.message}`]);
-                setGenerationInProgress(false);
-              } finally {
-                reader.releaseLock();
-              }
-            };
-
-            processStream();
-          } else {
-            // Non-streaming fallback
-            setTerminalOutput(prev => [...prev, "> Received complete response"]);
-            
-            // Add a delay to ensure database has been updated
-            await new Promise(resolve => setTimeout(resolve, 1000));
-            
-            // Explicitly fetch the latest game version
-            await fetchLatestGameVersion(gameId);
-            
-            // Complete the generation process
-            setGenerationInProgress(false);
-          }
-        } catch (error) {
-          console.error("Error during initial content fetch:", error);
-          setTerminalOutput(prev => [...prev, `> Error: ${error.message}`]);
-          setGenerationInProgress(false);
-        }
+    const generateInitialContent = async () => {
+      if (!gameId || !generating || !isInitialMount.current) {
+        return;
       }
-    };
-
-    // Helper function to fetch the latest game version and ensure it's valid
-    const fetchLatestGameVersion = async (gameId: string) => {
+      
+      isInitialMount.current = false;
+      
       try {
-        setTerminalOutput(prev => [...prev, "> Fetching the latest game version..."]);
+        setState(prev => ({ 
+          ...prev, 
+          generationInProgress: true,
+          terminalOutput: ["Starting initial generation..."],
+          showTerminal: true,
+          generationError: null
+        }));
         
-        // First check if the game has been updated
-        const { data: gameData, error: gameError } = await supabase
-          .from('games')
-          .select('code, current_version')
-          .eq('id', gameId)
-          .single();
-          
-        if (gameError) {
-          console.error("Error fetching game data:", gameError);
-          setTerminalOutput(prev => [...prev, `> Error fetching game data: ${gameError.message}`]);
-          return;
+        updateTerminalOutput(`> Processing request: "${initialPrompt}"${imageUrl ? ' (with image)' : ''}`, true);
+        updateTerminalOutput(`> Using ${modelType === "smart" ? "Anthropic (Smartest)" : "Groq (Fastest)"} model`, true);
+        updateTerminalOutput("> Sending request to generate-game function...", true);
+        
+        console.log("Starting generation process for gameId:", gameId);
+        
+        // Prepare the payload
+        const payload = {
+          gameId,
+          prompt: initialPrompt,
+          gameType,
+          modelType: modelType as ModelType,
+          imageUrl: imageUrl || undefined,
+          stream: modelType === "smart" // Stream only for Anthropic (smart)
+        };
+        
+        // Call the appropriate API endpoint
+        const apiUrl = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game';
+        
+        console.log("Calling generate-game function with payload:", payload);
+        updateTerminalOutput("> Connecting to AI service...", true);
+        
+        const response = await fetch(apiUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
+          },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("API error:", response.status, errorText);
+          throw new Error(`API error (${response.status}): ${errorText.substring(0, 200)}`);
         }
         
-        if (!gameData || !gameData.code || gameData.code.length < 100) {
-          console.error("Game data is missing or code is too short:", gameData);
-          setTerminalOutput(prev => [...prev, `> Warning: Game data might be incomplete. Fetching version details...`]);
-        } else {
-          console.log("Game data successfully fetched, code length:", gameData.code.length);
-        }
+        updateTerminalOutput("> Connection established, receiving content...", true);
         
-        // Now fetch the specific version
-        const { data: versionData, error: versionError } = await supabase
-          .from('game_versions')
-          .select('*')
-          .eq('game_id', gameId)
-          .order('version_number', { ascending: false })
-          .limit(1)
-          .single();
+        // Process the streaming or non-streaming response
+        if (modelType === "smart" && response.body) {
+          // Handle streaming response
+          const reader = response.body.getReader();
+          let content = '';
+          let lastMessageTime = Date.now();
+          const IDLE_TIMEOUT = 30000; // 30 seconds timeout
           
-        if (versionError) {
-          console.error("Error fetching game version:", versionError);
-          setTerminalOutput(prev => [...prev, `> Error fetching game version: ${versionError.message}`]);
-          return;
-        }
-        
-        if (!versionData) {
-          setTerminalOutput(prev => [...prev, `> No game version found`]);
-          console.error("No version data returned");
-          return;
-        }
-        
-        if (!versionData.code || versionData.code.length < 100) {
-          console.error("Version data has no code or code is too short:", versionData);
-          setTerminalOutput(prev => [...prev, `> Warning: Version data might be incomplete. Code length: ${versionData.code?.length || 0}`]);
-          
-          // Try one more time after a delay
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          const { data: retryData, error: retryError } = await supabase
-            .from('game_versions')
-            .select('*')
-            .eq('id', versionData.id)
-            .single();
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              
+              if (done) {
+                updateTerminalOutput("> Stream complete", true);
+                break;
+              }
+              
+              // Reset timeout on new data
+              lastMessageTime = Date.now();
+              
+              // Decode and process the data
+              const text = new TextDecoder().decode(value);
+              content += text;
+              
+              // Check for thinking message
+              if (text.includes("thinking: ")) {
+                const thinkingMatch = text.match(/thinking: (.*?)(?=\n|$)/);
+                if (thinkingMatch && thinkingMatch[1]) {
+                  updateTerminalOutput(`> [Thinking] ${thinkingMatch[1]}`, true);
+                }
+              }
+              
+              // Check timeout during streaming
+              const checkTimeout = () => {
+                if (Date.now() - lastMessageTime > IDLE_TIMEOUT) {
+                  console.warn("Stream timeout detected");
+                  reader.cancel("Stream timeout");
+                  throw new Error("Generation timed out. The service took too long to respond.");
+                }
+              };
+              
+              // Schedule timeout check
+              setTimeout(checkTimeout, IDLE_TIMEOUT);
+            }
             
-          if (retryError) {
-            console.error("Error in retry fetch:", retryError);
-          } else if (retryData && retryData.code && retryData.code.length > 100) {
-            console.log("Successfully fetched code on retry. Length:", retryData.code.length);
-            setTerminalOutput(prev => [...prev, `> Successfully loaded game content after retry.`]);
-            gameVersionLoaded.current = true;
+            // Validate the content
+            if (!content || content.length < 100) {
+              throw new Error("Received empty or invalid content from generation");
+            }
+            
+            // Check if content is valid HTML/SVG
+            if (!content.includes("<html") && !content.includes("<!DOCTYPE") && !content.includes("<svg")) {
+              throw new Error("Generated content is not valid HTML or SVG");
+            }
+            
+            updateTerminalOutput("> Processing and saving generated content...", true);
+            
+            // Save the generated content
+            await saveGeneratedGame({
+              gameContent: content,
+              prompt: initialPrompt,
+              gameType,
+              modelType: modelType as ModelType,
+              imageUrl: imageUrl || undefined,
+              existingGameId: gameId,
+              instructions: "Initial content generated successfully"
+            });
+            
+            updateTerminalOutput("> Content saved successfully", true);
+            
+            // Update game messages with success response
+            await supabase
+              .from('game_messages')
+              .update({ response: "Initial content generated successfully" })
+              .eq('game_id', gameId)
+              .is('response', null);
+              
+            console.log("Generation completed successfully");
+            
+            setState(prev => ({ 
+              ...prev, 
+              generationInProgress: false,
+              generationComplete: true
+            }));
+            
+          } catch (streamError) {
+            console.error("Stream processing error:", streamError);
+            updateTerminalOutput(`> Error: ${streamError.message}`, true);
+            
+            setState(prev => ({ 
+              ...prev, 
+              generationInProgress: false,
+              generationError: streamError.message
+            }));
+            
+            throw streamError;
           }
         } else {
-          setTerminalOutput(prev => [...prev, `> Successfully fetched game version ${versionData.version_number} (${versionData.code.length} bytes)`]);
-          console.log("Fetched game version:", versionData.version_number, "Code length:", versionData.code.length);
-          gameVersionLoaded.current = true;
+          // Handle non-streaming response
+          const data = await response.json();
+          console.log("Non-streaming response received:", data);
+          
+          if (!data.content || data.content.length < 100) {
+            throw new Error("Received empty or invalid content from generation");
+          }
+          
+          updateTerminalOutput("> Content received, saving to database...", true);
+          
+          // Save the generated content
+          await saveGeneratedGame({
+            gameContent: data.content,
+            prompt: initialPrompt,
+            gameType,
+            modelType: modelType as ModelType,
+            imageUrl: imageUrl || undefined,
+            existingGameId: gameId,
+            instructions: "Initial content generated successfully"
+          });
+          
+          updateTerminalOutput("> Content saved successfully", true);
+          
+          // Update game messages with success response
+          await supabase
+            .from('game_messages')
+            .update({ response: "Initial content generated successfully" })
+            .eq('game_id', gameId)
+            .is('response', null);
+            
+          console.log("Generation completed successfully");
+          
+          setState(prev => ({ 
+            ...prev, 
+            generationInProgress: false,
+            generationComplete: true
+          }));
         }
+        
+        // Final message
+        updateTerminalOutput("> Generation completed, switching to content view...", true);
+        
+        setTimeout(() => {
+          setState(prev => ({ ...prev, showTerminal: false }));
+          
+          toast({
+            title: "Generation Complete",
+            description: "Content has been generated successfully.",
+          });
+        }, 1500);
+        
       } catch (error) {
-        console.error("Error in fetchLatestGameVersion:", error);
-        setTerminalOutput(prev => [...prev, `> Error checking game version: ${error.message}`]);
+        console.error("Error in generateInitialContent:", error);
+        
+        updateTerminalOutput(`> Error: ${error.message}`, true);
+        
+        setState(prev => ({ 
+          ...prev, 
+          generationInProgress: false,
+          generationError: error.message
+        }));
+        
+        toast({
+          title: "Generation Error",
+          description: error.message || "Failed to generate content",
+          variant: "destructive",
+        });
       }
     };
-
-    fetchInitialContent();
-  }, [gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl]);
-
-  const handleTerminalStatusChange = (showing: boolean, output: string[], thinking: number, isLoading: boolean) => {
-    setShowTerminal(showing);
-    setTerminalOutput(output);
-    setThinkingTime(thinking);
-    setGenerationInProgress(isLoading);
-  };
+    
+    generateInitialContent();
+    
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = undefined;
+      }
+    };
+  }, [gameId, generating, initialPrompt, gameType, modelType, imageUrl, toast]);
 
   return {
-    generationInProgress,
-    terminalOutput,
-    showTerminal,
-    thinkingTime,
+    generationInProgress: state.generationInProgress,
+    terminalOutput: state.terminalOutput,
+    showTerminal: state.showTerminal,
+    thinkingTime: state.thinkingTime,
     handleTerminalStatusChange,
-    setShowTerminal
+    setShowTerminal,
+    generationError: state.generationError
   };
 }

@@ -8,12 +8,15 @@ import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal
 import { usePlayGameData } from "@/hooks/usePlayGameData";
 import { useGameUpdate } from "@/hooks/useGameUpdate";
 import { usePlayTerminal } from "@/hooks/usePlayTerminal";
+import { useToast } from "@/components/ui/use-toast";
 
 const Play = () => {
   const { id: gameId } = useParams();
   const [searchParams] = useSearchParams();
   const [showCode, setShowCode] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const { toast } = useToast();
+  const [hasRefreshedAfterGeneration, setHasRefreshedAfterGeneration] = useState(false);
 
   // Get search params
   const generating = searchParams.get("generating") === "true";
@@ -22,8 +25,17 @@ const Play = () => {
   const initialImageUrl = searchParams.get("imageUrl") || "";
 
   // Use custom hooks
-  const { game, currentVersion, gameVersions, fetchGame } = usePlayGameData(gameId);
-  const { handleGameUpdate, revertToMessageVersion } = useGameUpdate(gameId, game, gameVersions, fetchGame);
+  const { 
+    game, 
+    currentVersion, 
+    gameVersions, 
+    fetchGame,
+    isLoading: gameDataLoading 
+  } = usePlayGameData(gameId);
+  
+  const { handleGameUpdate, revertToMessageVersion } = useGameUpdate(
+    gameId, game, gameVersions, fetchGame
+  );
   
   // Set the initial prompt for terminal
   const initialPrompt = game?.prompt || "Loading...";
@@ -34,24 +46,77 @@ const Play = () => {
     showTerminal,
     thinkingTime,
     handleTerminalStatusChange,
-    setShowTerminal
+    setShowTerminal,
+    generationError
   } = usePlayTerminal(gameId, generating, initialPrompt, initialType, initialModelType, initialImageUrl);
 
   // When generation completes, refresh the game data to get the latest version
   useEffect(() => {
-    if (!generationInProgress && gameId && generating) {
+    let refreshTimer: NodeJS.Timeout;
+    
+    if (!generationInProgress && gameId && generating && !hasRefreshedAfterGeneration) {
       console.log("Generation completed, refreshing game data");
       
-      // Add a slight delay to ensure database is updated
-      const refreshTimer = setTimeout(() => {
-        fetchGame().then(() => {
-          console.log("Game data refreshed after generation");
-        });
-      }, 1000);
+      // Use multiple attempts to ensure we get the latest data
+      const refreshData = async () => {
+        console.log("Attempting to refresh game data");
+        setHasRefreshedAfterGeneration(true);
+        
+        try {
+          // Make multiple attempts to fetch the updated data
+          for (let i = 0; i < 3; i++) {
+            await fetchGame();
+            console.log(`Game data refresh attempt ${i+1} completed`);
+            
+            // Check if we have valid code
+            if (currentVersion?.code && 
+                currentVersion.code !== "Generating..." && 
+                currentVersion.code.length > 100) {
+              console.log("Valid game code found after refresh");
+              break;
+            }
+            
+            if (i < 2) {
+              // Wait before trying again
+              await new Promise(resolve => setTimeout(resolve, 1500));
+            }
+          }
+        } catch (error) {
+          console.error("Error refreshing game data:", error);
+          toast({
+            title: "Error loading content",
+            description: "Failed to load the generated content. Please try refreshing the page.",
+            variant: "destructive"
+          });
+        }
+      };
       
-      return () => clearTimeout(refreshTimer);
+      // Add a slight delay to ensure database is updated
+      refreshTimer = setTimeout(refreshData, 1000);
     }
-  }, [generationInProgress, gameId, generating, fetchGame]);
+    
+    if (generationError) {
+      console.error("Generation error detected:", generationError);
+      toast({
+        title: "Generation Error",
+        description: generationError || "Failed to generate content. Please try again.",
+        variant: "destructive"
+      });
+    }
+    
+    return () => {
+      if (refreshTimer) clearTimeout(refreshTimer);
+    };
+  }, [
+    generationInProgress, 
+    gameId, 
+    generating, 
+    fetchGame, 
+    hasRefreshedAfterGeneration, 
+    currentVersion, 
+    toast,
+    generationError
+  ]);
 
   // Log when currentVersion changes
   useEffect(() => {
@@ -60,10 +125,24 @@ const Play = () => {
     }
   }, [currentVersion]);
 
-  if (!gameId || !game) {
+  // Reset the refresh state if gameId changes
+  useEffect(() => {
+    setHasRefreshedAfterGeneration(false);
+  }, [gameId]);
+
+  if (!gameId) {
     return (
       <div className="h-screen flex items-center justify-center">
-        Loading...
+        <p>No game ID provided</p>
+      </div>
+    );
+  }
+
+  if (gameDataLoading && !generationInProgress) {
+    return (
+      <div className="h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mr-3"></div>
+        <p>Loading game data...</p>
       </div>
     );
   }
@@ -72,7 +151,7 @@ const Play = () => {
     <div className="flex flex-col h-screen w-full">
       <PlayNavbar
         gameId={gameId}
-        gameName={game.prompt}
+        gameName={game?.prompt || "Loading..."}
         showCodeEditor={showCode}
         onShowCodeEditorChange={setShowCode}
         onExport={() => {
