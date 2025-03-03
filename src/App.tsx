@@ -1,29 +1,29 @@
-import {
-  createBrowserRouter,
-  RouterProvider,
-  Route,
-  createRoutesFromElements,
-} from "react-router-dom";
+
+import { Toaster } from "@/components/ui/toaster";
+import { Toaster as Sonner } from "@/components/ui/sonner";
+import { TooltipProvider } from "@/components/ui/tooltip";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Play from "./pages/Play";
 import NotFound from "./pages/NotFound";
-import NetlifyCallback from "@/pages/NetlifyCallback";
 
-const router = createBrowserRouter(
-  createRoutesFromElements(
-    <>
-      <Route path="/" element={<Index />} />
-      <Route path="/play/:gameId" element={<Play />} />
-      <Route path="/netlify-callback" element={<NetlifyCallback />} />
-      <Route path="*" element={<NotFound />} />
-    </>
-  )
+const queryClient = new QueryClient();
+
+const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <TooltipProvider>
+      <Toaster />
+      <Sonner />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/play/:id" element={<Play />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </TooltipProvider>
+  </QueryClientProvider>
 );
-
-function App() {
-  return (
-    <RouterProvider router={router} />
-  );
-}
 
 export default App;

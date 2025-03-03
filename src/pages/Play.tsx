@@ -1,120 +1,133 @@
 
-import { useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useState, useEffect, useRef } from "react";
+import { useParams, useSearchParams, useNavigate } from "react-router-dom";
+import { Loader2 } from "lucide-react";
+import { useTerminal } from "@/components/game-player/hooks/useTerminal";
+import { useGameVersions } from "@/components/game-player/hooks/useGameVersions";
+import { useInitialGeneration } from "@/components/game-player/hooks/useInitialGeneration";
 import { PlayNavbar } from "@/components/game-player/PlayNavbar";
+import { GameActions } from "@/components/game-player/GameActions";
 import { PlayContent } from "@/components/game-player/PlayContent";
 import { SidebarChat } from "@/components/game-player/SidebarChat";
-import { LoadingState } from "@/components/game-player/LoadingState";
-import { ErrorState } from "@/components/game-player/ErrorState";
-import { useGameVersions } from "@/components/game-player/hooks/useGameVersions";
-import { useTerminal } from "@/components/game-player/hooks/useTerminal";
-import { usePlayUI } from "@/components/game-player/hooks/usePlayUI";
-import { useChatHandler } from "@/components/game-player/hooks/useChatHandler";
+import { Message } from "@/components/game-chat/types";
 
-export default function Play() {
-  const { gameId } = useParams<{ gameId: string }>();
-  const navigate = useNavigate();
-
-  // Validate that we have a gameId
-  if (!gameId) {
-    useEffect(() => {
-      navigate("/");
-    }, [navigate]);
-    return null;
-  }
-
-  // Game versions hook
-  const {
-    gameVersions,
-    loading: loadingVersions,
-    selectedVersion,
-    setSelectedVersion,
-    initialPrompt,
-    handleRevertToVersion,
-    handleGameUpdate,
-    handleRevertToMessageVersion
-  } = useGameVersions(gameId);
-
-  // UI state management
-  const {
-    sidebarOpen,
-    setSidebarOpen,
-    showCode,
-    setShowCode,
-    imageUrl,
-    setImageUrl,
-    modelType,
-    handleModelChange,
-    chatInput,
-    setChatInput
-  } = usePlayUI(gameVersions.length);
-
-  // Chat handler
-  const { chatLoading, handleChatSubmit } = useChatHandler();
-
-  // Use terminal hook
-  const terminal = useTerminal(false);
+const Play = () => {
+  const { id } = useParams();
+  const [searchParams] = useSearchParams();
+  const isGenerating = searchParams.get('generating') === 'true';
+  const gameType = searchParams.get('type') || '';
+  const encodedImageUrl = searchParams.get('imageUrl') || '';
+  const imageUrl = encodedImageUrl ? decodeURIComponent(encodedImageUrl) : '';
   
-  // Find the current version based on selectedVersion
-  const currentVersion = gameVersions.find(version => version.id === selectedVersion);
+  const [showCode, setShowCode] = useState(false);
   
-  // Check if current version is the latest
-  const isLatestVersion = gameVersions.length > 0 ? 
-    selectedVersion === gameVersions[0].id : 
-    true;
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  
+  const terminal = useTerminal(isGenerating);
+  const gameVersions = useGameVersions(id);
+  const initialGeneration = useInitialGeneration();
 
-  // Show loading state while fetching game versions
-  if (loadingVersions) {
-    return <LoadingState />;
-  }
+  useEffect(() => {
+    if (isGenerating && id && !initialGeneration.generationStartedRef.current) {
+      initialGeneration.generationStartedRef.current = true;
+      initialGeneration.handleInitialGeneration(
+        id, 
+        terminal.updateTerminalOutput, 
+        terminal.setThinkingTime, 
+        terminal.setGenerationInProgress, 
+        imageUrl, 
+        gameType, 
+        gameVersions.fetchGame
+      );
+    }
+  }, [isGenerating, id]);
 
-  // If no versions found after loading is complete
-  if (!loadingVersions && gameVersions.length === 0) {
-    return <ErrorState />;
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return;
+      }
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " ", "PageUp", "PageDown", "Home", "End"].includes(e.key)) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown, { capture: true });
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown, { capture: true });
+    };
+  }, []);
+
+  useEffect(() => {
+    gameVersions.fetchGame();
+  }, [id]);
+
+  useEffect(() => {
+    if (!gameVersions.loading && iframeRef.current) {
+      iframeRef.current.focus();
+      
+      const handleIframeMessage = (event: MessageEvent) => {
+        if (event.source === iframeRef.current?.contentWindow) {
+          console.log('Message from iframe:', event.data);
+        }
+      };
+      
+      window.addEventListener('message', handleIframeMessage);
+      return () => {
+        window.removeEventListener('message', handleIframeMessage);
+      };
+    }
+  }, [gameVersions.loading, gameVersions.selectedVersion]);
+
+  const currentVersion = gameVersions.gameVersions.find(v => v.id === gameVersions.selectedVersion);
+  const isLatestVersion = currentVersion?.version_number === gameVersions.gameVersions[0]?.version_number;
+
+  if (gameVersions.loading && !terminal.showGenerating) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="animate-spin" size={32} />
+      </div>
+    );
   }
 
   return (
-    <div className="flex h-screen flex-col">
-      <PlayNavbar
-        gameId={gameId}
-        showSidebar={sidebarOpen}
-        setShowSidebar={setSidebarOpen}
-      />
-      <div className="relative flex flex-1 overflow-hidden">
-        <PlayContent
-          gameVersions={gameVersions}
-          selectedVersion={selectedVersion}
-          onVersionChange={setSelectedVersion}
-          setSelectedVersion={setSelectedVersion}
+    <div className="flex flex-col h-screen bg-white">
+      <PlayNavbar>
+        <GameActions 
+          currentVersion={currentVersion}
+          showGenerating={terminal.showGenerating}
+          isLatestVersion={isLatestVersion}
+          onRevertToVersion={gameVersions.handleRevertToVersion}
+        />
+      </PlayNavbar>
+      
+      <div className="flex flex-1 overflow-hidden">
+        <SidebarChat 
+          gameId={id!}
+          generationInProgress={terminal.generationInProgress}
+          onGameUpdate={gameVersions.handleGameUpdate}
+          onTerminalStatusChange={terminal.handleTerminalStatusChange}
+          onRevertToMessageVersion={gameVersions.handleRevertToMessageVersion}
+          gameVersions={gameVersions.gameVersions}
+          initialPrompt={gameVersions.initialPrompt || initialGeneration.initialPrompt}
+        />
+
+        <PlayContent 
+          showGenerating={terminal.showGenerating}
+          gameVersions={gameVersions.gameVersions}
+          selectedVersion={gameVersions.selectedVersion}
+          onVersionChange={gameVersions.handleVersionChange}
+          onRevertToVersion={gameVersions.handleRevertToVersion}
           showCode={showCode}
           setShowCode={setShowCode}
-          gameId={gameId}
-          currentVersion={currentVersion}
+          terminalOutput={terminal.terminalOutput}
+          thinkingTime={terminal.thinkingTime}
+          generationInProgress={terminal.generationInProgress}
           isLatestVersion={isLatestVersion}
-          onRevertToVersion={handleRevertToVersion}
-        />
-        
-        {/* Sidebar Chat */}
-        <SidebarChat
-          isOpen={sidebarOpen} 
-          setIsOpen={setSidebarOpen}
-          onSubmit={handleChatSubmit}
-          input={chatInput}
-          setInput={setChatInput}
-          loading={chatLoading}
-          disabled={!isLatestVersion}
-          imageUrl={imageUrl}
-          setImageUrl={setImageUrl}
-          modelType={modelType}
-          handleModelChange={handleModelChange}
-          gameId={gameId}
-          gameVersions={gameVersions}
-          initialPrompt={initialPrompt}
-          onGameUpdate={handleGameUpdate}
-          onTerminalStatusChange={terminal.handleTerminalStatusChange}
-          onRevertToMessageVersion={handleRevertToMessageVersion}
+          currentVersion={currentVersion}
         />
       </div>
     </div>
   );
-}
+};
+
+export default Play;

@@ -1,11 +1,13 @@
+
 import React, { useRef, useEffect, forwardRef } from "react";
 
 interface IframePreviewProps {
   code: string;
+  isResizable?: boolean;
 }
 
 export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
-  ({ code }, ref) => {
+  ({ code, isResizable = false }, ref) => {
     const localIframeRef = useRef<HTMLIFrameElement>(null);
     
     useEffect(() => {
