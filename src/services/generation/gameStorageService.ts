@@ -10,6 +10,7 @@ export interface SaveGameOptions {
   imageUrl?: string;
   existingGameId?: string;
   instructions?: string;
+  userId?: string; // Add userId parameter
 }
 
 export const saveGeneratedGame = async (options: SaveGameOptions) => {
@@ -20,7 +21,8 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
     modelType,
     imageUrl,
     existingGameId,
-    instructions = "Content generated successfully"
+    instructions = "Content generated successfully",
+    userId
   } = options;
 
   console.log("Saving game with options:", { 
@@ -28,7 +30,8 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
     gameType, 
     modelType, 
     existingGameId,
-    contentLength: gameContent?.length || 0
+    contentLength: gameContent?.length || 0,
+    userId: userId ? "provided" : "not provided" // Log if user ID is available
   });
 
   if (!gameContent || gameContent.length < 100) {
@@ -69,7 +72,8 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
       .from('games')
       .update({ 
         code: formattedContent,
-        instructions: instructions
+        instructions: instructions,
+        user_id: userId // Update with user ID if provided
       })
       .eq('id', existingGameId);
     
@@ -113,7 +117,7 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
     console.log("Game updated successfully:", data.id);
     gameData = data;
   } else {
-    console.log("Creating new game");
+    console.log("Creating new game", userId ? "for user" : "without user");
     
     // Create a new game
     const { data: newGameData, error: gameError } = await supabase
@@ -124,7 +128,8 @@ export const saveGeneratedGame = async (options: SaveGameOptions) => {
         instructions: instructions,
         current_version: 1,
         type: gameType,
-        model_type: modelType
+        model_type: modelType,
+        user_id: userId // Associate with user if available
       }])
       .select()
       .single();

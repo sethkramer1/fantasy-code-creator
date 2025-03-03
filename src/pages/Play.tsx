@@ -130,6 +130,24 @@ const Play = () => {
     setHasRefreshedAfterGeneration(false);
   }, [gameId]);
 
+  // Manually attempt to refresh game data if no code is loaded after a timeout
+  useEffect(() => {
+    let checkTimer: NodeJS.Timeout;
+    
+    if (!generating && gameId && !gameDataLoading && currentVersion?.code === "Generating...") {
+      console.log("Content still shows 'Generating...', scheduling additional refresh");
+      
+      checkTimer = setTimeout(async () => {
+        console.log("Executing additional refresh for game data");
+        await fetchGame();
+      }, 3000);
+    }
+    
+    return () => {
+      if (checkTimer) clearTimeout(checkTimer);
+    };
+  }, [gameId, generating, gameDataLoading, currentVersion, fetchGame]);
+
   if (!gameId) {
     return (
       <div className="h-screen flex items-center justify-center">

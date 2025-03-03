@@ -1,5 +1,5 @@
 
-import { useEffect, forwardRef, useState, useCallback } from "react";
+import { useEffect, forwardRef, useState, useCallback, useRef } from "react";
 import { parseCodeSections } from "./utils/CodeParser";
 import { CodeEditor } from "./components/CodeEditor";
 import { IframePreview } from "./components/IframePreview";
@@ -23,6 +23,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     const [contentReady, setContentReady] = useState(false);
     const [lastValidCode, setLastValidCode] = useState<string | null>(null);
     const [loadAttempts, setLoadAttempts] = useState(0);
+    const initialRenderRef = useRef(true);
     
     // Validate code function
     const isValidCode = useCallback((code: string | undefined): boolean => {
@@ -39,10 +40,23 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       console.log("GamePreview received currentVersion update", 
         currentVersion?.id, 
         "showCode:", showCode,
-        "code length:", currentVersion?.code?.length
+        "code length:", currentVersion?.code?.length,
+        "code starts with:", currentVersion?.code?.substring(0, 30)
       );
       
       if (currentVersion?.code) {
+        // Handle the case where code is "Generating..."
+        if (currentVersion.code === "Generating...") {
+          console.log("Generation still in progress");
+          
+          // Don't increase load attempts on first render
+          if (!initialRenderRef.current) {
+            setLoadAttempts(prev => prev + 1);
+          }
+          
+          return;
+        }
+        
         // If we have valid code, save it and set content as ready
         if (isValidCode(currentVersion.code)) {
           console.log("Valid code detected, setting as ready");
@@ -63,6 +77,8 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
           }
         }
       }
+      
+      initialRenderRef.current = false;
     }, [currentVersion, showCode, isValidCode, lastValidCode]);
 
     // Show toast on multiple failed attempts
@@ -73,6 +89,21 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
         });
       }
     }, [loadAttempts, lastValidCode]);
+
+    // Force reload for "Generating..." case after 5 seconds
+    useEffect(() => {
+      let reloadTimer: NodeJS.Timeout;
+      
+      if (currentVersion?.code === "Generating..." && loadAttempts > 1) {
+        reloadTimer = setTimeout(() => {
+          window.location.reload();
+        }, 5000);
+      }
+      
+      return () => {
+        if (reloadTimer) clearTimeout(reloadTimer);
+      };
+    }, [currentVersion?.code, loadAttempts]);
 
     // Handle case when no version is available yet
     if (!currentVersion) {

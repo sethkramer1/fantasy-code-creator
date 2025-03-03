@@ -1,9 +1,9 @@
-
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { ModelType } from "@/types/generation";
 import { supabase } from "@/integrations/supabase/client";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
+import { useAuth } from "@/context/AuthContext";
 
 interface TerminalState {
   generationInProgress: boolean;
@@ -34,6 +34,7 @@ export function usePlayTerminal(
   const timerRef = useRef<NodeJS.Timeout | undefined>();
   const { toast } = useToast();
   const isInitialMount = useRef(true);
+  const { user } = useAuth();
 
   const setShowTerminal = (show: boolean) => {
     setState(prev => ({ ...prev, showTerminal: show }));
@@ -54,7 +55,6 @@ export function usePlayTerminal(
     }));
   };
 
-  // Function to update terminal output
   const updateTerminalOutput = (newOutput: string, isNewMessage = false) => {
     setState(prev => ({
       ...prev,
@@ -64,7 +64,6 @@ export function usePlayTerminal(
     }));
   };
 
-  // Start the thinking timer when generation begins
   useEffect(() => {
     if (state.generationInProgress) {
       setState(prev => ({ ...prev, thinkingTime: 0 }));
@@ -92,7 +91,6 @@ export function usePlayTerminal(
     };
   }, [state.generationInProgress]);
 
-  // Function to process streaming data from Anthropic API
   const processAnthropicStream = async (reader: ReadableStreamDefaultReader<Uint8Array>) => {
     let content = '';
     let buffer = '';
@@ -107,20 +105,16 @@ export function usePlayTerminal(
           break;
         }
         
-        // Decode the chunk and add it to our buffer
         const text = new TextDecoder().decode(value);
         buffer += text;
         
-        // Process complete lines from the buffer
         let lineEnd;
         while ((lineEnd = buffer.indexOf('\n')) >= 0) {
           const line = buffer.slice(0, lineEnd);
           buffer = buffer.slice(lineEnd + 1);
           
-          // Skip empty lines
           if (!line) continue;
           
-          // Handle Anthropic streaming format
           if (line.startsWith('data: ')) {
             try {
               const data = JSON.parse(line.slice(5));
@@ -147,17 +141,14 @@ export function usePlayTerminal(
                     if (contentChunk) {
                       content += contentChunk;
                       
-                      // Handle multiline content chunks
                       if (contentChunk.includes('\n')) {
                         const lines = contentChunk.split('\n');
                         
-                        // Add first line to current line
                         if (lines[0]) {
                           currentLineContent += lines[0];
                           updateTerminalOutput(`> ${currentLineContent}`, false);
                         }
                         
-                        // Add middle lines as separate entries
                         for (let i = 1; i < lines.length - 1; i++) {
                           if (lines[i].trim()) {
                             currentLineContent = lines[i];
@@ -165,7 +156,6 @@ export function usePlayTerminal(
                           }
                         }
                         
-                        // Start a new current line with the last part
                         if (lines.length > 1) {
                           currentLineContent = lines[lines.length - 1];
                           if (currentLineContent) {
@@ -175,7 +165,6 @@ export function usePlayTerminal(
                           }
                         }
                       } else {
-                        // Add to current line for single-line chunks
                         currentLineContent += contentChunk;
                         updateTerminalOutput(`> ${currentLineContent}`, false);
                       }
@@ -218,7 +207,6 @@ export function usePlayTerminal(
     }
   };
 
-  // Handle initial generation
   useEffect(() => {
     const generateInitialContent = async () => {
       if (!gameId || !generating || !isInitialMount.current) {
@@ -242,17 +230,16 @@ export function usePlayTerminal(
         
         console.log("Starting generation process for gameId:", gameId);
         
-        // Prepare the payload
         const payload = {
           gameId,
           prompt: initialPrompt,
           gameType,
           modelType: modelType as ModelType,
           imageUrl: imageUrl || undefined,
-          stream: modelType === "smart" // Stream only for Anthropic (smart)
+          stream: modelType === "smart",
+          userId: user?.id
         };
         
-        // Call the appropriate API endpoint
         const apiUrl = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game';
         
         console.log("Calling generate-game function with payload:", payload);
@@ -275,15 +262,12 @@ export function usePlayTerminal(
         
         updateTerminalOutput("> Connection established, receiving content...", true);
         
-        // Process the streaming or non-streaming response
         let content = '';
         
         if (modelType === "smart" && response.body) {
-          // Handle streaming response
           const reader = response.body.getReader();
           content = await processAnthropicStream(reader);
         } else {
-          // Handle non-streaming response
           const data = await response.json();
           console.log("Non-streaming response received:", data);
           
@@ -295,16 +279,13 @@ export function usePlayTerminal(
           updateTerminalOutput("> Content received successfully", true);
         }
         
-        // Validate the content
         if (!content || content.length < 100) {
           throw new Error("Received empty or invalid content from generation");
         }
         
-        // Check if content is valid HTML/SVG
         if (!content.includes("<html") && !content.includes("<!DOCTYPE") && !content.includes("<svg")) {
           updateTerminalOutput("> Warning: Generated content may not be valid HTML. Attempting to fix...", true);
           
-          // Try to wrap the content in HTML if it's not already
           if (content.includes('<') && content.includes('>')) {
             content = `<!DOCTYPE html>
 <html>
@@ -324,7 +305,6 @@ export function usePlayTerminal(
         
         updateTerminalOutput("> Processing and saving generated content...", true);
         
-        // Save the generated content
         await saveGeneratedGame({
           gameContent: content,
           prompt: initialPrompt,
@@ -332,12 +312,12 @@ export function usePlayTerminal(
           modelType: modelType as ModelType,
           imageUrl: imageUrl || undefined,
           existingGameId: gameId,
-          instructions: "Initial content generated successfully"
+          instructions: "Initial content generated successfully",
+          userId: user?.id
         });
         
         updateTerminalOutput("> Content saved successfully", true);
         
-        // Update game messages with success response
         await supabase
           .from('game_messages')
           .update({ response: "Initial content generated successfully" })
@@ -351,9 +331,6 @@ export function usePlayTerminal(
           generationInProgress: false,
           generationComplete: true
         }));
-        
-        // Final message
-        updateTerminalOutput("> Generation completed, switching to content view...", true);
         
         setTimeout(() => {
           setState(prev => ({ ...prev, showTerminal: false }));
@@ -391,7 +368,7 @@ export function usePlayTerminal(
         timerRef.current = undefined;
       }
     };
-  }, [gameId, generating, initialPrompt, gameType, modelType, imageUrl, toast]);
+  }, [gameId, generating, initialPrompt, gameType, modelType, imageUrl, toast, user]);
 
   return {
     generationInProgress: state.generationInProgress,
