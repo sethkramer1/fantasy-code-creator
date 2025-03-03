@@ -18,6 +18,7 @@ export const GameChat = ({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [previousDisabledState, setPreviousDisabledState] = useState<boolean>(disabled);
   const [generationComplete, setGenerationComplete] = useState<boolean>(false);
+  const generationHandledRef = useRef<boolean>(false);
   
   const {
     message,
@@ -51,10 +52,12 @@ export const GameChat = ({
   // Handle generation completion
   useEffect(() => {
     // Check if disabled state changed from true to false (generation completed)
-    if (previousDisabledState === true && disabled === false && initialMessageId === 'initial-message') {
+    if (previousDisabledState === true && disabled === false) {
       // Update the message to show content was generated successfully
-      setInitialMessageId(null);
-      setGenerationComplete(true);
+      if (initialMessageId) {
+        setInitialMessageId(null);
+        setGenerationComplete(true);
+      }
     }
     
     // Update previous disabled state for next comparison
@@ -64,33 +67,50 @@ export const GameChat = ({
   // Add confirmation message after generation completes
   useEffect(() => {
     const addConfirmationMessage = async () => {
-      if (generationComplete && gameId) {
-        // Check if there are only initial messages
-        const hasOnlyInitialMessage = messages.length === 1 && messages[0].id === 'initial-message';
+      if (generationComplete && gameId && !generationHandledRef.current) {
+        generationHandledRef.current = true;
         
-        if (hasOnlyInitialMessage) {
-          try {
+        try {
+          // Check if the last message is about generating content
+          const lastMessage = messages[messages.length - 1];
+          const isGeneratingMessage = 
+            lastMessage?.response === "Generating initial content..." || 
+            lastMessage?.response === "Initial content generated successfully" ||
+            lastMessage?.message === initialMessage;
+          
+          if (isGeneratingMessage) {
+            console.log("Adding confirmation message after generation");
+            
             // Add a confirmation message from the system
             await supabase
               .from('game_messages')
               .insert({
                 game_id: gameId,
                 message: "Initial generation complete",
-                response: "Content generated successfully. You can now ask me to modify the content!",
+                response: "✅ Content generated successfully! You can now ask me to modify the content or add new features.",
                 is_system: true
               });
               
             // Reset the flag
             setGenerationComplete(false);
-          } catch (error) {
-            console.error("Error adding confirmation message:", error);
           }
+        } catch (error) {
+          console.error("Error adding confirmation message:", error);
+          // Reset the ref so we can try again
+          generationHandledRef.current = false;
         }
       }
     };
     
     addConfirmationMessage();
-  }, [generationComplete, gameId, messages]);
+    
+    // Reset the handled ref when messages change
+    return () => {
+      if (messages.length === 0) {
+        generationHandledRef.current = false;
+      }
+    };
+  }, [generationComplete, gameId, messages, initialMessage]);
 
   return (
     <div className="flex flex-col h-full w-full max-w-[400px] mx-auto bg-white">

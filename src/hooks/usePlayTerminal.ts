@@ -273,10 +273,10 @@ export function usePlayTerminal(
         
         updateTerminalOutputWrapper("> Content saved successfully", true);
         
-        // Update message if needed
+        // Update the initial message to indicate successful generation
         await supabase
           .from('game_messages')
-          .update({ response: "Initial content generated successfully" })
+          .update({ response: "Generating initial content..." })
           .eq('game_id', gameId)
           .is('response', null);
           
