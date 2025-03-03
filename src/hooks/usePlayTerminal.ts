@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ModelType } from "@/types/generation";
@@ -58,10 +57,8 @@ export function usePlayTerminal(
     }));
   };
 
-  // Fix: Create a custom state update function for terminal output
   const updateTerminalOutputWrapper = (newOutput: string, isNewMessage = false) => {
     setState(prev => {
-      // Create a new array based on the current state's terminal output
       let updatedOutput: string[];
       
       if (isNewMessage || 
@@ -121,7 +118,6 @@ export function usePlayTerminal(
     };
   }, [state.generationInProgress]);
 
-  // Function to make API call with retry logic
   const makeApiCallWithRetry = async () => {
     try {
       updateTerminalOutputWrapper(`> Attempt ${retryCount.current + 1} to generate content...`, true);
@@ -158,7 +154,6 @@ export function usePlayTerminal(
       updateTerminalOutputWrapper("> Connecting to AI service...", true);
       updateTerminalOutputWrapper(`> Using prompt: "${initialPrompt}"`, true);
       
-      // Reset the game content reference
       gameContentRef.current = '';
       
       const response = await fetch(apiUrl, {
@@ -168,8 +163,7 @@ export function usePlayTerminal(
           'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
         },
         body: JSON.stringify(payload),
-        // Increase timeout for larger generations
-        signal: AbortSignal.timeout(180000) // 3 minute timeout
+        signal: AbortSignal.timeout(180000)
       });
       
       if (!response.ok) {
@@ -201,7 +195,6 @@ export function usePlayTerminal(
         updateTerminalOutputWrapper("> Content received successfully", true);
       }
       
-      // Use accumulated content from the stream reference if available
       if (gameContentRef.current && gameContentRef.current.length > 100) {
         content = gameContentRef.current;
       }
@@ -233,71 +226,56 @@ export function usePlayTerminal(
       
       updateTerminalOutputWrapper("> Processing and saving generated content...", true);
       
-      // Save the game to the database
-      try {
-        const modelTypeForSave = modelType === "smart" ? "smart" : "fast";
+      const modelTypeForSave = modelType === "smart" ? "smart" : "fast";
+      
+      const { error: gameUpdateError } = await supabase
+        .from('games')
+        .update({
+          code: content,
+          instructions: "Initial content generated successfully",
+          model_type: modelTypeForSave,
+          prompt: initialPrompt
+        })
+        .eq('id', gameId);
         
-        // Save the game directly using supabase client to avoid type errors
-        // First update the game
-        const { error: gameUpdateError } = await supabase
-          .from('games')
-          .update({
-            code: content,
-            instructions: "Initial content generated successfully",
-            model_type: modelTypeForSave,
-            prompt: initialPrompt // Make sure we save the actual prompt
-          })
-          .eq('id', gameId);
-          
-        if (gameUpdateError) {
-          console.error("Error updating game:", gameUpdateError);
-          throw new Error(`Database error: ${gameUpdateError.message}`);
-        }
-          
-        // Then update the game version
-        const { error: versionUpdateError } = await supabase
-          .from('game_versions')
-          .update({
-            code: content,
-            instructions: "Initial content generated successfully"
-          })
-          .eq('game_id', gameId)
-          .eq('version_number', 1);
-        
-        if (versionUpdateError) {
-          console.error("Error updating game version:", versionUpdateError);
-          throw new Error(`Database error: ${versionUpdateError.message}`);
-        }
-        
-        updateTerminalOutputWrapper("> Content saved successfully", true);
-        
-        // Update the initial message to indicate successful generation
-        await supabase
-          .from('game_messages')
-          .update({ response: "Generating initial content..." })
-          .eq('game_id', gameId)
-          .is('response', null);
-          
-        console.log("Generation completed successfully");
-        
-        // Reset retry counter on success
-        retryCount.current = 0;
-      } catch (saveError) {
-        console.error("Error saving game:", saveError);
-        updateTerminalOutputWrapper(`> Error saving game: ${saveError.message}`, true);
-        throw saveError;
+      if (gameUpdateError) {
+        console.error("Error updating game:", gameUpdateError);
+        throw new Error(`Database error: ${gameUpdateError.message}`);
       }
       
-      return true;
+      const { error: versionUpdateError } = await supabase
+        .from('game_versions')
+        .update({
+          code: content,
+          instructions: "Initial content generated successfully"
+        })
+        .eq('game_id', gameId)
+        .eq('version_number', 1);
+        
+      if (versionUpdateError) {
+        console.error("Error updating game version:", versionUpdateError);
+        throw new Error(`Database error: ${versionUpdateError.message}`);
+      }
+      
+      updateTerminalOutputWrapper("> Content saved successfully", true);
+      
+      await supabase
+        .from('game_messages')
+        .update({ response: "Generating initial content..." })
+        .eq('game_id', gameId)
+        .is('response', null);
+        
+      console.log("Generation completed successfully");
+      
+      retryCount.current = 0;
     } catch (error) {
       console.error(`Generation attempt ${retryCount.current + 1} failed:`, error);
       updateTerminalOutputWrapper(`> Error: ${error.message}`, true);
       
-      // Check if we should retry
       if (retryCount.current < maxRetries) {
         retryCount.current++;
         updateTerminalOutputWrapper(`> Retrying generation (attempt ${retryCount.current} of ${maxRetries})...`, true);
-        await new Promise(resolve => setTimeout(resolve, 2000)); // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 2000));
         return makeApiCallWithRetry();
       } else {
         throw error;
@@ -325,10 +303,8 @@ export function usePlayTerminal(
         updateTerminalOutputWrapper(`> Processing request: "${initialPrompt}"${imageUrl ? ' (with image)' : ''}`, true);
         updateTerminalOutputWrapper(`> Using ${modelType === "smart" ? "Anthropic (Smartest)" : "Groq (Fastest)"} model`, true);
         
-        // Reset retry counter
         retryCount.current = 0;
         
-        // Call API with retry logic
         await makeApiCallWithRetry();
         
         setState(prev => ({ 
@@ -340,8 +316,7 @@ export function usePlayTerminal(
         setTimeout(() => {
           setState(prev => ({ ...prev, showTerminal: false }));
           
-          // Instead of toast, add a system message through the game_messages table directly
-          if (gameId) {
+          Promise.resolve(
             supabase
               .from('game_messages')
               .insert({
@@ -350,13 +325,13 @@ export function usePlayTerminal(
                 response: "✅ Content has been generated successfully. You can now ask me to modify it!",
                 is_system: true
               })
-              .then(() => {
-                console.log("Added system message about successful generation");
-              })
-              .catch(error => {
-                console.error("Error adding system message:", error);
-              });
-          }
+          )
+            .then(() => {
+              console.log("Added system message about successful generation");
+            })
+            .catch(error => {
+              console.error("Error adding system message:", error);
+            });
         }, 1500);
         
       } catch (error) {
@@ -371,8 +346,7 @@ export function usePlayTerminal(
           generationError: error.message
         }));
         
-        // Add error message to chat directly instead of toast
-        if (gameId) {
+        Promise.resolve(
           supabase
             .from('game_messages')
             .insert({
@@ -381,13 +355,13 @@ export function usePlayTerminal(
               response: `❌ ${error.message || "Failed to generate content"}${gameContentRef.current.length > 500 ? " (partial content may be available)" : ""}`,
               is_system: true
             })
-            .then(() => {
-              console.log("Added system message about generation error");
-            })
-            .catch(err => {
-              console.error("Error adding system message:", err);
-            });
-        }
+        )
+          .then(() => {
+            console.log("Added system message about generation error");
+          })
+          .catch(err => {
+            console.error("Error adding system message:", err);
+          });
       }
     };
     
