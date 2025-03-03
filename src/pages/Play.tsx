@@ -24,6 +24,7 @@ const Play = () => {
   const maxRefreshAttempts = 5;
   const dataRefreshRef = useRef<boolean>(false);
   const stableVersionIdRef = useRef<string | null>(null);
+  const stableGameRef = useRef<boolean>(false);
   
   // Get search params for generation
   const generating = searchParams.get("generating") === "true";
@@ -76,15 +77,33 @@ const Play = () => {
         currentVersion.code.length > 100) {
       console.log("Stable version detected, updating reference:", currentVersion.id);
       stableVersionIdRef.current = currentVersion.id;
+      
+      // Mark game as stable once we have good content
+      if (!stableGameRef.current) {
+        stableGameRef.current = true;
+        
+        // Stop any ongoing refresh attempts immediately
+        if (dataRefreshRef.current) {
+          console.log("Stopping refresh cycle - stable content detected");
+          dataRefreshRef.current = false;
+          setHasRefreshedAfterGeneration(true);
+          
+          // Remove the generating parameter from URL if needed
+          if (generating) {
+            navigate(`/play/${gameId}`, { replace: true });
+          }
+        }
+      }
     }
-  }, [currentVersion]);
+  }, [currentVersion, generating, gameId, navigate]);
 
-  // When generation completes, refresh the game data to get the latest version
+  // When generation completes, refresh the game data to get the latest version - BUT ONLY ONCE
   useEffect(() => {
     let refreshTimer: NodeJS.Timeout;
     
-    // Only proceed if generation was in progress and has completed
-    if (!generationInProgress && gameId && generating && !hasRefreshedAfterGeneration) {
+    // Only proceed if generation was in progress and has completed, we haven't refreshed yet
+    // AND we don't already have stable content
+    if (!generationInProgress && gameId && generating && !hasRefreshedAfterGeneration && !stableGameRef.current) {
       console.log("Generation completed, refreshing game data");
       
       // Only schedule refresh if we haven't already done so
@@ -106,13 +125,17 @@ const Play = () => {
                 currentVersion.code.length > 100) {
               console.log("Valid game code found after refresh");
               
+              // Mark as stable to prevent further refresh cycles
+              stableGameRef.current = true;
+              
               // Use a delay to ensure stability before marking as complete
               setTimeout(() => {
                 // Remove the generating parameter from URL after successful generation
                 if (generating) {
                   navigate(`/play/${gameId}`, { replace: true });
-                  setHasRefreshedAfterGeneration(true);
                 }
+                
+                setHasRefreshedAfterGeneration(true);
                 
                 // Mark data as stable to prevent further refresh cycles
                 dataRefreshRef.current = false;
@@ -122,10 +145,11 @@ const Play = () => {
             }
             
             // If we've made too many attempts, give up
-            if (refreshAttempts >= maxRefreshAttempts) {
+            if (refreshAttempts >= maxRefreshAttempts - 1) {
               console.log("Maximum refresh attempts reached, giving up");
               setHasRefreshedAfterGeneration(true);
               dataRefreshRef.current = false;
+              stableGameRef.current = true;
               
               toast({
                 title: "Generation completed",
@@ -141,9 +165,11 @@ const Play = () => {
               return;
             }
             
-            // Schedule another attempt with increasing delay
-            const delay = Math.min(1000 * (refreshAttempts + 1), 5000);
-            refreshTimer = setTimeout(refreshData, delay);
+            // Schedule another attempt with increasing delay IF we're not stable yet
+            if (!stableGameRef.current) {
+              const delay = Math.min(1000 * (refreshAttempts + 1), 5000);
+              refreshTimer = setTimeout(refreshData, delay);
+            }
           } catch (error) {
             console.error("Error refreshing game data:", error);
             
@@ -157,6 +183,7 @@ const Play = () => {
               
               setHasRefreshedAfterGeneration(true);
               dataRefreshRef.current = false;
+              stableGameRef.current = true;
               
               // Remove the generating parameter even if we failed
               if (generating) {
@@ -166,9 +193,11 @@ const Play = () => {
               return;
             }
             
-            // Retry with a delay
-            setRefreshAttempts(prev => prev + 1);
-            refreshTimer = setTimeout(refreshData, 2000);
+            // Only retry if not already stable
+            if (!stableGameRef.current) {
+              setRefreshAttempts(prev => prev + 1);
+              refreshTimer = setTimeout(refreshData, 2000);
+            }
           }
         };
         
@@ -177,9 +206,14 @@ const Play = () => {
       }
     }
     
-    // Handle generation error
+    // Handle generation error - also stop refresh cycle
     if (generationError) {
       console.error("Generation error detected:", generationError);
+      
+      // Mark as stable to prevent refresh cycle
+      stableGameRef.current = true;
+      dataRefreshRef.current = false;
+      
       toast({
         title: "Generation Error",
         description: generationError || "Failed to generate content. Please try again.",
@@ -192,7 +226,6 @@ const Play = () => {
       }
       
       setHasRefreshedAfterGeneration(true);
-      dataRefreshRef.current = false;
     }
     
     return () => {
@@ -218,6 +251,7 @@ const Play = () => {
     setRefreshAttempts(0);
     dataRefreshRef.current = false;
     stableVersionIdRef.current = null;
+    stableGameRef.current = false;
   }, [gameId]);
 
   // Handle missing gameId
@@ -283,7 +317,7 @@ const Play = () => {
             />
           ) : (
             <GamePreview
-              key={currentVersion?.id || 'loading'}
+              key={`preview-${stableVersionIdRef.current || 'loading'}`}
               currentVersion={currentVersion}
               showCode={showCode}
               ref={iframeRef}

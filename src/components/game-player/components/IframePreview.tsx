@@ -23,18 +23,19 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       }
     }, [ref]);
 
-    // Update iframe content when code changes
+    // Update iframe content when code changes, but only if it's different
     useEffect(() => {
-      // Skip if code is exactly the same as previous to prevent unnecessary rerenders
+      // Skip if code is exactly the same as previous
       if (prevCodeRef.current === code) {
         return;
       }
       
-      // Skip empty code
+      // Skip empty code or very short content
       if (!code || code.length < 10) {
         return;
       }
       
+      // Set the content and mark as stabilized
       console.log("Setting iframe content with code length:", code.length);
       setIframeContent(code);
       prevCodeRef.current = code;
@@ -42,7 +43,7 @@ export const IframePreview = forwardRef<HTMLIFrameElement, IframePreviewProps>(
       
     }, [code]);
 
-    // Simply render the iframe when we have content
+    // Display iframe when we have content
     if (iframeContent) {
       return (
         <iframe

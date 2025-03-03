@@ -36,17 +36,19 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       return hasHtmlStructure;
     }, []);
     
-    // Process the code when currentVersion changes - with more stable logic
+    // Process the code when currentVersion changes - only if version ID is different
     useEffect(() => {
       // Skip if no version is available
       if (!currentVersion?.code || !currentVersion?.id) {
         return;
       }
       
-      // Skip if we've already processed this exact version
+      // Skip if we've already processed this exact version and have valid processed code
       if (processedVersionId.current === currentVersion.id && processedCode) {
         return;
       }
+      
+      console.log("Processing version:", currentVersion.id);
       
       // Check if current code is valid
       if (isValidCode(currentVersion.code)) {
@@ -74,7 +76,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
         setProcessedCode(wrappedCode);
         processedVersionId.current = currentVersion.id;
       }
-    }, [currentVersion, isValidCode]);
+    }, [currentVersion, isValidCode, processedCode]);
 
     // Handle case when no version is available yet
     if (!currentVersion) {
