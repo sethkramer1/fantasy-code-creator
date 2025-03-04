@@ -55,7 +55,7 @@ export const useGames = () => {
 
   const deleteGame = async (gameId: string) => {
     try {
-      console.log("=== SOFT DELETE OPERATION STARTED ===");
+      console.log("=== DELETE OPERATION STARTED ===");
       console.log("Attempting to mark game with ID as deleted:", gameId);
       console.log("Current user ID:", user?.id);
       console.log("Is admin:", isAdmin);
@@ -70,30 +70,14 @@ export const useGames = () => {
         return false;
       }
       
+      // Optimistic UI update - remove the game from the UI immediately
+      setGames(currentGames => currentGames.filter(game => game.id !== gameId));
+      
       // If user is an admin, they can delete any game
       if (isAdmin) {
         console.log("Admin user - bypassing ownership check");
         
-        // First, get the game details to confirm it exists
-        const { data: gameData, error: gameError } = await supabase
-          .from('games')
-          .select('id, prompt, user_id')
-          .eq('id', gameId)
-          .single();
-        
-        console.log("Game to be deleted by admin:", gameData);
-        
-        if (gameError) {
-          console.error("Error fetching game before admin delete:", gameError);
-          toast({
-            title: "Error deleting design",
-            description: gameError.message || "Could not find the design",
-            variant: "destructive"
-          });
-          return false;
-        }
-        
-        // Proceed with the deletion
+        // Admin delete operation - direct delete, no ownership check
         const { data, error } = await supabase
           .from('games')
           .update({ deleted: true })
@@ -104,6 +88,8 @@ export const useGames = () => {
         
         if (error) {
           console.error("Database error during admin delete:", error);
+          // Revert optimistic update on error
+          fetchGames();
           toast({
             title: "Error deleting design",
             description: error.message || "Database error, please try again",
@@ -111,19 +97,6 @@ export const useGames = () => {
           });
           return false;
         }
-        
-        if (!data || data.length === 0) {
-          console.error("No data returned - game doesn't exist or permission issue");
-          toast({
-            title: "Error deleting design",
-            description: "This design doesn't exist or has already been deleted",
-            variant: "destructive"
-          });
-          return false;
-        }
-        
-        // Update local state
-        setGames(currentGames => currentGames.filter(game => game.id !== gameId));
         
         toast({
           title: "Design deleted",
@@ -148,6 +121,8 @@ export const useGames = () => {
       
       if (error) {
         console.error("Database error during delete:", error);
+        // Revert optimistic update on error
+        fetchGames();
         toast({
           title: "Error deleting design",
           description: error.message || "Database error, please try again",
@@ -158,6 +133,8 @@ export const useGames = () => {
       
       if (!data || data.length === 0) {
         console.error("No data returned - likely permission issue or game doesn't exist");
+        // Revert optimistic update on error
+        fetchGames();
         toast({
           title: "Access denied",
           description: "You don't have permission to delete this design or it doesn't exist",
@@ -167,10 +144,7 @@ export const useGames = () => {
       }
       
       console.log("Successfully marked game as deleted in database:", data);
-      console.log("=== SOFT DELETE OPERATION COMPLETED SUCCESSFULLY ===");
-      
-      // Update local state immediately without refetching
-      setGames(currentGames => currentGames.filter(game => game.id !== gameId));
+      console.log("=== DELETE OPERATION COMPLETED SUCCESSFULLY ===");
       
       toast({
         title: "Design deleted",
@@ -179,8 +153,10 @@ export const useGames = () => {
       
       return true;
     } catch (error) {
-      console.error("=== SOFT DELETE OPERATION FAILED WITH EXCEPTION ===");
+      console.error("=== DELETE OPERATION FAILED WITH EXCEPTION ===");
       console.error("Error in deleteGame function:", error);
+      // Revert optimistic update on error
+      fetchGames();
       toast({
         title: "Error deleting design",
         description: error instanceof Error ? error.message : "Please try again",

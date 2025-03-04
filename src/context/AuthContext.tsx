@@ -23,6 +23,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Function to check if the current user is an admin
   const checkIsAdmin = async (): Promise<boolean> => {
     if (!user) {
+      console.log("checkIsAdmin: No user found, setting isAdmin to false");
       setIsAdmin(false);
       return false;
     }
@@ -42,8 +43,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       console.log("Admin check result:", data);
-      setIsAdmin(!!data);
-      return !!data;
+      const isUserAdmin = !!data;
+      setIsAdmin(isUserAdmin);
+      return isUserAdmin;
     } catch (error) {
       console.error("Unexpected error checking admin role:", error);
       setIsAdmin(false);
