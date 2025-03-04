@@ -1,3 +1,4 @@
+
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { contentTypes } from "@/types/game";
@@ -19,6 +20,7 @@ export const useGameGeneration = () => {
   const [modelType, setModelType] = useState<ModelType>("smart");
   const timerRef = useRef<NodeJS.Timeout>();
   const maxRetries = 2;
+  const currentThinkingRef = useRef<string>('');
 
   const generateGame = async ({
     prompt,
@@ -50,6 +52,7 @@ export const useGameGeneration = () => {
     setLoading(true);
     setShowTerminal(true);
     setTerminalOutput([`> Starting generation with prompt: "${prompt}"${imageUrl ? ' (with image)' : ''}`]);
+    currentThinkingRef.current = '';
     
     let gameContent = '';
     let combinedResponse = '';
@@ -97,11 +100,9 @@ export const useGameGeneration = () => {
             if (tokenInfo) {
               inputTokens = tokenInfo.inputTokens || Math.ceil(prompt.length / 4);
               outputTokens = tokenInfo.outputTokens || Math.ceil(groqContent.length / 4);
-              setTerminalOutput(prev => [...prev, `> Used ${inputTokens} input tokens and ${outputTokens} output tokens`]);
             } else {
               inputTokens = Math.ceil(prompt.length / 4);
               outputTokens = Math.ceil(groqContent.length / 4);
-              setTerminalOutput(prev => [...prev, `> Estimated usage: ${inputTokens} input tokens and ${outputTokens} output tokens`]);
             }
             
             return groqContent;
@@ -120,7 +121,11 @@ export const useGameGeneration = () => {
                   setTerminalOutput(prev => [...prev, `> Connected to generation service, receiving stream...`]);
                 },
                 onThinking: (thinking) => {
-                  setTerminalOutput(prev => [...prev, `> ${thinking}`]);
+                  if (thinking !== currentThinkingRef.current) {
+                    // Only update if thinking content has changed
+                    currentThinkingRef.current = thinking;
+                    setTerminalOutput(prev => [...prev, `> Thinking: ${thinking}`]);
+                  }
                 },
                 onContent: (content) => {
                   combinedResponse += content;
@@ -148,11 +153,9 @@ export const useGameGeneration = () => {
             if (tokenInfo) {
               inputTokens = tokenInfo.inputTokens || Math.ceil(prompt.length / 4);
               outputTokens = tokenInfo.outputTokens || Math.ceil(anthropicContent.length / 4);
-              setTerminalOutput(prev => [...prev, `> Used ${inputTokens} input tokens and ${outputTokens} output tokens`]);
             } else {
               inputTokens = Math.ceil(prompt.length / 4);
               outputTokens = Math.ceil((anthropicContent || combinedResponse).length / 4);
-              setTerminalOutput(prev => [...prev, `> Estimated usage: ${inputTokens} input tokens and ${outputTokens} output tokens`]);
             }
             
             return anthropicContent || combinedResponse;
@@ -214,7 +217,6 @@ export const useGameGeneration = () => {
             outputTokens,
             activeModelType
           );
-          setTerminalOutput(prev => [...prev, "> Token usage tracked successfully"]);
         } catch (tokenError) {
           console.error("Error tracking token usage:", tokenError);
         }

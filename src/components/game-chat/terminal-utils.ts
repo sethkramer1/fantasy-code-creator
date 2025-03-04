@@ -244,6 +244,14 @@ export const processAnthropicStream = async (
               updateTerminalOutputFn(`> Error: ${errorMessage} (${errorType})`, true);
               console.error("Stream error:", data.error);
               throw new Error(errorMessage);
+              
+            default:
+              // Catch standalone thinking updates without a specific type
+              if (data.thinking && data.thinking !== currentThinkingPhase) {
+                currentThinkingPhase = data.thinking;
+                console.log("Standalone thinking update:", data.thinking);
+                updateTerminalOutputFn(`> Thinking: ${data.thinking}`, true);
+              }
           }
         } catch (parseError) {
           if (!line.includes('[DONE]')) {
@@ -306,8 +314,6 @@ function removeTokenInfo(content: string): string {
   // Clean up any remaining token information that might be in different formats
   content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
   content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
-  content = content.replace(/\b\d+ tokens\b/g, '');
-  content = content.replace(/\btokens: \d+\b/g, '');
   
   // Remove any residual patterns with just numbers that might be token counts
   content = content.replace(/\b\d+ input\b/g, '');

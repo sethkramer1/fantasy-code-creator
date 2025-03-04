@@ -91,13 +91,23 @@ export const callAnthropicApi = async (
                 onThinking(thinking);
               }
             }
+            // Handle thinking from message_delta (alternate format)
+            else if (data.thinking && onThinking) {
+              if (data.thinking !== currentThinking) {
+                currentThinking = data.thinking;
+                onThinking(data.thinking);
+              }
+            }
             // Handle text content - completely filter out token information
             else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
               const content = data.delta.text || '';
-              if (content && onContent && !isTokenInfo(content)) {
-                // Only add non-token information to the content
-                combinedContent += content;
-                onContent(content);
+              if (content && onContent) {
+                // Remove any token info before adding to combined content
+                const cleanContent = removeTokenInfo(content);
+                if (cleanContent.trim()) {
+                  combinedContent += cleanContent;
+                  onContent(cleanContent);
+                }
               }
             }
             // Track token information internally but don't display it

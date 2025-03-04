@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.5.0'
@@ -170,7 +169,8 @@ serve(async (req) => {
       model = "claude-3-7-sonnet-20250219", 
       stream = true, 
       userId, 
-      gameId 
+      gameId,
+      thinking 
     } = requestData;
     
     console.log("Received request with prompt:", prompt);
@@ -184,6 +184,7 @@ serve(async (req) => {
     console.log("Stream mode:", stream ? "Enabled" : "Disabled");
     console.log("User ID:", userId || "Not provided");
     console.log("Game ID:", gameId || "Not provided");
+    console.log("Thinking enabled:", thinking ? "Yes" : "No");
     
     // Initialize supabase client for token tracking
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -214,10 +215,12 @@ Do NOT include token usage information in your response.`;
       max_tokens: 30000,
       stream: stream,
       system: systemMessage,
-      thinking: {
-        type: "enabled",
-        budget_tokens: 3500
-      }
+    };
+
+    // Always enable thinking for all requests
+    requestBody.thinking = {
+      type: "enabled",
+      budget_tokens: 3500
     };
 
     // Handle the message content differently based on whether there's an image
@@ -276,6 +279,7 @@ Do NOT include token usage information in your response.`;
     console.log('Sending request to Anthropic API with Claude 3.7 Sonnet');
     console.log('Request body message contents:', JSON.stringify(requestBody.messages).substring(0, 500));
     console.log('Streaming mode:', stream ? 'Enabled' : 'Disabled');
+    console.log('Thinking mode:', requestBody.thinking ? `Enabled (budget: ${requestBody.thinking.budget_tokens})` : 'Disabled');
 
     // Estimate input tokens (rough approximation)
     const estimatedInputTokens = Math.ceil(prompt.length / 4);
@@ -330,6 +334,9 @@ Do NOT include token usage information in your response.`;
         const reader = response.body.getReader();
         const writer = writable.getWriter();
         
+        // Variables to track thinking content
+        let lastThinkingContent = '';
+
         // Process the stream in the background
         EdgeRuntime.waitUntil((async () => {
           try {
@@ -354,7 +361,7 @@ Do NOT include token usage information in your response.`;
                     finalOutputTokens
                   );
                   
-                  // Add the token info to the stream
+                  // Add the token info to the stream for internal tracking only, not display
                   const tokenInfoEvent = `data: ${JSON.stringify({
                     type: 'token_usage',
                     usage: {
@@ -372,71 +379,98 @@ Do NOT include token usage information in your response.`;
                 break;
               }
               
-              // Forward the chunk to the client, but process first
+              // Decode the chunk
               const chunk = new TextDecoder().decode(value);
-              let modified = chunk;
+              const lines = chunk.split('\n');
               
-              // Try to detect and remove token usage information before forwarding
-              try {
-                const lines = chunk.split('\n');
-                const processedLines = lines.map(line => {
-                  if (line.startsWith('data: ')) {
-                    try {
-                      const eventData = line.slice(5).trim();
-                      if (eventData !== '[DONE]' && !eventData.startsWith('{')) {
-                        return line; // Not JSON, pass through
-                      }
-                      
+              for (const line of lines) {
+                if (line.startsWith('data: ')) {
+                  try {
+                    const eventData = line.slice(5).trim();
+                    
+                    if (eventData === '[DONE]') {
+                      await writer.write(new TextEncoder().encode(line + '\n'));
+                      continue;
+                    }
+                    
+                    // For JSON data, we need to parse it
+                    if (eventData.startsWith('{')) {
                       const data = JSON.parse(eventData);
                       
-                      // Process content_block_delta events to filter out token info
-                      if (data.type === 'content_block_delta' && 
-                          data.delta?.type === 'text_delta' && 
-                          data.delta.text) {
-                        
-                        // Check if this chunk contains token information
-                        const text = data.delta.text;
-                        if (text.includes("Tokens used:") || 
-                            text.includes("input tokens") || 
-                            text.includes("output tokens")) {
+                      // Handle thinking content
+                      if (data.delta?.type === 'thinking_delta' && data.delta.thinking) {
+                        // Update the thinking content
+                        if (data.delta.thinking !== lastThinkingContent) {
+                          lastThinkingContent = data.delta.thinking;
                           
-                          // Remove token info from the text content
-                          data.delta.text = text
-                            .replace(/Tokens used:.*?(input|output).*?\n/g, '')
-                            .replace(/\d+ input tokens, \d+ output tokens/g, '');
+                          // Forward thinking events directly without modification
+                          const thinkingEvent = `data: ${JSON.stringify({
+                            type: 'content_block_delta',
+                            delta: {
+                              type: 'thinking_delta',
+                              thinking: data.delta.thinking
+                            }
+                          })}\n\n`;
                           
-                          // If we've removed everything, just skip this chunk
-                          if (!data.delta.text.trim()) {
-                            return null;
-                          }
-                          
-                          return `data: ${JSON.stringify(data)}`;
+                          await writer.write(new TextEncoder().encode(thinkingEvent));
+                          continue;
                         }
                       }
-                    } catch (e) {
-                      // If parsing fails, just return the original line
-                      return line;
+                      
+                      // For standalone thinking updates (in older API format)
+                      if (data.thinking && data.thinking !== lastThinkingContent) {
+                        lastThinkingContent = data.thinking;
+                        
+                        // Forward as a simplified thinking event
+                        const thinkingEvent = `data: ${JSON.stringify({ thinking: data.thinking })}\n\n`;
+                        await writer.write(new TextEncoder().encode(thinkingEvent));
+                        continue;
+                      }
+                      
+                      // For content, filter out token information
+                      if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta' && data.delta.text) {
+                        let contentText = data.delta.text;
+                        
+                        // Detect and remove token information
+                        if (isTokenInfo(contentText)) {
+                          // Skip this event entirely if it's only token information
+                          if (isOnlyTokenInfo(contentText)) {
+                            continue;
+                          }
+                          
+                          // Otherwise, clean the content
+                          contentText = removeTokenInfo(contentText);
+                          if (!contentText.trim()) {
+                            continue;
+                          }
+                          
+                          // Update the object before sending
+                          data.delta.text = contentText;
+                        }
+                        
+                        // Add to complete content for token counting
+                        completeChunk += contentText;
+                        
+                        // Forward the modified event
+                        await writer.write(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+                        continue;
+                      }
+                      
+                      // For other events, just forward them as is
+                      await writer.write(new TextEncoder().encode(line + '\n'));
+                    } else {
+                      // For non-JSON data, just forward it
+                      await writer.write(new TextEncoder().encode(line + '\n'));
                     }
+                  } catch (parseError) {
+                    console.error('Error parsing stream event:', parseError);
+                    // Forward the original line if we fail to parse it
+                    await writer.write(new TextEncoder().encode(line + '\n'));
                   }
-                  return line;
-                }).filter(Boolean); // Remove null lines
-                
-                modified = processedLines.join('\n');
-              } catch (e) {
-                console.error('Error processing stream chunk:', e);
-                // Fall back to the original chunk
-                modified = chunk;
-              }
-              
-              await writer.write(new TextEncoder().encode(modified));
-              
-              // Update output token estimate
-              completeChunk += new TextDecoder().decode(value);
-              
-              // Rough estimate of tokens
-              const newEstimate = Math.ceil(completeChunk.length / 4);
-              if (newEstimate > outputTokenCount) {
-                outputTokenCount = newEstimate;
+                } else if (line.trim()) {
+                  // Forward non-data lines
+                  await writer.write(new TextEncoder().encode(line + '\n'));
+                }
               }
             }
           } catch (streamError) {
@@ -462,8 +496,7 @@ Do NOT include token usage information in your response.`;
       let content = data.content[0]?.text || '';
       
       // Remove token information from the content
-      content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
-      content = content.replace(/\d+ input tokens, \d+ output tokens/g, '');
+      content = removeTokenInfo(content);
       
       // Extract token usage information
       const inputTokens = data.usage?.input_tokens || estimatedInputTokens;
@@ -497,3 +530,62 @@ Do NOT include token usage information in your response.`;
     );
   }
 });
+
+// Helper function to detect token information
+function isTokenInfo(text: string): boolean {
+  if (!text) return false;
+  
+  // Check for various token info patterns
+  return (
+    text.includes("Tokens used:") ||
+    text.includes("Token usage:") ||
+    text.includes("input tokens") ||
+    text.includes("output tokens") ||
+    /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) || // Pattern like "264 input tokens, 1543 output tokens"
+    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) || // Pattern like "input: 264, output: 1543"
+    /\b(input|output)\b.*?\b\d+\b/.test(text) // Pattern with "input" or "output" followed by numbers
+  );
+}
+
+// Helper function to check if text contains ONLY token information
+function isOnlyTokenInfo(text: string): boolean {
+  if (!text) return false;
+  
+  // Remove all token info patterns
+  const cleaned = removeTokenInfo(text);
+  
+  // If nothing meaningful remains, it was only token info
+  return !cleaned.trim();
+}
+
+// Helper function to remove token information from content
+function removeTokenInfo(content: string): string {
+  if (!content) return content;
+
+  // Remove full lines containing token information
+  content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
+  content = content.replace(/.*?input:?\s*\d+\s*,?\s*output:?\s*\d+.*?\n/g, '');
+  
+  // Remove inline token information (without newlines)
+  content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
+  content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
+  content = content.replace(/input:?\s*\d+\s*,?\s*output:?\s*\d+/g, '');
+  
+  // Clean up any remaining token information that might be in different formats
+  content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
+  content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
+  
+  // Additional cleanup to catch any remaining patterns
+  content = content.replace(/\b\d+ tokens\b/g, '');
+  content = content.replace(/\btokens: \d+\b/g, '');
+  content = content.replace(/\b\d+ input\b/g, '');
+  content = content.replace(/\b\d+ output\b/g, '');
+  
+  return content;
+}
