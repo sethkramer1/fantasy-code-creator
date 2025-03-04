@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -12,6 +13,7 @@ export interface GameData {
   visibility?: string;
   model_type?: string;
   deleted?: boolean;
+  user_id?: string;
 }
 
 export interface GameVersion {
@@ -56,9 +58,10 @@ export function usePlayGameData(gameId: string | undefined) {
     fetchAttemptsRef.current += 1;
     
     try {
+      console.log("Fetching game data for ID:", gameId);
       const { data: gameData, error: gameError } = await supabase
         .from('games')
-        .select('*')
+        .select('*, user_id')
         .eq('id', gameId)
         .maybeSingle();
 
@@ -88,11 +91,20 @@ export function usePlayGameData(gameId: string | undefined) {
         setIsLoading(false);
         return;
       }
+      
+      // Check if game is deleted
+      if (gameData.deleted) {
+        console.log("Game is deleted:", gameId);
+        setGame(gameData);
+        setIsLoading(false);
+        return;
+      }
 
+      console.log("Game data fetched successfully:", gameData.id, "Visibility:", gameData.visibility);
       fetchAttemptsRef.current = 0;
       setGame(gameData);
-      console.log("Game data fetched successfully:", gameData.id);
 
+      console.log("Fetching versions for game:", gameId);
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .select('*')

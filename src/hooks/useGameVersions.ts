@@ -27,6 +27,8 @@ export const useGameVersions = (filteredGames: Game[]) => {
           return;
         }
         
+        console.log(`Fetching versions for ${gameIds.length} games`);
+        
         // Fetch the latest version for each game
         const { data, error } = await supabase
           .from('game_versions')
@@ -35,6 +37,8 @@ export const useGameVersions = (filteredGames: Game[]) => {
           .order('version_number', { ascending: false });
           
         if (error) throw error;
+        
+        console.log(`Retrieved ${data?.length || 0} version records`);
         
         // Create a map of gameId -> latest version code
         const latestVersions: Record<string, string> = {};
@@ -64,6 +68,8 @@ export const useGameVersions = (filteredGames: Game[]) => {
               latestVersions[gameId] = sortedVersions[0].code;
             }
           });
+          
+          console.log(`Processed latest versions for ${Object.keys(latestVersions).length} games`);
         }
         
         setGameCodeVersions(latestVersions);

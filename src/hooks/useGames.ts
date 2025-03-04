@@ -21,11 +21,20 @@ export const useGames = () => {
         .select('id, prompt, created_at, type, visibility, user_id, deleted')
         .eq('deleted', false);  // Only fetch non-deleted games
       
-      // With RLS, this will automatically filter to show only games the user has permission to see
+      // No additional filters needed - RLS should handle permissions
+      // Public games should be visible to everyone, regardless of login status
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) throw error;
-      console.log("Games fetched:", data?.length || 0);
+      console.log("Games fetched:", data?.length || 0, "games");
+      
+      // Log visibility for each game to help debugging
+      if (data) {
+        data.forEach(game => {
+          console.log(`Game ID: ${game.id}, Visibility: ${game.visibility}, User ID: ${game.user_id || 'none'}`);
+        });
+      }
+      
       setGames(data || []);
     } catch (error) {
       console.error("Error loading games:", error);
