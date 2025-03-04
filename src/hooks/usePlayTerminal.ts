@@ -340,72 +340,86 @@ export function usePlayTerminal(
       let inputTokens = 0;
       let outputTokens = 0;
       let tokenInfoExtracted = false;
-      let initialMessageId = '';
-      
-      console.log("[TOKEN TRACKING] Creating initial message record for token tracking");
-      
-      const { data: messageData, error: messageError } = await supabase
-        .from('game_messages')
-        .insert({
-          game_id: gameId,
-          message: "Initial Generation",
-          response: "Processing initial content...",
-          is_system: true,
-          model_type: modelType
-        })
-        .select('id')
-        .single();
-        
-      if (messageError) {
-        console.error("[TOKEN TRACKING] Error creating initial message:", messageError);
-      } else if (messageData?.id) {
-        initialMessageId = messageData.id;
-        messageIdRef.current = initialMessageId;
-        console.log("[TOKEN TRACKING] Created initial message for token tracking:", initialMessageId);
-        
-        const estimatedInputTokens = Math.ceil(initialPrompt.length / 4);
-        const estimatedOutputTokens = 1;
-        
-        console.log("[TOKEN TRACKING] Creating initial token record with estimated values");
-        
-        const { data: tokenData, error: tokenError } = await supabase
-          .from('token_usage')
-          .insert({
-            user_id: user?.id,
-            game_id: gameId,
-            message_id: initialMessageId,
-            prompt: initialPrompt.substring(0, 5000),
-            input_tokens: estimatedInputTokens,
-            output_tokens: estimatedOutputTokens,
-            model_type: modelType
-          })
-          .select('id')
-          .single();
-          
-        if (tokenError) {
-          console.error("[TOKEN TRACKING] Error creating initial token record:", tokenError);
-        } else {
-          console.log("[TOKEN TRACKING] Created initial token record:", tokenData.id);
-        }
-      }
       
       if (modelType === "smart" && response.body) {
         const reader = response.body.getReader();
         updateTerminalOutputWrapper("> Stream connected, processing real-time content...", true);
-        content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
         
-        const usageMatch = content.match(/Tokens used: (\d+) input, (\d+) output/);
-        if (usageMatch) {
-          inputTokens = parseInt(usageMatch[1], 10);
-          outputTokens = parseInt(usageMatch[2], 10);
-          tokenInfoExtracted = true;
+        let processedContent = '';
+        let tokenInfo = null;
+        
+        const decoder = new TextDecoder();
+        
+        while (true) {
+          const { done, value } = await reader.read();
           
-          inputTokensRef.current = inputTokens;
-          outputTokensRef.current = outputTokens;
+          if (done) break;
           
-          updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
-          console.log("[TOKEN TRACKING] Extracted token usage from stream:", inputTokens, outputTokens);
-        } else {
+          const chunk = decoder.decode(value);
+          const lines = chunk.split('\n');
+          
+          for (const line of lines) {
+            if (line.startsWith('data:')) {
+              try {
+                const eventData = line.slice(5).trim();
+                
+                if (eventData === '[DONE]') {
+                  console.log("[TOKEN TRACKING] Stream complete");
+                  break;
+                }
+                
+                const data = JSON.parse(eventData);
+                
+                if (data.type === 'token_usage' && data.usage) {
+                  console.log("[TOKEN TRACKING] Received token usage from stream:", data.usage);
+                  tokenInfo = data.usage;
+                  inputTokens = tokenInfo.input_tokens;
+                  outputTokens = tokenInfo.output_tokens;
+                  tokenInfoExtracted = true;
+                  
+                  inputTokensRef.current = inputTokens;
+                  outputTokensRef.current = outputTokens;
+                  
+                  updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+                  
+                  continue;
+                }
+                
+                if (data.thinking) {
+                  updateTerminalOutputWrapper(`> Thinking: ${data.thinking}`, true);
+                  continue;
+                }
+                
+                if (data.type === 'content_block_delta' && data.delta?.text) {
+                  const contentDelta = data.delta.text;
+                  processedContent += contentDelta;
+                  updateTerminalOutputWrapper(`> ${contentDelta}`);
+                }
+                
+                if (data.type === 'content_block_start' && data.content_block?.text) {
+                  const contentBlock = data.content_block.text;
+                  processedContent += contentBlock;
+                  updateTerminalOutputWrapper(`> ${contentBlock}`);
+                }
+                
+                if (data.type === 'error') {
+                  const errorMessage = data.error?.message || 'Unknown stream error';
+                  updateTerminalOutputWrapper(`> Error: ${errorMessage}`, true);
+                  throw new Error(errorMessage);
+                }
+              } catch (parseError) {
+                if (!line.includes('[DONE]')) {
+                  console.error('Error parsing SSE event:', parseError, 'Line:', line);
+                }
+              }
+            }
+          }
+        }
+        
+        content = processedContent;
+        gameContentRef.current = content;
+        
+        if (!tokenInfoExtracted) {
           inputTokens = Math.ceil(initialPrompt.length / 4);
           outputTokens = Math.ceil(content.length / 4);
           
@@ -413,7 +427,6 @@ export function usePlayTerminal(
           outputTokensRef.current = outputTokens;
           
           updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
-          console.log("[TOKEN TRACKING] Using estimated token usage:", inputTokens, outputTokens);
         }
       } else {
         const data = await response.json();
@@ -429,49 +442,28 @@ export function usePlayTerminal(
         }
         
         content = data.content;
+        gameContentRef.current = content;
         
         if (data.usage) {
-          if (data.usage.input_tokens && data.usage.output_tokens) {
-            inputTokens = data.usage.input_tokens;
-            outputTokens = data.usage.output_tokens;
-            tokenInfoExtracted = true;
-            console.log("Using Anthropic token usage data:", inputTokens, outputTokens);
-          } else if (data.usage.prompt_tokens && data.usage.completion_tokens) {
-            inputTokens = data.usage.prompt_tokens;
-            outputTokens = data.usage.completion_tokens;
-            tokenInfoExtracted = true;
-            console.log("Using Groq token usage data:", inputTokens, outputTokens);
-          }
-          
-          if (tokenInfoExtracted) {
-            inputTokensRef.current = inputTokens;
-            outputTokensRef.current = outputTokens;
-            updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
-          }
-        } else if (data.tokenInfo) {
-          inputTokens = data.tokenInfo.inputTokens || Math.ceil(initialPrompt.length / 4);
-          outputTokens = data.tokenInfo.outputTokens || Math.ceil(content.length / 4);
+          inputTokens = data.usage.input_tokens || Math.ceil(initialPrompt.length / 4);
+          outputTokens = data.usage.output_tokens || Math.ceil(content.length / 4);
           tokenInfoExtracted = true;
+          
           inputTokensRef.current = inputTokens;
           outputTokensRef.current = outputTokens;
+          
           updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
-          console.log("Using tokenInfo data:", inputTokens, outputTokens);
-        }
-        
-        if (!tokenInfoExtracted) {
+        } else {
           inputTokens = Math.ceil(initialPrompt.length / 4);
           outputTokens = Math.ceil(content.length / 4);
+          
           inputTokensRef.current = inputTokens;
           outputTokensRef.current = outputTokens;
+          
           updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
-          console.log("Using estimated token usage:", inputTokens, outputTokens);
         }
         
         updateTerminalOutputWrapper("> Content received successfully", true);
-      }
-      
-      if (gameContentRef.current && gameContentRef.current.length > 100) {
-        content = gameContentRef.current;
       }
       
       if (!content || content.length < 100) {
@@ -479,38 +471,6 @@ export function usePlayTerminal(
       }
       
       initialGenerationCompleteRef.current = true;
-      
-      if (initialMessageId && tokenInfoExtracted) {
-        console.log(`[TOKEN TRACKING] Updating token counts for message ${initialMessageId} (immediate update)`);
-        console.log(`[TOKEN TRACKING] Using input: ${inputTokens}, output: ${outputTokens} tokens`);
-        
-        const updated = await updateTokenCounts(initialMessageId, inputTokens, outputTokens);
-        if (updated) {
-          updateTerminalOutputWrapper("> Token usage updated with actual counts", true);
-          console.log("[TOKEN TRACKING] Token usage updated with actual counts");
-          tokenTrackingAttemptedRef.current = true;
-        } else {
-          console.error("[TOKEN TRACKING] Failed to update token counts");
-        }
-      } else {
-        console.log("[TOKEN TRACKING] Skipping immediate token update - no message ID or token info");
-        
-        if (initialMessageId && !tokenInfoExtracted && (inputTokensRef.current > 0 || outputTokensRef.current > 0)) {
-          console.log("[TOKEN TRACKING] Using cached token values from refs");
-          
-          const updated = await updateTokenCounts(
-            initialMessageId, 
-            inputTokensRef.current || Math.ceil(initialPrompt.length / 4),
-            outputTokensRef.current || Math.ceil(content.length / 4)
-          );
-          
-          if (updated) {
-            console.log("[TOKEN TRACKING] Updated token counts with cached values");
-            tokenTrackingAttemptedRef.current = true;
-          }
-        }
-      }
-      
       updateTerminalOutputWrapper("> Processing and saving generated content...", true);
       
       const modelTypeForSave = modelType === "smart" ? "smart" : "fast";
@@ -545,24 +505,8 @@ export function usePlayTerminal(
       }
       
       updateTerminalOutputWrapper("> Content saved successfully", true);
+      updateTerminalOutputWrapper("> Initial generation complete", true);
       
-      if (initialMessageId) {
-        const { error: messageUpdateError } = await supabase
-          .from('game_messages')
-          .update({ response: "Initial content generated successfully" })
-          .eq('id', initialMessageId);
-          
-        if (messageUpdateError) {
-          console.error("Error updating initial message:", messageUpdateError);
-        }
-      } else {
-        await supabase
-          .from('game_messages')
-          .update({ response: "Initial content generated successfully" })
-          .eq('game_id', gameId)
-          .is('response', null);
-      }
-        
       console.log("Generation completed successfully");
       
       retryCount.current = 0;

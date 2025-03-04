@@ -31,4 +31,20 @@ export interface StreamCallbacks {
   onContent?: (content: string) => void;
   onError?: (error: Error) => void;
   onComplete?: (fullContent: string) => void;
+  onTokenInfo?: (tokenInfo: TokenInfo) => void;
+}
+
+export interface StreamEvent {
+  type: string;
+  delta?: {
+    text: string;
+  };
+  content_block?: {
+    text: string;
+  };
+  thinking?: string;
+  error?: {
+    message: string;
+  };
+  usage?: TokenInfo;
 }
