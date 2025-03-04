@@ -1,5 +1,5 @@
 
-import React, { createContext, useState, useEffect, useContext, useCallback, useMemo } from "react";
+import React, { createContext, useState, useEffect, useContext } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
@@ -19,23 +19,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [isCheckingAdmin, setIsCheckingAdmin] = useState(false);
 
-  // Function to check if the current user is an admin, with debouncing
-  const checkIsAdmin = useCallback(async (): Promise<boolean> => {
+  // Function to check if the current user is an admin
+  const checkIsAdmin = async (): Promise<boolean> => {
     if (!user) {
       setIsAdmin(false);
       return false;
     }
 
-    // Prevent multiple simultaneous checks
-    if (isCheckingAdmin) {
-      return isAdmin;
-    }
-
     try {
-      setIsCheckingAdmin(true);
-      
+      console.log("Checking admin status for user:", user.id);
       // Use the has_role function we created in the database
       const { data, error } = await supabase.rpc('has_role', {
         user_id: user.id,
@@ -44,36 +37,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.error("Error checking admin status:", error);
-        return isAdmin; // Return current state instead of setting false
+        setIsAdmin(false);
+        return false;
       }
 
-      // Only update state if there's a change to prevent unnecessary renders
-      if (!!data !== isAdmin) {
-        setIsAdmin(!!data);
-      }
+      console.log("Admin check result:", data);
+      setIsAdmin(!!data);
       return !!data;
     } catch (error) {
       console.error("Unexpected error checking admin role:", error);
-      return isAdmin; // Return current state instead of setting false
-    } finally {
-      setIsCheckingAdmin(false);
-    }
-  }, [user, isAdmin, isCheckingAdmin]);
-
-  async function signOut() {
-    try {
-      await supabase.auth.signOut();
       setIsAdmin(false);
-    } catch (error) {
-      console.error("Error signing out:", error);
+      return false;
     }
-  }
+  };
 
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
       try {
-        setLoading(true);
         const { data, error } = await supabase.auth.getSession();
         if (error) {
           console.error("Error getting auth session:", error);
@@ -82,9 +63,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         setSession(data.session);
         setUser(data.session?.user || null);
         
-        // Check admin status after setting user, but don't wait on it
+        // Check admin status after setting user
         if (data.session?.user) {
-          checkIsAdmin().catch(console.error);
+          await checkIsAdmin();
         }
       } catch (error) {
         console.error("Unexpected error during auth init:", error);
@@ -98,12 +79,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        console.log("Auth state changed:", _event, session?.user?.id);
         setSession(session);
         setUser(session?.user || null);
         
-        // Check admin status after auth state change, but don't wait on it
+        // Check admin status after auth state change
         if (session?.user) {
-          checkIsAdmin().catch(console.error);
+          await checkIsAdmin();
         } else {
           setIsAdmin(false);
         }
@@ -115,20 +97,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, [checkIsAdmin]);
+  }, []);
 
-  // Use memo to stabilize the auth context value
-  const authContextValue = useMemo(() => ({
-    session,
-    user,
-    loading,
-    signOut,
-    isAdmin,
-    checkIsAdmin
-  }), [session, user, loading, isAdmin, checkIsAdmin]);
+  const signOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setIsAdmin(false);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
 
   return (
-    <AuthContext.Provider value={authContextValue}>
+    <AuthContext.Provider value={{ session, user, loading, signOut, isAdmin, checkIsAdmin }}>
       {children}
     </AuthContext.Provider>
   );

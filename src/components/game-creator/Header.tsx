@@ -21,7 +21,7 @@ export function Header({ title, description }: HeaderProps) {
   const handleAccountClick = () => {
     navigate("/account");
   };
-  
+
   return (
     <div className="space-y-1 flex flex-col md:flex-row md:items-center md:justify-between">
       <div>
@@ -30,36 +30,33 @@ export function Header({ title, description }: HeaderProps) {
       </div>
       
       <div className="mt-2 md:mt-0">
-        {loading ? (
-          // Show a simple loading state
-          <div className="h-9 w-24 bg-gray-100 animate-pulse rounded-md"></div>
-        ) : user ? (
-          // User is logged in - show account button
-          <div className="flex items-center gap-2">
-            <div className="text-sm font-medium mr-2 hidden sm:block">
-              {user.email}
+        {!loading && (
+          user ? (
+            <div className="flex items-center gap-2">
+              <div className="text-sm font-medium mr-2 hidden sm:block">
+                {user.email}
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="flex items-center gap-2"
+                onClick={handleAccountClick}
+              >
+                <UserCircle size={16} />
+                <span className="hidden sm:inline">Account</span>
+              </Button>
             </div>
+          ) : (
             <Button 
-              variant="outline" 
+              onClick={handleLoginClick}
               size="sm" 
+              variant="outline"
               className="flex items-center gap-2"
-              onClick={handleAccountClick}
             >
-              <UserCircle size={16} />
-              <span className="hidden sm:inline">Account</span>
+              <FcGoogle size={16} />
+              Sign in
             </Button>
-          </div>
-        ) : (
-          // User is not logged in - show sign in button
-          <Button 
-            onClick={handleLoginClick}
-            size="sm" 
-            variant="outline"
-            className="flex items-center gap-2"
-          >
-            <FcGoogle size={16} />
-            Sign in
-          </Button>
+          )
         )}
       </div>
     </div>

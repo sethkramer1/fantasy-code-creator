@@ -28,8 +28,27 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { user, isAdmin } = useAuth();
   
-  // Simple check - show delete button if there's a delete handler and user is either admin or owner
-  const canDelete = Boolean(onDelete && (isAdmin || user?.id === game.user_id));
+  // Enhanced deletion permission check - admins can delete ANY game
+  const canDelete = onDelete && (
+    (user?.id && isAdmin) || // Admin can delete any game
+    (user?.id && game.user_id === user.id) // Or user owns the game
+  );
+  
+  console.log("Game card render:", {
+    gameId: game.id,
+    gameUserId: game.user_id || 'none',
+    currentUserId: user?.id || 'not logged in',
+    isAdmin: !!isAdmin, // Force boolean for consistent logging
+    canDelete: !!canDelete, // Force boolean for consistent logging
+    hasOnDeleteFunction: !!onDelete // Check if the onDelete function was passed
+  });
+  
+  // Log information about the delete button visibility
+  useEffect(() => {
+    if (!canDelete) {
+      console.log(`Delete button not shown for game ${game.id} - user:${user?.id}, isAdmin:${isAdmin}, game.user_id:${game.user_id}`);
+    }
+  }, [canDelete, game.id, user?.id, isAdmin, game.user_id]);
   
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
@@ -38,22 +57,25 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
     }
   }, [gameCode]);
   
-  const handleDelete = (e: MouseEvent) => {
+  const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
+    console.log("Delete button clicked for game:", game.id);
     setShowDeleteDialog(true);
   };
   
   const confirmDelete = async () => {
-    if (!onDelete) return;
+    if (!onDelete) {
+      console.error("No onDelete function provided");
+      return;
+    }
     
+    console.log("Confirming delete for game:", game.id, "isAdmin:", isAdmin);
     setIsDeleting(true);
-    try {
-      const success = await onDelete(game.id);
-      if (!success) {
-        setIsDeleting(false);
-      }
-    } catch (error) {
-      console.error("Error deleting game:", error);
+    const success = await onDelete(game.id);
+    
+    console.log("Delete operation result:", success);
+    
+    if (!success) {
       setIsDeleting(false);
     }
     setShowDeleteDialog(false);
@@ -124,7 +146,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
           </div>
         </div>
         
-        {/* Delete button with simplified visibility logic */}
+        {/* Delete button - fixed to use proper conditional rendering */}
         {canDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"
