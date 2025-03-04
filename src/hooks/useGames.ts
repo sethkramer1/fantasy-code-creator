@@ -68,13 +68,46 @@ export const useGames = () => {
         return false;
       }
       
-      // Delete the game
-      const { error } = await supabase
+      // First, delete related records in game_messages table
+      const { error: messagesError } = await supabase
+        .from('game_messages')
+        .delete()
+        .eq('game_id', gameId);
+      
+      if (messagesError) {
+        console.error("Error deleting game messages:", messagesError);
+        // Continue with deletion even if messages deletion fails
+      }
+      
+      // Delete records in game_versions table
+      const { error: versionsError } = await supabase
+        .from('game_versions')
+        .delete()
+        .eq('game_id', gameId);
+      
+      if (versionsError) {
+        console.error("Error deleting game versions:", versionsError);
+        // Continue with deletion even if versions deletion fails
+      }
+      
+      // Delete records in token_usage table
+      const { error: tokensError } = await supabase
+        .from('token_usage')
+        .delete()
+        .eq('game_id', gameId);
+      
+      if (tokensError) {
+        console.error("Error deleting token usage records:", tokensError);
+        // Continue with deletion even if token usage deletion fails
+      }
+      
+      // Finally, delete the game from the main games table
+      const { error: gameError } = await supabase
         .from('games')
         .delete()
         .eq('id', gameId);
       
-      if (error) throw error;
+      if (gameError) throw gameError;
       
       // Update the local state by removing the deleted game
       setGames(currentGames => currentGames.filter(game => game.id !== gameId));
@@ -83,6 +116,9 @@ export const useGames = () => {
         title: "Design deleted",
         description: "Your design has been removed successfully",
       });
+      
+      // Force a refresh of the games list to ensure everything is up to date
+      fetchGames();
       
       return true;
     } catch (error) {
