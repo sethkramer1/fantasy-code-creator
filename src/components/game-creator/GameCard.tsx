@@ -26,15 +26,16 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
   
   // Updated deletion permission check:
-  // Only logged-in users can delete their own games
-  // Anonymous users cannot delete any games
+  // - Logged-in users can delete their own games
+  // - Admins can delete any game
+  // - Anonymous users cannot delete any games
   const canDelete = 
     onDelete && 
     user?.id && // User must be logged in
-    game.user_id === user.id; // User must own the game
+    (game.user_id === user.id || isAdmin); // User must own the game OR be an admin
   
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
@@ -106,6 +107,16 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
                     {label.split(' ')[0]}
                   </span>
                 )}
+                {isAdmin && !game.user_id && (
+                  <span className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 whitespace-nowrap flex-shrink-0 font-medium">
+                    Anonymous
+                  </span>
+                )}
+                {isAdmin && game.user_id && game.user_id !== user?.id && (
+                  <span className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 whitespace-nowrap flex-shrink-0 font-medium">
+                    Other User
+                  </span>
+                )}
               </div>
             </div>
             
@@ -115,7 +126,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
           </div>
         </div>
         
-        {/* Delete button (visible only for logged-in users who own the game) */}
+        {/* Delete button (visible for logged-in users who own the game OR admins) */}
         {canDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"

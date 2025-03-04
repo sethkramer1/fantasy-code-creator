@@ -9,7 +9,7 @@ export const useGames = () => {
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, isAdmin } = useAuth();
 
   const fetchGames = useCallback(async () => {
     try {
@@ -47,76 +47,87 @@ export const useGames = () => {
       console.log("=== SOFT DELETE OPERATION STARTED ===");
       console.log("Attempting to mark game with ID as deleted:", gameId);
       console.log("Current user ID:", user?.id);
+      console.log("Is admin:", isAdmin);
       
-      // Skip the local state check as it might not be reliable
-      // Directly attempt to update the game with both game ID and user ID conditions
-      const { data, error } = await supabase
-        .from('games')
-        .update({ deleted: true })
-        .match({ 
-          id: gameId,
-          // Only include user_id in the match if we have a logged in user
-          ...(user?.id ? { user_id: user.id } : {})
-        })
-        .select();
+      if (!user?.id) {
+        console.error("User not logged in - cannot delete games");
+        toast({
+          title: "Access denied",
+          description: "You must be logged in to delete designs",
+          variant: "destructive"
+        });
+        return false;
+      }
       
-      console.log("Update game result:", { data, error });
-      
-      if (error) {
-        console.error("Database error during delete:", error);
-        // Handle specific errors
-        if (error.code === '42501') {
-          // Permission denied error
-          toast({
-            title: "Access denied",
-            description: "You don't have permission to delete this design.",
-            variant: "destructive"
-          });
-        } else {
+      // If user is an admin, they can delete any game
+      if (isAdmin) {
+        console.log("Admin user - bypassing ownership check");
+        const { data, error } = await supabase
+          .from('games')
+          .update({ deleted: true })
+          .eq('id', gameId)
+          .select();
+        
+        console.log("Admin delete result:", { data, error });
+        
+        if (error) {
+          console.error("Database error during admin delete:", error);
           toast({
             title: "Error deleting design",
             description: error.message || "Database error, please try again",
             variant: "destructive"
           });
+          return false;
         }
+        
+        if (!data || data.length === 0) {
+          console.error("No data returned - game doesn't exist");
+          toast({
+            title: "Error deleting design",
+            description: "This design doesn't exist or has already been deleted",
+            variant: "destructive"
+          });
+          return false;
+        }
+        
+        // Update local state
+        setGames(currentGames => currentGames.filter(game => game.id !== gameId));
+        
+        toast({
+          title: "Design deleted",
+          description: "The design has been removed successfully",
+        });
+        
+        return true;
+      }
+      
+      // For regular (non-admin) users, they can only delete their own games
+      const { data, error } = await supabase
+        .from('games')
+        .update({ deleted: true })
+        .match({ 
+          id: gameId,
+          user_id: user.id 
+        })
+        .select();
+      
+      console.log("Regular user delete result:", { data, error });
+      
+      if (error) {
+        console.error("Database error during delete:", error);
+        toast({
+          title: "Error deleting design",
+          description: error.message || "Database error, please try again",
+          variant: "destructive"
+        });
         return false;
       }
       
       if (!data || data.length === 0) {
         console.error("No data returned - likely permission issue or game doesn't exist");
-        // Try a more permissive update if the user is not logged in or we couldn't match with user ID
-        if (!user?.id) {
-          console.log("Attempting permissive update for public games...");
-          const { data: publicData, error: publicError } = await supabase
-            .from('games')
-            .update({ deleted: true })
-            .eq('id', gameId)
-            .is('user_id', null)  // Only update games without a user_id
-            .select();
-            
-          console.log("Permissive update result:", { publicData, publicError });
-          
-          if (publicError || !publicData || publicData.length === 0) {
-            toast({
-              title: "Access denied",
-              description: "You don't have permission to delete this design or it doesn't exist.",
-              variant: "destructive"
-            });
-            return false;
-          }
-          
-          // If we get here, the permissive update worked
-          setGames(currentGames => currentGames.filter(game => game.id !== gameId));
-          toast({
-            title: "Design deleted",
-            description: "Your design has been removed successfully",
-          });
-          return true;
-        }
-        
         toast({
           title: "Access denied",
-          description: "You don't have permission to delete this design or it doesn't exist.",
+          description: "You don't have permission to delete this design or it doesn't exist",
           variant: "destructive"
         });
         return false;

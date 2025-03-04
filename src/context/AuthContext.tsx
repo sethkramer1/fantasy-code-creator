@@ -8,6 +8,8 @@ type AuthContextType = {
   user: User | null;
   loading: boolean;
   signOut: () => Promise<void>;
+  isAdmin: boolean;
+  checkIsAdmin: () => Promise<boolean>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -16,6 +18,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // Function to check if the current user is an admin
+  const checkIsAdmin = async (): Promise<boolean> => {
+    if (!user) {
+      setIsAdmin(false);
+      return false;
+    }
+
+    try {
+      // Use the has_role function we created in the database
+      const { data, error } = await supabase.rpc('has_role', {
+        user_id: user.id,
+        role: 'admin'
+      });
+
+      if (error) {
+        console.error("Error checking admin status:", error);
+        setIsAdmin(false);
+        return false;
+      }
+
+      setIsAdmin(!!data);
+      return !!data;
+    } catch (error) {
+      console.error("Unexpected error checking admin role:", error);
+      setIsAdmin(false);
+      return false;
+    }
+  };
 
   useEffect(() => {
     // Get initial session
@@ -27,6 +59,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setSession(data.session);
         setUser(data.session?.user || null);
+        
+        // Check admin status after setting user
+        if (data.session?.user) {
+          await checkIsAdmin();
+        }
       } catch (error) {
         console.error("Unexpected error during auth init:", error);
       } finally {
@@ -38,9 +75,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      async (_event, session) => {
         setSession(session);
         setUser(session?.user || null);
+        
+        // Check admin status after auth state change
+        if (session?.user) {
+          await checkIsAdmin();
+        } else {
+          setIsAdmin(false);
+        }
+        
         setLoading(false);
       }
     );
@@ -53,13 +98,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
+      setIsAdmin(false);
     } catch (error) {
       console.error("Error signing out:", error);
     }
   };
 
   return (
-    <AuthContext.Provider value={{ session, user, loading, signOut }}>
+    <AuthContext.Provider value={{ session, user, loading, signOut, isAdmin, checkIsAdmin }}>
       {children}
     </AuthContext.Provider>
   );
