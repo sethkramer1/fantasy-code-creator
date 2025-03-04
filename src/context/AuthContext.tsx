@@ -1,5 +1,5 @@
 
-import React, { createContext, useState, useEffect, useContext } from "react";
+import React, { createContext, useState, useEffect, useContext, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
@@ -55,9 +55,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Get initial session
     const getInitialSession = async () => {
       try {
+        console.log("Getting initial auth session");
         const { data, error } = await supabase.auth.getSession();
+        
         if (error) {
           console.error("Error getting auth session:", error);
+        } else {
+          console.log("Initial session retrieved:", !!data.session, 
+                     "User ID:", data.session?.user?.id);
         }
         
         setSession(data.session);
@@ -102,14 +107,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
+      setUser(null);
+      setSession(null);
       setIsAdmin(false);
     } catch (error) {
       console.error("Error signing out:", error);
     }
   };
 
+  // Use useMemo to prevent unnecessary context re-renders
+  const contextValue = useMemo(() => ({
+    session,
+    user,
+    loading,
+    signOut,
+    isAdmin, 
+    checkIsAdmin
+  }), [session, user, loading, isAdmin]);
+
   return (
-    <AuthContext.Provider value={{ session, user, loading, signOut, isAdmin, checkIsAdmin }}>
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );
