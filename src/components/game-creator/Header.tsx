@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import { FcGoogle } from "react-icons/fc";
 import { UserCircle } from "lucide-react";
+import { useMemo } from "react";
 
 interface HeaderProps {
   title: string;
@@ -21,6 +22,44 @@ export function Header({ title, description }: HeaderProps) {
   const handleAccountClick = () => {
     navigate("/account");
   };
+  
+  // Memoize the account section to prevent unnecessary re-renders
+  const accountSection = useMemo(() => {
+    if (loading) {
+      return null;
+    }
+    
+    if (user) {
+      return (
+        <div className="flex items-center gap-2">
+          <div className="text-sm font-medium mr-2 hidden sm:block">
+            {user.email}
+          </div>
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex items-center gap-2"
+            onClick={handleAccountClick}
+          >
+            <UserCircle size={16} />
+            <span className="hidden sm:inline">Account</span>
+          </Button>
+        </div>
+      );
+    }
+    
+    return (
+      <Button 
+        onClick={handleLoginClick}
+        size="sm" 
+        variant="outline"
+        className="flex items-center gap-2"
+      >
+        <FcGoogle size={16} />
+        Sign in
+      </Button>
+    );
+  }, [user, loading, handleAccountClick, handleLoginClick]);
 
   return (
     <div className="space-y-1 flex flex-col md:flex-row md:items-center md:justify-between">
@@ -30,34 +69,7 @@ export function Header({ title, description }: HeaderProps) {
       </div>
       
       <div className="mt-2 md:mt-0">
-        {!loading && (
-          user ? (
-            <div className="flex items-center gap-2">
-              <div className="text-sm font-medium mr-2 hidden sm:block">
-                {user.email}
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                className="flex items-center gap-2"
-                onClick={handleAccountClick}
-              >
-                <UserCircle size={16} />
-                <span className="hidden sm:inline">Account</span>
-              </Button>
-            </div>
-          ) : (
-            <Button 
-              onClick={handleLoginClick}
-              size="sm" 
-              variant="outline"
-              className="flex items-center gap-2"
-            >
-              <FcGoogle size={16} />
-              Sign in
-            </Button>
-          )
-        )}
+        {accountSection}
       </div>
     </div>
   );
