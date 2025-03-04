@@ -40,7 +40,8 @@ const Play = () => {
     currentVersion, 
     gameVersions, 
     fetchGame,
-    isLoading: gameDataLoading 
+    isLoading: gameDataLoading,
+    setGame
   } = usePlayGameData(gameId);
   
   const { 
