@@ -39,7 +39,7 @@ serve(async (req) => {
   }
 
   try {
-    const { gameId, prompt, imageUrl } = await req.json();
+    const { gameId, prompt, imageUrl, userId } = await req.json();
     
     if (!gameId) {
       return new Response(
@@ -52,6 +52,7 @@ serve(async (req) => {
     console.log('Prompt length:', prompt?.length || 0);
     console.log('Full prompt:', prompt); // Log the full prompt for debugging
     console.log('Image URL provided:', imageUrl ? 'Yes (data URL)' : 'No');
+    console.log('User ID provided:', userId ? 'Yes' : 'No');
 
     // Initialize Supabase client
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
@@ -114,6 +115,9 @@ Return only the full new HTML code with all needed CSS and JavaScript embedded. 
     const systemMessage = `You are an expert developer specializing in web technologies. 
             
 Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
+
+After the code, please include a single line with token information in exactly this format:
+"Tokens used: <input_count> input, <output_count> output"
 
 Follow these structure requirements precisely and generate clean, semantic, and accessible code.`;
 
@@ -203,6 +207,69 @@ Follow these structure requirements precisely and generate clean, semantic, and 
     }
 
     console.log('Successfully got response from Anthropic API');
+    
+    // For non-streaming responses, let's try to track the tokens here directly
+    if (!requestBody.stream) {
+      try {
+        const responseData = await response.json();
+        const content = responseData.content.join('');
+        
+        // Extract token information directly from the response
+        const inputTokens = responseData.usage?.input_tokens;
+        const outputTokens = responseData.usage?.output_tokens;
+        
+        if (inputTokens && outputTokens && gameId) {
+          console.log(`[TOKEN TRACKING] Captured token usage - Input: ${inputTokens}, Output: ${outputTokens}`);
+          
+          // Create a message record for this token usage
+          const { data: messageData, error: messageError } = await supabase
+            .from('game_messages')
+            .insert({
+              game_id: gameId,
+              message: "API Token Tracking",
+              response: "Token tracking from Edge Function",
+              is_system: true,
+              model_type: 'claude'
+            })
+            .select('id')
+            .single();
+            
+          if (messageError) {
+            console.error('[TOKEN TRACKING] Error creating message record:', messageError);
+          } else if (messageData?.id) {
+            // Create a token usage record
+            const { error: tokenError } = await supabase
+              .from('token_usage')
+              .insert({
+                game_id: gameId,
+                message_id: messageData.id,
+                prompt: prompt.substring(0, 5000),
+                input_tokens: inputTokens,
+                output_tokens: outputTokens,
+                model_type: 'claude',
+                user_id: userId
+              });
+              
+            if (tokenError) {
+              console.error('[TOKEN TRACKING] Error creating token usage record:', tokenError);
+            } else {
+              console.log('[TOKEN TRACKING] Token usage recorded from edge function');
+            }
+          }
+        }
+        
+        // Create a new response with the same content
+        return new Response(JSON.stringify(responseData), {
+          headers: {
+            ...corsHeaders,
+            'Content-Type': 'application/json',
+          }
+        });
+      } catch (tokenError) {
+        console.error('[TOKEN TRACKING] Error processing token information:', tokenError);
+        // Continue with the streaming response if we can't process tokens
+      }
+    }
     
     return new Response(response.body, {
       headers: {

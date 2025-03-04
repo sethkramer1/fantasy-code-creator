@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { ModelType } from "@/types/generation";
 
@@ -19,6 +20,16 @@ export const saveInitialGenerationTokens = async (
       console.error("[TOKEN TRACKING] Cannot save initial tokens: gameId is required");
       return false;
     }
+    
+    // Enhanced logging to track values
+    console.log(`[TOKEN TRACKING] saveInitialGenerationTokens called with:`, {
+      userId: userId || 'anonymous',
+      gameId,
+      modelType,
+      inputTokens,
+      outputTokens,
+      promptLength: prompt?.length || 0
+    });
     
     // Validate token counts to prevent database errors
     const validInputTokens = Math.max(1, isNaN(inputTokens) ? Math.ceil(prompt.length / 4) : inputTokens);
@@ -135,8 +146,11 @@ export const updateTokenCounts = async (
       return false;
     }
 
-    console.log(`[TOKEN TRACKING] Updating token counts for message ${messageId}`);
-    console.log(`[TOKEN TRACKING] New values - Input: ${inputTokens}, Output: ${outputTokens}`);
+    console.log(`[TOKEN TRACKING] updateTokenCounts called with:`, {
+      messageId,
+      inputTokens,
+      outputTokens
+    });
 
     // Find the token usage record for this message
     const { data: existingData, error: checkError } = await supabase
@@ -168,7 +182,7 @@ export const updateTokenCounts = async (
       // Create a new token usage record since one doesn't exist
       console.log(`[TOKEN TRACKING] Creating new token usage record for message ${messageId}`);
       
-      const { error: insertError } = await supabase
+      const { data: insertData, error: insertError } = await supabase
         .from('token_usage')
         .insert({
           message_id: messageId,
@@ -177,19 +191,20 @@ export const updateTokenCounts = async (
           input_tokens: Math.max(1, inputTokens),
           output_tokens: Math.max(1, outputTokens),
           prompt: "Token update - no prompt available" // Add default prompt value
-        });
+        })
+        .select('id');
         
       if (insertError) {
         console.error("[TOKEN TRACKING] Error creating token usage record:", insertError);
         return false;
       }
       
-      console.log("[TOKEN TRACKING] New token usage record created successfully");
+      console.log("[TOKEN TRACKING] New token usage record created successfully with ID:", insertData?.[0]?.id);
       return true;
     }
 
     // Update the token counts
-    const { error: updateError } = await supabase
+    const { data: updateData, error: updateError } = await supabase
       .from('token_usage')
       .update({
         input_tokens: Math.max(1, inputTokens),
@@ -197,17 +212,85 @@ export const updateTokenCounts = async (
         // Keep the existing prompt when updating
         prompt: existingData.prompt || "Token update - prompt preserved" 
       })
-      .eq('id', existingData.id);
+      .eq('id', existingData.id)
+      .select('id');
       
     if (updateError) {
       console.error("[TOKEN TRACKING] Error updating token counts:", updateError);
       return false;
     }
     
-    console.log("[TOKEN TRACKING] Token counts updated successfully for message:", messageId);
+    console.log("[TOKEN TRACKING] Token counts updated successfully for record:", updateData?.[0]?.id);
     return true;
   } catch (error) {
     console.error("[TOKEN TRACKING] Error updating token counts:", error);
+    return false;
+  }
+};
+
+/**
+ * Force token tracking for a game - this is a last resort if other methods fail
+ */
+export const forceTokenTracking = async (
+  gameId: string,
+  userId: string | undefined,
+  prompt: string,
+  modelType: string,
+  inputTokens: number,
+  outputTokens: number
+): Promise<boolean> => {
+  try {
+    console.log(`[TOKEN TRACKING] FORCE TOKEN TRACKING for game ${gameId}`);
+    console.log(`[TOKEN TRACKING] Using input: ${inputTokens}, output: ${outputTokens} tokens`);
+    
+    // Create a dedicated message for this forced tracking
+    const { data: messageData, error: messageError } = await supabase
+      .from('game_messages')
+      .insert({
+        game_id: gameId,
+        message: "Initial Generation (Forced Tracking)",
+        response: "Tokens tracked via forced method",
+        is_system: true,
+        model_type: modelType
+      })
+      .select('id')
+      .single();
+      
+    if (messageError) {
+      console.error("[TOKEN TRACKING] Error creating forced tracking message:", messageError);
+      return false;
+    }
+    
+    if (!messageData?.id) {
+      console.error("[TOKEN TRACKING] Failed to get message ID for forced tracking");
+      return false;
+    }
+    
+    // Create the token usage record directly
+    const { data, error } = await supabase
+      .from('token_usage')
+      .insert({
+        user_id: userId,
+        game_id: gameId,
+        message_id: messageData.id,
+        prompt: prompt.substring(0, 5000),
+        input_tokens: Math.max(1, inputTokens),
+        output_tokens: Math.max(1, outputTokens),
+        model_type: modelType
+      })
+      .select('id')
+      .single();
+      
+    if (error) {
+      console.error("[TOKEN TRACKING] Error creating forced token record:", error);
+      return false;
+    }
+    
+    console.log("[TOKEN TRACKING] Forced token tracking successful with ID:", data?.id);
+    return true;
+    
+  } catch (error) {
+    console.error("[TOKEN TRACKING] Error in forced token tracking:", error);
     return false;
   }
 };
