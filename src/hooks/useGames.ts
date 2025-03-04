@@ -22,7 +22,6 @@ export const useGames = () => {
         .eq('deleted', false);  // Only fetch non-deleted games
       
       // No additional filters needed - RLS should handle permissions
-      // Public games should be visible to everyone, regardless of login status
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -73,8 +72,8 @@ export const useGames = () => {
       // Optimistic UI update - remove the game from the UI immediately
       setGames(currentGames => currentGames.filter(game => game.id !== gameId));
       
-      // Admin delete operation - no ownership check needed
-      if (isAdmin) {
+      // ADMIN DELETE PATH - Admins can delete any game regardless of ownership
+      if (isAdmin === true) {
         console.log("Admin user - performing privileged delete");
         
         const { data, error } = await supabase
@@ -83,7 +82,7 @@ export const useGames = () => {
           .eq('id', gameId)
           .select();
         
-        console.log("Admin delete result:", { data, error });
+        console.log("Admin delete query result:", { data, error });
         
         if (error) {
           console.error("Database error during admin delete:", error);
@@ -106,7 +105,8 @@ export const useGames = () => {
         return true;
       }
       
-      // For regular (non-admin) users, they can only delete their own games
+      // REGULAR USER DELETE PATH - Only their own games
+      console.log("Regular user - checking ownership before deleting");
       const { data, error } = await supabase
         .from('games')
         .update({ deleted: true })
@@ -116,7 +116,7 @@ export const useGames = () => {
         })
         .select();
       
-      console.log("Regular user delete result:", { data, error });
+      console.log("Regular user delete query result:", { data, error });
       
       if (error) {
         console.error("Database error during delete:", error);

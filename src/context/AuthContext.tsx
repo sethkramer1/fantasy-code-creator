@@ -45,6 +45,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Admin check result:", data);
       const isUserAdmin = !!data;
       setIsAdmin(isUserAdmin);
+      
+      // Log the updated admin status
+      console.log(">>> ADMIN STATUS SET TO:", isUserAdmin, "for user:", user.id);
       return isUserAdmin;
     } catch (error) {
       console.error("Unexpected error checking admin role:", error);
@@ -72,7 +75,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Check admin status after setting user
         if (data.session?.user) {
-          await checkIsAdmin();
+          const adminStatus = await checkIsAdmin();
+          console.log("Initial admin status check result:", adminStatus);
         }
       } catch (error) {
         console.error("Unexpected error during auth init:", error);
@@ -93,7 +97,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Check admin status after auth state change
         if (session?.user) {
           const adminStatus = await checkIsAdmin();
-          console.log("User admin status set to:", adminStatus);
+          console.log("User admin status after auth change:", adminStatus);
         } else {
           setIsAdmin(false);
         }
@@ -130,8 +134,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Log when admin status changes
   useEffect(() => {
-    console.log("AuthContext state updated - isAdmin:", isAdmin);
-  }, [isAdmin]);
+    console.log("AuthContext state updated - isAdmin:", isAdmin, "user:", user?.id);
+  }, [isAdmin, user]);
 
   return (
     <AuthContext.Provider value={contextValue}>
