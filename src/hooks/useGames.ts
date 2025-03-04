@@ -59,64 +59,31 @@ export const useGames = () => {
         return false;
       }
       
-      console.log("Attempting to delete game with ID:", gameId);
+      console.log("Deleting game with ID:", gameId);
       
-      // First check if the game exists
-      const { data: existingGame, error: checkError } = await supabase
-        .from('games')
-        .select('id')
-        .eq('id', gameId)
-        .single();
-      
-      if (checkError) {
-        console.error("Error checking if game exists:", checkError);
-        // If the error is that the game doesn't exist, we should show a specific message
-        if (checkError.code === 'PGRST116') {
-          toast({
-            title: "Error deleting design",
-            description: "The design could not be found",
-            variant: "destructive"
-          });
-          return false;
-        }
-      }
-      
-      if (!existingGame) {
-        console.error("Game not found in database:", gameId);
-        toast({
-          title: "Error deleting design",
-          description: "The design could not be found",
-          variant: "destructive"
-        });
-        return false;
-      }
-      
-      // If we confirmed the game exists, delete it
-      const { error: gameError } = await supabase
+      // Delete directly from the games table
+      const { error } = await supabase
         .from('games')
         .delete()
         .eq('id', gameId);
       
-      if (gameError) {
-        console.error("Error deleting game:", gameError);
+      if (error) {
+        console.error("Error deleting game:", error);
         toast({
           title: "Error deleting design",
-          description: gameError.message || "Please try again",
+          description: error.message || "Please try again",
           variant: "destructive"
         });
         return false;
       }
       
-      // Update the local state
+      // Update local state immediately without refetching
       setGames(currentGames => currentGames.filter(game => game.id !== gameId));
       
       toast({
         title: "Design deleted",
         description: "Your design has been removed successfully",
       });
-      
-      // Refresh the games list
-      await fetchGames();
       
       return true;
     } catch (error) {
