@@ -1,7 +1,7 @@
-
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
+import { ModelType } from "@/types/generation";
 
 export interface GameData {
   id: string;
@@ -10,6 +10,7 @@ export interface GameData {
   current_version: number | null;
   prompt: string;
   visibility?: string;
+  model_type?: string;
 }
 
 export interface GameVersion {
@@ -29,7 +30,7 @@ export function usePlayGameData(gameId: string | undefined) {
   const fetchAttemptsRef = useRef(0);
   const maxFetchAttempts = 3;
 
-  const addSystemMessage = async (message: string, response: string) => {
+  const addSystemMessage = async (message: string, response: string, modelType: string = "smart") => {
     if (!gameId) return;
     
     try {
@@ -39,7 +40,8 @@ export function usePlayGameData(gameId: string | undefined) {
           game_id: gameId,
           message,
           response,
-          is_system: true
+          is_system: true,
+          model_type: modelType
         });
     } catch (error) {
       console.error("Error adding system message:", error);
@@ -53,12 +55,11 @@ export function usePlayGameData(gameId: string | undefined) {
     fetchAttemptsRef.current += 1;
     
     try {
-      // First, check if the game exists
       const { data: gameData, error: gameError } = await supabase
         .from('games')
         .select('*')
         .eq('id', gameId)
-        .maybeSingle(); // Use maybeSingle instead of single to avoid errors
+        .maybeSingle();
 
       if (gameError) {
         console.error("Error fetching game:", gameError);
@@ -73,7 +74,6 @@ export function usePlayGameData(gameId: string | undefined) {
       if (!gameData) {
         console.log("Game not found:", gameId);
         
-        // If we've tried multiple times and still can't find the game, redirect
         if (fetchAttemptsRef.current >= maxFetchAttempts) {
           addSystemMessage(
             "Game not found", 
@@ -84,17 +84,14 @@ export function usePlayGameData(gameId: string | undefined) {
           return;
         }
         
-        // If we haven't reached max attempts, we'll try again on next useEffect cycle
         setIsLoading(false);
         return;
       }
 
-      // Reset the fetch attempts counter once we successfully get the game
       fetchAttemptsRef.current = 0;
       setGame(gameData);
       console.log("Game data fetched successfully:", gameData.id);
 
-      // Then, fetch the game versions
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .select('*')
@@ -113,7 +110,6 @@ export function usePlayGameData(gameId: string | undefined) {
 
       if (!versionData || versionData.length === 0) {
         console.warn("No versions found for game:", gameId);
-        // Create a default version from the game data to avoid UI issues
         const defaultVersion: GameVersion = {
           id: 'default-version',
           version_number: gameData.current_version || 1,
@@ -145,8 +141,6 @@ export function usePlayGameData(gameId: string | undefined) {
     if (gameId) {
       fetchGame();
       
-      // If the game data wasn't loaded successfully and we haven't reached max attempts,
-      // set up a retry mechanism
       const retryInterval = setInterval(() => {
         if (!game && fetchAttemptsRef.current < maxFetchAttempts) {
           console.log(`Retrying game fetch (attempt ${fetchAttemptsRef.current + 1}/${maxFetchAttempts})...`);
@@ -154,7 +148,7 @@ export function usePlayGameData(gameId: string | undefined) {
         } else {
           clearInterval(retryInterval);
         }
-      }, 2000); // Retry every 2 seconds
+      }, 2000);
       
       return () => clearInterval(retryInterval);
     }
@@ -166,6 +160,7 @@ export function usePlayGameData(gameId: string | undefined) {
     gameVersions,
     fetchGame,
     setGame,
-    isLoading
+    isLoading,
+    modelType: game?.model_type as ModelType || "smart"
   };
 }

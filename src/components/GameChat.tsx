@@ -13,7 +13,8 @@ export const GameChat = ({
   disabled = false,
   onRevertToVersion,
   gameVersions = [],
-  initialMessage
+  initialMessage,
+  modelType = "smart"
 }: GameChatProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [previousDisabledState, setPreviousDisabledState] = useState<boolean>(disabled);
@@ -28,7 +29,7 @@ export const GameChat = ({
     loadingHistory,
     imageUrl,
     setImageUrl,
-    modelType,
+    modelType: currentModelType,
     handleModelChange,
     handleSubmit,
     initialMessageId,
@@ -39,7 +40,8 @@ export const GameChat = ({
     gameId,
     onGameUpdate,
     onTerminalStatusChange,
-    initialMessage
+    initialMessage,
+    modelType // Pass the modelType prop to useChatMessages
   });
 
   // Scroll to bottom when messages change
@@ -139,7 +141,7 @@ export const GameChat = ({
         setMessage={setMessage}
         imageUrl={imageUrl}
         setImageUrl={setImageUrl}
-        modelType={modelType}
+        modelType={currentModelType}
         handleModelChange={handleModelChange}
         handleSubmit={handleSubmit}
         loading={loading}

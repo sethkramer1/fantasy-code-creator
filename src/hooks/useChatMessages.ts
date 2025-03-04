@@ -21,13 +21,15 @@ export interface UseChatMessagesProps {
   onGameUpdate: (newCode: string, newInstructions: string) => void;
   onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
   initialMessage?: string;
+  modelType?: ModelType;
 }
 
 export function useChatMessages({
   gameId,
   onGameUpdate,
   onTerminalStatusChange,
-  initialMessage
+  initialMessage,
+  modelType: initialModelType = "smart"
 }: UseChatMessagesProps) {
   const [message, setMessage] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
@@ -36,10 +38,14 @@ export function useChatMessages({
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [thinkingTime, setThinkingTime] = useState(0);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [modelType, setModelType] = useState<ModelType>("smart");
+  const [modelType, setModelType] = useState<ModelType>(initialModelType);
   const [initialMessageId, setInitialMessageId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { user } = useAuth();
+
+  useEffect(() => {
+    setModelType(initialModelType);
+  }, [initialModelType]);
 
   useEffect(() => {
     if (loading) {

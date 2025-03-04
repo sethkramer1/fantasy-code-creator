@@ -1,211 +1,128 @@
 
-import { ModelType } from "@/types/generation";
-import { contentTypes } from "@/types/game";
-import { getContentTypeInstructions } from "@/utils/contentTypeInstructions";
-import { TokenInfo } from "./groqService";
-
-const ANTHROPIC_API_ENDPOINT = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo';
-
-export interface AnthropicStreamCallbacks {
-  onThinking: (thinking: string) => void;
-  onContent: (content: string) => void;
-  onError: (error: Error) => void;
-  onComplete: () => void;
-  onStreamStart: () => void;
-}
+import { StreamCallbacks } from "@/types/generation";
+import { getSystemPrompt } from "./promptService";
+import { buildPrompt } from "./promptBuilder";
+import { supabase } from "@/integrations/supabase/client";
 
 export const callAnthropicApi = async (
   prompt: string,
   gameType: string,
   imageUrl?: string,
   partialResponse?: string,
-  callbacks?: AnthropicStreamCallbacks
-): Promise<{ response: Response, gameContent: string, tokenInfo?: TokenInfo }> => {
-  let gameContent = '';
-  let tokenInfo: TokenInfo = {
-    inputTokens: Math.ceil(prompt.length / 4),
-    outputTokens: 0
-  };
+  callbacks = {} as StreamCallbacks
+): Promise<{ gameContent: string; tokenInfo?: { inputTokens: number; outputTokens: number } }> => {
+  const { onStreamStart, onThinking, onContent, onError, onComplete } = callbacks;
   
-  if (!prompt || prompt === "Loading...") {
-    const error = new Error("Invalid or empty prompt provided: " + prompt);
-    console.error(error);
-    if (callbacks?.onError) {
-      callbacks.onError(error);
-    }
-    throw error;
-  }
-  
-  const selectedType = contentTypes.find(type => type.id === gameType);
-  if (!selectedType) throw new Error("Invalid content type selected");
+  const user = supabase.auth.getUser();
+  const userId = (await user).data.user?.id;
 
-  // Enhanced prompt formatting
-  const enhancedPrompt = selectedType.promptPrefix + " " + prompt;
-  const { systemInstructions } = getContentTypeInstructions(gameType);
-  
-  // Combine the system instructions with the enhanced prompt
-  const finalPrompt = `${enhancedPrompt}\n\n${partialResponse ? "Use this as a starting point: " + partialResponse : ""}`;
-  
-  if (callbacks?.onStreamStart) {
-    callbacks.onStreamStart();
-  }
-
-  console.log("Calling Anthropic API with:", {
-    prompt: finalPrompt,
-    originalPrompt: prompt,
-    promptLength: finalPrompt.length,
-    systemLength: systemInstructions.length,
-    hasImage: !!imageUrl
-  });
-  
-  const response = await fetch(
-    ANTHROPIC_API_ENDPOINT,
-    {
+  try {
+    // For streaming requests
+    const response = await fetch('/api/generate-game', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
       },
-      body: JSON.stringify({ 
-        prompt: finalPrompt,
-        system: systemInstructions,
-        imageUrl: imageUrl,
-        contentType: gameType,
-        partialResponse: partialResponse,
-        model: "claude-3-7-sonnet-20250219",
-        stream: true,
-        thinking: {
-          type: "enabled",
-          budget_tokens: 10000
-        }
+      body: JSON.stringify({
+        prompt: buildPrompt(prompt, gameType),
+        imageUrl,
+        partialResponse,
+        system: getSystemPrompt(gameType),
+        userId: userId, // Pass the user ID for token tracking
       }),
-      signal: AbortSignal.timeout(300000), // 5 minute timeout for Anthropic
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Generate API error:', errorText);
+      throw new Error(`API error (${response.status}): ${errorText}`);
     }
-  );
 
-  if (!response.ok) {
-    const errorText = await response.text();
-    try {
-      const errorJson = JSON.parse(errorText);
-      throw new Error(`HTTP error! status: ${response.status}, message: ${errorJson.error || errorJson.message || 'Unknown error'}`);
-    } catch (e) {
-      throw new Error(`HTTP error! status: ${response.status}, response: ${errorText.substring(0, 100)}...`);
-    }
-  }
+    // If we expect a streaming response
+    if (response.headers.get('content-type')?.includes('text/event-stream')) {
+      if (onStreamStart) onStreamStart();
+      
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      let content = '';
+      let combinedContent = '';
+      let streamComplete = false;
+      
+      if (!reader) throw new Error('Stream reader is not available');
 
-  // If callbacks are provided, process the stream
-  if (callbacks && response.body) {
-    const reader = response.body.getReader();
-    let buffer = '';
-    let combinedResponse = partialResponse || '';
-    let usageInfo = null;
-
-    try {
-      while (true) {
+      while (!streamComplete) {
         const { done, value } = await reader.read();
-        if (done) break;
-
-        // Decode the chunk and add it to our buffer
-        const text = new TextDecoder().decode(value);
-        buffer += text;
         
-        // Process complete lines from the buffer
-        let lineEnd;
-        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-          const line = buffer.slice(0, lineEnd);
-          buffer = buffer.slice(lineEnd + 1);
-          
-          // Skip empty lines
-          if (!line) continue;
-          
-          // Handle Anthropic streaming format
-          if (line.startsWith('data: ')) {
+        if (done) {
+          streamComplete = true;
+          if (onComplete) onComplete(combinedContent);
+          break;
+        }
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data:')) {
             try {
-              const data = JSON.parse(line.slice(5));
-
-              switch (data.type) {
-                case 'message_start':
-                  console.log("Stream started, model:", data.message?.model || "unknown");
-                  break;
-
-                case 'content_block_start':
-                  if (data.content_block?.type === 'thinking') {
-                    callbacks.onThinking("\nThinking phase started...");
-                  }
-                  break;
-
-                case 'content_block_delta':
-                  if (data.delta?.type === 'thinking_delta') {
-                    const thinking = data.delta.thinking || '';
-                    if (thinking && thinking.trim()) {
-                      callbacks.onThinking(thinking);
-                    }
-                  } else if (data.delta?.type === 'text_delta') {
-                    const content = data.delta.text || '';
-                    if (content) {
-                      gameContent += content;
-                      combinedResponse += content;
-                      callbacks.onContent(content);
-                    }
-                  }
-                  break;
-
-                case 'content_block_stop':
-                  if (data.content_block?.type === 'thinking') {
-                    callbacks.onThinking("Thinking phase completed");
-                  }
-                  break;
-
-                case 'message_delta':
-                  if (data.delta?.usage) {
-                    // Extract usage information if available
-                    usageInfo = data.delta.usage;
-                    console.log("Token usage from Anthropic:", usageInfo);
-                    
-                    if (usageInfo.input_tokens) {
-                      tokenInfo.inputTokens = usageInfo.input_tokens;
-                    }
-                    if (usageInfo.output_tokens) {
-                      tokenInfo.outputTokens = usageInfo.output_tokens;
-                    }
-                    
-                    callbacks.onThinking(`Tokens used: ${tokenInfo.inputTokens} input, ${tokenInfo.outputTokens} output`);
-                  }
-                  
-                  if (data.delta?.stop_reason) {
-                    callbacks.onThinking(`Generation ${data.delta.stop_reason}`);
-                  }
-                  break;
-
-                case 'message_stop':
-                  callbacks.onThinking("Game generation completed!");
-                  callbacks.onComplete();
-                  break;
-
-                case 'error':
-                  throw new Error(data.error?.message || 'Unknown error in stream');
+              const eventData = line.slice(5).trim();
+              
+              if (eventData === '[DONE]') {
+                streamComplete = true;
+                if (onComplete) onComplete(combinedContent);
+                break;
               }
-            } catch (e) {
-              console.error('Error parsing SSE line:', e);
-              console.log('Raw data that failed to parse:', line.slice(5));
-              callbacks.onThinking(`Warning: Error parsing stream data: ${e instanceof Error ? e.message : 'Unknown error'}`);
-              // Continue even if we can't parse a line - don't throw here
+              
+              // Parse the JSON data
+              const data = JSON.parse(eventData);
+              
+              // Handle thinking message
+              if (data.thinking && onThinking) {
+                onThinking(data.thinking);
+                continue;
+              }
+              
+              // Handle content delta
+              if (data.type === 'content_block_delta' && data.delta?.text && onContent) {
+                content = data.delta.text;
+                combinedContent += content;
+                onContent(content);
+              }
+              // Handle whole content block
+              else if (data.type === 'content_block_start' && data.content_block?.text && onContent) {
+                content = data.content_block.text;
+                combinedContent += content;
+                onContent(content);
+              }
+              // Handle error
+              else if (data.type === 'error' && onError) {
+                onError(new Error(data.error?.message || 'Unknown stream error'));
+              }
+            } catch (parseError) {
+              console.error('Error parsing SSE event:', parseError, 'Line:', line);
+              if (onError) onError(new Error(`Stream parsing error: ${parseError.message}`));
             }
           }
         }
       }
-    } catch (e) {
-      callbacks.onError(e instanceof Error ? e : new Error(String(e)));
-      reader.releaseLock();
+      
+      return { gameContent: combinedContent };
+    } else {
+      // Handle non-streaming response
+      const data = await response.json();
+      const gameContent = data.content || '';
+      
+      // Extract token information if available
+      const tokenInfo = data.usage ? {
+        inputTokens: data.usage.input_tokens,
+        outputTokens: data.usage.output_tokens
+      } : undefined;
+      
+      return { gameContent, tokenInfo };
     }
+  } catch (error) {
+    console.error('anthropicService API call failed:', error);
+    if (onError) onError(error instanceof Error ? error : new Error(String(error)));
+    throw error;
   }
-
-  // If we didn't get token usage from streaming, estimate it
-  if (!tokenInfo.outputTokens) {
-    tokenInfo.outputTokens = Math.ceil(gameContent.length / 4);
-  }
-
-  console.log("Final token usage for Anthropic:", tokenInfo);
-  return { response, gameContent, tokenInfo };
 };

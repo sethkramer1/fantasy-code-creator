@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "./types";
 
@@ -96,15 +97,59 @@ export const trackTokenUsage = async (
   try {
     if (!gameId) {
       console.error("Cannot track token usage: gameId is required");
-      return;
+      return null;
+    }
+    
+    if (!messageId) {
+      console.error("Cannot track token usage: messageId is required");
+      return null;
     }
     
     // Validate input to avoid bad database entries
     const validInputTokens = Math.max(1, isNaN(inputTokens) ? Math.ceil(prompt.length / 4) : inputTokens);
     const validOutputTokens = Math.max(1, isNaN(outputTokens) ? 0 : outputTokens);
     
-    console.log(`Tracking token usage: ${validInputTokens} input / ${validOutputTokens} output tokens for model ${modelType}`);
+    console.log(`[TOKEN TRACKING] Tracking token usage: ${validInputTokens} input / ${validOutputTokens} output tokens for model ${modelType}`);
+    console.log(`[TOKEN TRACKING] Message ID: ${messageId}, Game ID: ${gameId}, User ID: ${userId || 'anonymous'}`);
     
+    // Check if a record already exists for this message and game
+    const { data: existingData, error: checkError } = await supabase
+      .from('token_usage')
+      .select('id')
+      .eq('game_id', gameId)
+      .eq('message_id', messageId)
+      .maybeSingle();
+      
+    if (checkError) {
+      console.error("[TOKEN TRACKING] Error checking for existing token usage:", checkError);
+    }
+    
+    if (existingData?.id) {
+      console.log(`[TOKEN TRACKING] Token usage already exists for this message (${existingData.id}), updating...`);
+      
+      const { data: updatedData, error: updateError } = await supabase
+        .from('token_usage')
+        .update({
+          input_tokens: validInputTokens,
+          output_tokens: validOutputTokens,
+          prompt: prompt.substring(0, 5000), // Limit prompt length to avoid DB issues
+          model_type: modelType,
+          user_id: userId // Update userId in case it wasn't set before
+        })
+        .eq('id', existingData.id)
+        .select('id')
+        .single();
+        
+      if (updateError) {
+        console.error("[TOKEN TRACKING] Error updating token usage:", updateError);
+        return null;
+      }
+      
+      console.log("[TOKEN TRACKING] Token usage updated successfully with ID:", updatedData?.id);
+      return updatedData;
+    }
+    
+    // Create new token usage record
     const insertData = {
       user_id: userId,
       game_id: gameId,
@@ -115,6 +160,8 @@ export const trackTokenUsage = async (
       model_type: modelType
     };
     
+    console.log("[TOKEN TRACKING] Insert data for token_usage:", insertData);
+    
     const { data, error } = await supabase
       .from('token_usage')
       .insert(insertData)
@@ -122,14 +169,14 @@ export const trackTokenUsage = async (
       .single();
     
     if (error) {
-      console.error("Error tracking token usage:", error);
-      throw error;
+      console.error("[TOKEN TRACKING] Error tracking token usage:", error);
+      return null;
     }
     
-    console.log("Token usage tracked successfully with ID:", data?.id);
+    console.log("[TOKEN TRACKING] Token usage tracked successfully with ID:", data?.id);
     return data;
   } catch (error) {
-    console.error("Error in trackTokenUsage:", error);
+    console.error("[TOKEN TRACKING] Error in trackTokenUsage:", error);
     // Not throwing here to prevent disrupting the main flow
     return null;
   }
@@ -228,5 +275,80 @@ export const processGameUpdate = async (
   } catch (error) {
     console.error("API error:", error);
     throw error;
+  }
+};
+
+// Add a new function to explicitly track initial game generation tokens
+export const trackInitialGameTokens = async (
+  userId: string | undefined,
+  gameId: string,
+  prompt: string,
+  modelType: string,
+  inputTokens: number,
+  outputTokens: number
+) => {
+  try {
+    if (!gameId) {
+      console.error("[INITIAL TOKEN TRACKING] Cannot track initial tokens: gameId is required");
+      return null;
+    }
+    
+    const messageId = `initial-generation-${gameId}`;
+    console.log(`[INITIAL TOKEN TRACKING] Tracking initial token usage for game ${gameId}, model ${modelType}`);
+    console.log(`[INITIAL TOKEN TRACKING] Input tokens: ${inputTokens}, Output tokens: ${outputTokens}`);
+    
+    // First, check if there's already a token_usage entry for this initial generation
+    const { data: existingData, error: checkError } = await supabase
+      .from('token_usage')
+      .select('id')
+      .eq('game_id', gameId)
+      .eq('message_id', messageId)
+      .maybeSingle();
+      
+    if (checkError) {
+      console.error("[INITIAL TOKEN TRACKING] Error checking for existing token usage:", checkError);
+    }
+    
+    // If entry already exists, update it
+    if (existingData?.id) {
+      console.log(`[INITIAL TOKEN TRACKING] Token usage already exists for initial generation (${existingData.id}), updating...`);
+      
+      const { data: updatedData, error: updateError } = await supabase
+        .from('token_usage')
+        .update({
+          input_tokens: inputTokens,
+          output_tokens: outputTokens,
+          prompt: prompt.substring(0, 5000),
+          model_type: modelType,
+          user_id: userId
+        })
+        .eq('id', existingData.id)
+        .select('id')
+        .single();
+        
+      if (updateError) {
+        console.error("[INITIAL TOKEN TRACKING] Error updating token usage:", updateError);
+        return null;
+      }
+      
+      console.log("[INITIAL TOKEN TRACKING] Token usage updated successfully with ID:", updatedData?.id);
+      return updatedData;
+    }
+    
+    // Create new token usage record for initial generation
+    const result = await trackTokenUsage(
+      userId,
+      gameId,
+      messageId,
+      prompt,
+      inputTokens,
+      outputTokens,
+      modelType
+    );
+    
+    return result;
+  } catch (error) {
+    console.error("[INITIAL TOKEN TRACKING] Error tracking initial tokens:", error);
+    return null;
   }
 };

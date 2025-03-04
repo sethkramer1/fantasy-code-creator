@@ -1,6 +1,7 @@
 
 import { GameChat } from "@/components/GameChat";
 import { Message } from "@/components/game-chat/types";
+import { ModelType } from "@/types/generation";
 
 interface SidebarChatProps {
   gameId: string;
@@ -10,6 +11,7 @@ interface SidebarChatProps {
   onRevertToMessageVersion: (message: Message) => Promise<void>;
   gameVersions: any[];
   initialPrompt: string;
+  modelType?: ModelType;
 }
 
 export function SidebarChat({
@@ -19,7 +21,8 @@ export function SidebarChat({
   onTerminalStatusChange,
   onRevertToMessageVersion,
   gameVersions,
-  initialPrompt
+  initialPrompt,
+  modelType = "smart"
 }: SidebarChatProps) {
   return (
     <div className="w-[380px] flex flex-col bg-white border-r border-gray-100">
@@ -32,6 +35,7 @@ export function SidebarChat({
           onRevertToVersion={onRevertToMessageVersion}
           gameVersions={gameVersions}
           initialMessage={initialPrompt}
+          modelType={modelType}
         />
       </div>
     </div>

@@ -19,3 +19,16 @@ export interface ContentTypeInstructions {
   systemInstructions: string;
   promptPrefix: string;
 }
+
+export interface TokenInfo {
+  inputTokens: number;
+  outputTokens: number;
+}
+
+export interface StreamCallbacks {
+  onStreamStart?: () => void;
+  onThinking?: (thinking: string) => void;
+  onContent?: (content: string) => void;
+  onError?: (error: Error) => void;
+  onComplete?: (fullContent: string) => void;
+}

@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/game-creator/Header";
@@ -18,7 +17,6 @@ const Index = () => {
   const [gameType, setGameType] = useState<string>("webdesign");
   const [imageUrl, setImageUrl] = useState<string>("");
   const [visibility, setVisibility] = useState<string>("public");
-  // Always use "smart" model (Claude) from the index page
   const modelType: ModelType = "smart";
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -82,19 +80,19 @@ const Index = () => {
       }
 
       console.log("Generating with prompt:", prompt);
+      console.log("Using model type:", modelType);
 
-      // Create a placeholder game record
       const { data: placeholderGame, error: placeholderError } = await supabase
         .from('games')
         .insert([{ 
-          prompt: prompt, // Store the exact prompt
+          prompt: prompt,
           code: "Generating...",
           instructions: "Content is being generated...",
           current_version: 1,
           type: gameType,
           model_type: modelType,
-          user_id: user?.id || null, // Add the user ID if user is logged in
-          visibility: visibility // Add the visibility setting
+          user_id: user?.id || null,
+          visibility: visibility
         }])
         .select()
         .single();
@@ -109,7 +107,6 @@ const Index = () => {
         return;
       }
 
-      // Create a placeholder version
       const { error: versionError } = await supabase
         .from('game_versions')
         .insert([{
@@ -122,26 +119,19 @@ const Index = () => {
       if (versionError) {
         console.error("Error creating placeholder version:", versionError);
       }
-
-      // Pass the image URL, game type, and model type in the URL parameters
+      
       let navigationParams = `?generating=true&type=${gameType}&modelType=${modelType}`;
       
-      // Only include the image in the params if it exists
       if (imageUrl) {
-        // Encode the image data to ensure it works in a URL
         const encodedImageUrl = encodeURIComponent(imageUrl);
         navigationParams += `&imageUrl=${encodedImageUrl}`;
       }
       
-      // Pass the original prompt in the navigation
       navigationParams += `&prompt=${encodeURIComponent(prompt)}`;
       
-      // Log the exact prompt being passed
       console.log("Navigating with prompt:", prompt);
       console.log("Encoded prompt in URL:", encodeURIComponent(prompt));
       
-      // Navigate to the play page with generation
-      console.log("Navigating to play page for generation:", placeholderGame.id);
       navigate(`/play/${placeholderGame.id}${navigationParams}`);
       
       toast({
@@ -161,7 +151,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* Header and Form section with increased width */}
       <div className="max-w-4xl mx-auto px-6 py-12 md:py-16">
         <div className="space-y-10">
           <Header 
@@ -182,14 +171,13 @@ const Index = () => {
             onImageUploaded={handleImageUploaded}
             onImageRemoved={handleImageRemoved}
             modelType={modelType}
-            showModelPreference={false} // Don't show model preference on index page
+            showModelPreference={false}
             visibility={visibility}
             setVisibility={setVisibility}
           />
         </div>
       </div>
       
-      {/* Designs section with wider width */}
       <div className="max-w-7xl mx-auto px-6 pb-16">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
