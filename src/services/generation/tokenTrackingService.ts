@@ -170,7 +170,7 @@ export const updateTokenCounts = async (
       // Try to get the game_id from the message record
       const { data: messageData, error: messageError } = await supabase
         .from('game_messages')
-        .select('game_id, model_type')
+        .select('game_id, model_type, message')
         .eq('id', messageId)
         .single();
         
@@ -182,15 +182,18 @@ export const updateTokenCounts = async (
       // Create a new token usage record since one doesn't exist
       console.log(`[TOKEN TRACKING] Creating new token usage record for message ${messageId}`);
       
+      // Use the message as the prompt if available, otherwise use a default
+      const promptText = messageData.message || "Token update - no prompt available";
+      
       const { data: insertData, error: insertError } = await supabase
         .from('token_usage')
         .insert({
           message_id: messageId,
           game_id: messageData.game_id,
-          model_type: messageData.model_type || 'unknown',
+          model_type: messageData.model_type || 'smart',
           input_tokens: Math.max(1, inputTokens),
           output_tokens: Math.max(1, outputTokens),
-          prompt: "Token update - no prompt available" // Add default prompt value
+          prompt: promptText.substring(0, 5000) // Limit prompt length
         })
         .select('id');
         

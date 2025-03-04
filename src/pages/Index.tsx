@@ -80,6 +80,7 @@ const Index = () => {
       }
 
       console.log("Generating with prompt:", prompt);
+      console.log("Using model type:", modelType);
 
       const { data: placeholderGame, error: placeholderError } = await supabase
         .from('games')

@@ -19,3 +19,8 @@ export interface ContentTypeInstructions {
   systemInstructions: string;
   promptPrefix: string;
 }
+
+export interface TokenInfo {
+  inputTokens: number;
+  outputTokens: number;
+}
