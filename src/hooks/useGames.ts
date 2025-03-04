@@ -61,21 +61,34 @@ export const useGames = () => {
       
       console.log("Deleting game with ID:", gameId);
       
-      // Delete directly from the games table
-      const { error } = await supabase
+      // Delete directly from the games table with detailed error handling
+      const { data, error } = await supabase
         .from('games')
         .delete()
-        .eq('id', gameId);
+        .eq('id', gameId)
+        .select(); // Get the deleted record to confirm deletion
       
       if (error) {
-        console.error("Error deleting game:", error);
+        console.error("Database error deleting game:", error);
         toast({
           title: "Error deleting design",
-          description: error.message || "Please try again",
+          description: error.message || "Database error, please try again",
           variant: "destructive"
         });
         return false;
       }
+      
+      if (!data || data.length === 0) {
+        console.error("No records were deleted for game ID:", gameId);
+        toast({
+          title: "Error deleting design",
+          description: "The design could not be deleted - no matching records found",
+          variant: "destructive"
+        });
+        return false;
+      }
+      
+      console.log("Successfully deleted game from database:", data);
       
       // Update local state immediately without refetching
       setGames(currentGames => currentGames.filter(game => game.id !== gameId));
@@ -87,7 +100,7 @@ export const useGames = () => {
       
       return true;
     } catch (error) {
-      console.error("Error deleting game:", error);
+      console.error("Error in deleteGame function:", error);
       toast({
         title: "Error deleting design",
         description: error instanceof Error ? error.message : "Please try again",
