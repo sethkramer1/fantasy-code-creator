@@ -2,11 +2,18 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
 
 export function MainNavigation() {
   const { user } = useAuth();
   
-  if (!user) return null;
+  if (!user) {
+    return (
+      <Button asChild variant="outline" size="sm" className="h-9">
+        <Link to="/auth">Sign In</Link>
+      </Button>
+    );
+  }
   
   return (
     <div className="flex items-center gap-4">

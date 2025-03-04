@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { useTeams } from "@/hooks/useTeams";
 import { TeamCard } from "@/components/team/TeamCard";
@@ -16,6 +16,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
+import { useAuth } from "@/context/AuthContext";
+import { Header } from "@/components/game-creator/Header";
 
 export default function TeamsPage() {
   const { teams, loading, createTeam } = useTeams();
@@ -23,13 +25,22 @@ export default function TeamsPage() {
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const { user } = useAuth();
+  
+  useEffect(() => {
+    console.log("TeamsPage - User:", user?.id);
+    console.log("TeamsPage - Teams loaded:", teams.length);
+    console.log("TeamsPage - Teams data:", teams);
+  }, [teams, user]);
   
   const handleCreateTeam = async () => {
     if (!teamName.trim()) return;
     
     setIsCreating(true);
     try {
-      await createTeam(teamName, teamDescription);
+      console.log("Creating team with name:", teamName);
+      const team = await createTeam(teamName, teamDescription);
+      console.log("Team created:", team);
       setTeamName('');
       setTeamDescription('');
       setIsDialogOpen(false);
@@ -40,9 +51,12 @@ export default function TeamsPage() {
   
   return (
     <div className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">My Teams</h1>
-        
+      <Header 
+        title="My Teams" 
+        description="Create and manage your teams to collaborate on projects."
+      />
+      
+      <div className="flex justify-end mb-8 mt-6">
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>Create Team</Button>
