@@ -11,7 +11,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ModelType } from "@/types/generation";
-import { saveInitialGenerationTokens } from "@/services/generation/groqService";
+import { saveInitialGenerationTokens } from "@/services/generation/tokenTrackingService";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
