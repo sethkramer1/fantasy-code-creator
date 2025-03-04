@@ -193,17 +193,20 @@ export function usePlayTerminal(
           inputTokens = parseInt(usageMatch[1], 10);
           outputTokens = parseInt(usageMatch[2], 10);
           updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+          console.log("Extracted token usage from stream:", inputTokens, outputTokens);
         } else {
           inputTokens = Math.ceil(initialPrompt.length / 4);
           outputTokens = Math.ceil(content.length / 4);
           updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+          console.log("Using estimated token usage:", inputTokens, outputTokens);
         }
       } else {
         const data = await response.json();
         console.log("Non-streaming response received:", {
           hasContent: !!data.content,
           contentLength: data.content?.length || 0,
-          tokenInfo: data.tokenInfo || 'Not provided'
+          tokenInfo: data.tokenInfo || 'Not provided',
+          usage: data.usage || 'Not provided'
         });
         
         if (!data.content || data.content.length < 100) {
@@ -216,14 +219,25 @@ export function usePlayTerminal(
           inputTokens = data.tokenInfo.inputTokens || Math.ceil(initialPrompt.length / 4);
           outputTokens = data.tokenInfo.outputTokens || Math.ceil(content.length / 4);
           updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+          console.log("Using tokenInfo data:", inputTokens, outputTokens);
         } else if (data.usage) {
-          inputTokens = data.usage.prompt_tokens || Math.ceil(initialPrompt.length / 4);
-          outputTokens = data.usage.completion_tokens || Math.ceil(content.length / 4);
+          if (data.usage.prompt_tokens && data.usage.completion_tokens) {
+            inputTokens = data.usage.prompt_tokens || Math.ceil(initialPrompt.length / 4);
+            outputTokens = data.usage.completion_tokens || Math.ceil(content.length / 4);
+          } else if (data.usage.input_tokens && data.usage.output_tokens) {
+            inputTokens = data.usage.input_tokens || Math.ceil(initialPrompt.length / 4);
+            outputTokens = data.usage.output_tokens || Math.ceil(content.length / 4);
+          } else {
+            inputTokens = Math.ceil(initialPrompt.length / 4);
+            outputTokens = Math.ceil(content.length / 4);
+          }
           updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+          console.log("Using usage data:", inputTokens, outputTokens);
         } else {
           inputTokens = Math.ceil(initialPrompt.length / 4);
           outputTokens = Math.ceil(content.length / 4);
           updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+          console.log("Using estimated token usage:", inputTokens, outputTokens);
         }
         
         updateTerminalOutputWrapper("> Content received successfully", true);
@@ -241,6 +255,14 @@ export function usePlayTerminal(
         try {
           const initialMessageId = `initial-${gameId}`;
           
+          console.log("Tracking token usage for initial generation:", {
+            gameId,
+            initialMessageId,
+            inputTokens,
+            outputTokens,
+            modelType
+          });
+          
           await trackTokenUsage(
             user?.id,
             gameId,
@@ -252,9 +274,14 @@ export function usePlayTerminal(
           );
           
           updateTerminalOutputWrapper("> Token usage tracked for initial generation", true);
+          console.log("Token usage tracked successfully");
         } catch (error) {
           console.error("Error tracking token usage:", error);
+          updateTerminalOutputWrapper(`> Warning: Failed to track token usage: ${error.message}`, true);
         }
+      } else {
+        console.error("Cannot track token usage: gameId is undefined");
+        updateTerminalOutputWrapper("> Warning: Cannot track token usage (missing gameId)", true);
       }
       
       updateTerminalOutputWrapper("> Processing and saving generated content...", true);

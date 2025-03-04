@@ -22,7 +22,7 @@ export const callGroqApi = async (
   gameType: string,
   imageUrl?: string,
   callbacks?: GroqCallbacks
-): Promise<{ response: Response, gameContent: string, tokenInfo?: TokenInfo }> => {
+): Promise<{ response: Response, gameContent: string, tokenInfo: TokenInfo }> => {
   let gameContent = '';
   let tokenInfo: TokenInfo = {
     inputTokens: Math.ceil(prompt.length / 4),

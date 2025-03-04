@@ -94,31 +94,44 @@ export const trackTokenUsage = async (
   modelType: string
 ) => {
   try {
-    console.log(`Tracking token usage: ${inputTokens} input / ${outputTokens} output tokens for model ${modelType}`);
+    if (!gameId) {
+      console.error("Cannot track token usage: gameId is required");
+      return;
+    }
+    
+    // Validate input to avoid bad database entries
+    const validInputTokens = Math.max(1, isNaN(inputTokens) ? Math.ceil(prompt.length / 4) : inputTokens);
+    const validOutputTokens = Math.max(1, isNaN(outputTokens) ? 0 : outputTokens);
+    
+    console.log(`Tracking token usage: ${validInputTokens} input / ${validOutputTokens} output tokens for model ${modelType}`);
     
     const insertData = {
       user_id: userId,
       game_id: gameId,
       message_id: messageId,
-      prompt: prompt,
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
+      prompt: prompt.substring(0, 5000), // Limit prompt length to avoid DB issues
+      input_tokens: validInputTokens,
+      output_tokens: validOutputTokens,
       model_type: modelType
     };
     
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from('token_usage')
-      .insert(insertData);
+      .insert(insertData)
+      .select('id')
+      .single();
     
     if (error) {
       console.error("Error tracking token usage:", error);
       throw error;
     }
     
-    console.log("Token usage tracked successfully");
+    console.log("Token usage tracked successfully with ID:", data?.id);
+    return data;
   } catch (error) {
     console.error("Error in trackTokenUsage:", error);
     // Not throwing here to prevent disrupting the main flow
+    return null;
   }
 };
 
