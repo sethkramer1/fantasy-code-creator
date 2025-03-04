@@ -5,6 +5,8 @@ export interface Game {
   created_at: string;
   type?: string;
   thumbnail_url?: string;
+  user_id?: string;
+  visibility?: string;
 }
 
 export interface GameData {
