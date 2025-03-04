@@ -43,6 +43,13 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
     hasOnDeleteFunction: !!onDelete // Check if the onDelete function was passed
   });
   
+  // Log information about the delete button visibility
+  useEffect(() => {
+    if (!canDelete) {
+      console.log(`Delete button not shown for game ${game.id} - user:${user?.id}, isAdmin:${isAdmin}, game.user_id:${game.user_id}`);
+    }
+  }, [canDelete, game.id, user?.id, isAdmin, game.user_id]);
+  
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
     if (gameCode) {
@@ -139,16 +146,14 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
           </div>
         </div>
         
-        {/* Delete button with enhanced visibility logging */}
-        {canDelete ? (
+        {/* Delete button - fixed to use proper conditional rendering */}
+        {canDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"
             onClick={handleDelete}
           >
             <Trash2 size={16} className="text-gray-400 hover:text-red-500 transition-colors" />
           </div>
-        ) : (
-          console.log(`Delete button not shown for game ${game.id} - user:${user?.id}, isAdmin:${isAdmin}, game.user_id:${game.user_id}`)
         )}
       </div>
       
