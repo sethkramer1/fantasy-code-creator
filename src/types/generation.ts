@@ -37,15 +37,20 @@ export interface StreamCallbacks {
 export interface StreamEvent {
   type: string;
   delta?: {
-    text: string;
+    text?: string;
+    type?: 'text_delta' | 'thinking_delta';
+    thinking?: string;
+    stop_reason?: string;
   };
   content_block?: {
     text: string;
+    type?: string;
   };
   thinking?: string;
   error?: {
     message: string;
+    type?: string;
   };
   usage?: TokenInfo;
-  token_usage?: TokenInfo; // Added to ensure compatibility with different response formats
+  token_usage?: TokenInfo;
 }
