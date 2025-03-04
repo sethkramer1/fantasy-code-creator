@@ -65,6 +65,10 @@ export const useGameGeneration = () => {
 
       setTerminalOutput(prev => [...prev, `> Establishing connection to AI service...`]);
 
+      if (existingGameId) {
+        setGameId(existingGameId);
+      }
+
       const makeApiCallWithRetry = async (): Promise<string> => {
         try {
           if (activeModelType === "fast") {
@@ -198,6 +202,8 @@ export const useGameGeneration = () => {
       });
       
       if (gameData && gameData.id) {
+        setGameId(gameData.id);
+        
         try {
           await trackTokenUsage(
             user?.id,
