@@ -5,13 +5,14 @@ import { useAuth } from "@/context/AuthContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Database, Zap } from "lucide-react";
+import { Loader2, Database, Zap, ArrowDownUp } from "lucide-react";
 
 interface TokenUsageEntry {
   id: string;
   game_id: string;
   message_id: string;
-  tokens_used: number;
+  input_tokens: number;
+  output_tokens: number;
   model_type: string;
   created_at: string;
   games: {
@@ -23,7 +24,11 @@ export const TokenUsageHistory = () => {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [tokenHistory, setTokenHistory] = useState<TokenUsageEntry[]>([]);
-  const [totalTokens, setTotalTokens] = useState({ smart: 0, fast: 0, total: 0 });
+  const [totalTokens, setTotalTokens] = useState({ 
+    smart: { input: 0, output: 0 }, 
+    fast: { input: 0, output: 0 }, 
+    total: { input: 0, output: 0 } 
+  });
 
   useEffect(() => {
     const loadTokenUsage = async () => {
@@ -41,18 +46,29 @@ export const TokenUsageHistory = () => {
           // Calculate totals
           const totals = data.reduce(
             (acc, entry) => {
-              const tokens = entry.tokens_used || 0;
-              acc.total += tokens;
+              const inputTokens = entry.input_tokens || 0;
+              const outputTokens = entry.output_tokens || 0;
               
+              // Add to total
+              acc.total.input += inputTokens;
+              acc.total.output += outputTokens;
+              
+              // Add to model-specific
               if (entry.model_type === "smart") {
-                acc.smart += tokens;
+                acc.smart.input += inputTokens;
+                acc.smart.output += outputTokens;
               } else if (entry.model_type === "fast") {
-                acc.fast += tokens;
+                acc.fast.input += inputTokens;
+                acc.fast.output += outputTokens;
               }
               
               return acc;
             },
-            { smart: 0, fast: 0, total: 0 }
+            { 
+              smart: { input: 0, output: 0 }, 
+              fast: { input: 0, output: 0 }, 
+              total: { input: 0, output: 0 } 
+            }
           );
           
           setTotalTokens(totals);
@@ -115,18 +131,30 @@ export const TokenUsageHistory = () => {
             <div className="grid grid-cols-3 gap-4 mb-6">
               <div className="bg-gray-50 rounded-md p-3 text-center">
                 <p className="text-gray-500 text-sm">Total</p>
-                <p className="text-2xl font-bold">{totalTokens.total.toLocaleString()}</p>
-                <p className="text-xs text-gray-400">tokens</p>
+                <p className="text-2xl font-bold">{(totalTokens.total.input + totalTokens.total.output).toLocaleString()}</p>
+                <div className="flex justify-center text-xs text-gray-400 mt-1 gap-2">
+                  <span>{totalTokens.total.input.toLocaleString()} in</span>
+                  <ArrowDownUp size={12} />
+                  <span>{totalTokens.total.output.toLocaleString()} out</span>
+                </div>
               </div>
               <div className="bg-purple-50 rounded-md p-3 text-center">
                 <p className="text-purple-500 text-sm">Anthropic</p>
-                <p className="text-2xl font-bold text-purple-600">{totalTokens.smart.toLocaleString()}</p>
-                <p className="text-xs text-gray-400">tokens</p>
+                <p className="text-2xl font-bold text-purple-600">{(totalTokens.smart.input + totalTokens.smart.output).toLocaleString()}</p>
+                <div className="flex justify-center text-xs text-gray-400 mt-1 gap-2">
+                  <span>{totalTokens.smart.input.toLocaleString()} in</span>
+                  <ArrowDownUp size={12} />
+                  <span>{totalTokens.smart.output.toLocaleString()} out</span>
+                </div>
               </div>
               <div className="bg-green-50 rounded-md p-3 text-center">
                 <p className="text-green-500 text-sm">Groq</p>
-                <p className="text-2xl font-bold text-green-600">{totalTokens.fast.toLocaleString()}</p>
-                <p className="text-xs text-gray-400">tokens</p>
+                <p className="text-2xl font-bold text-green-600">{(totalTokens.fast.input + totalTokens.fast.output).toLocaleString()}</p>
+                <div className="flex justify-center text-xs text-gray-400 mt-1 gap-2">
+                  <span>{totalTokens.fast.input.toLocaleString()} in</span>
+                  <ArrowDownUp size={12} />
+                  <span>{totalTokens.fast.output.toLocaleString()} out</span>
+                </div>
               </div>
             </div>
             
@@ -139,7 +167,12 @@ export const TokenUsageHistory = () => {
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-1">
                       <Zap size={14} className="text-amber-500" />
-                      <span className="font-medium">{entry.tokens_used.toLocaleString()} tokens</span>
+                      <span className="font-medium">
+                        {(entry.input_tokens + entry.output_tokens).toLocaleString()} tokens
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        ({entry.input_tokens.toLocaleString()} in / {entry.output_tokens.toLocaleString()} out)
+                      </span>
                     </div>
                     <Badge variant={entry.model_type === "smart" ? "purple" : "success"}>
                       {entry.model_type === "smart" ? "Anthropic" : "Groq"}

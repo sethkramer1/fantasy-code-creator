@@ -4,6 +4,7 @@ import { ModelType } from "@/types/generation";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { useAuth } from "@/context/AuthContext";
 import { updateTerminalOutput, processAnthropicStream } from "@/components/game-chat/terminal-utils";
+import { trackTokenUsage } from "@/components/game-chat/api-service";
 
 interface TerminalState {
   generationInProgress: boolean;
@@ -175,16 +176,22 @@ export function usePlayTerminal(
       updateTerminalOutputWrapper("> Connection established, receiving content...", true);
       
       let content = '';
+      let inputTokens = 0;
+      let outputTokens = 0;
       
       if (modelType === "smart" && response.body) {
         const reader = response.body.getReader();
         updateTerminalOutputWrapper("> Stream connected, processing real-time content...", true);
         content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
+        
+        inputTokens = Math.ceil(initialPrompt.length / 4);
+        outputTokens = Math.ceil(content.length / 4);
       } else {
         const data = await response.json();
         console.log("Non-streaming response received:", {
           hasContent: !!data.content,
-          contentLength: data.content?.length || 0
+          contentLength: data.content?.length || 0,
+          tokenInfo: data.tokenInfo || 'Not provided'
         });
         
         if (!data.content || data.content.length < 100) {
@@ -192,6 +199,15 @@ export function usePlayTerminal(
         }
         
         content = data.content;
+        
+        if (data.tokenInfo) {
+          inputTokens = data.tokenInfo.inputTokens || Math.ceil(initialPrompt.length / 4);
+          outputTokens = data.tokenInfo.outputTokens || Math.ceil(content.length / 4);
+        } else {
+          inputTokens = Math.ceil(initialPrompt.length / 4);
+          outputTokens = Math.ceil(content.length / 4);
+        }
+        
         updateTerminalOutputWrapper("> Content received successfully", true);
       }
       
@@ -201,6 +217,26 @@ export function usePlayTerminal(
       
       if (!content || content.length < 100) {
         throw new Error("Received empty or invalid content from generation");
+      }
+      
+      if (gameId) {
+        try {
+          const initialMessageId = `initial-${gameId}`;
+          
+          await trackTokenUsage(
+            user?.id,
+            gameId,
+            initialMessageId,
+            initialPrompt,
+            inputTokens,
+            outputTokens,
+            modelType
+          );
+          
+          updateTerminalOutputWrapper("> Token usage tracked for initial generation", true);
+        } catch (error) {
+          console.error("Error tracking token usage:", error);
+        }
       }
       
       if (!content.includes("<html") && !content.includes("<!DOCTYPE") && !content.includes("<svg")) {

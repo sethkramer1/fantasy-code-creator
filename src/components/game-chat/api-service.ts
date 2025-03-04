@@ -90,18 +90,20 @@ export const trackTokenUsage = async (
   gameId: string,
   messageId: string,
   prompt: string,
-  tokensUsed: number,
+  inputTokens: number,
+  outputTokens: number,
   modelType: string
 ) => {
   try {
-    console.log(`Tracking token usage: ${tokensUsed} tokens for model ${modelType}`);
+    console.log(`Tracking token usage: ${inputTokens} input / ${outputTokens} output tokens for model ${modelType}`);
     
     const insertData = {
       user_id: userId,
       game_id: gameId,
       message_id: messageId,
       prompt: prompt,
-      tokens_used: tokensUsed,
+      input_tokens: inputTokens,
+      output_tokens: outputTokens,
       model_type: modelType
     };
     
@@ -133,7 +135,8 @@ export const fetchTokenUsageHistory = async (userId: string | undefined) => {
         id,
         game_id,
         message_id,
-        tokens_used,
+        input_tokens,
+        output_tokens,
         model_type,
         created_at,
         games(prompt)
@@ -207,4 +210,3 @@ export const processGameUpdate = async (
     throw error;
   }
 };
-

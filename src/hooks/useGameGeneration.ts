@@ -1,4 +1,3 @@
-
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { contentTypes } from "@/types/game";
@@ -6,17 +5,20 @@ import { GenerationOptions, GenerationResult, ModelType } from "@/types/generati
 import { callAnthropicApi } from "@/services/generation/anthropicService";
 import { callGroqApi } from "@/services/generation/groqService";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
+import { trackTokenUsage } from "@/components/game-chat/api-service";
+import { useAuth } from "@/context/AuthContext";
 
 export const useGameGeneration = () => {
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
   const [thinkingTime, setThinkingTime] = useState(0);
   const [gameId, setGameId] = useState<string | null>(null);
-  const [modelType, setModelType] = useState<ModelType>("smart"); // Changed from string to ModelType
+  const [modelType, setModelType] = useState<ModelType>("smart");
   const timerRef = useRef<NodeJS.Timeout>();
-  const { toast } = useToast();
-  const maxRetries = 2; // Maximum number of retry attempts for network errors
+  const maxRetries = 2;
 
   const generateGame = async ({
     prompt,
@@ -43,7 +45,6 @@ export const useGameGeneration = () => {
       return null;
     }
 
-    // Use the passed model type or fall back to the state value
     const activeModelType: ModelType = requestModelType || modelType;
 
     setLoading(true);
@@ -53,25 +54,23 @@ export const useGameGeneration = () => {
     let gameContent = '';
     let combinedResponse = '';
     let retryCount = 0;
+    let inputTokens = 0;
+    let outputTokens = 0;
 
     try {
       const selectedType = contentTypes.find(type => type.id === gameType);
       if (!selectedType) throw new Error("Invalid content type selected");
 
-      // Log which model is being used
       setTerminalOutput(prev => [...prev, `> Using ${activeModelType === "smart" ? "Anthropic (Smartest)" : "Groq (Fastest)"} model`]);
 
-      // Show connecting message immediately for better UX
       setTerminalOutput(prev => [...prev, `> Establishing connection to AI service...`]);
 
-      // Function to handle API calls with retries
       const makeApiCallWithRetry = async (): Promise<string> => {
         try {
           if (activeModelType === "fast") {
-            // Use Groq API
             setTerminalOutput(prev => [...prev, `> Using non-streaming mode for Groq API${retryCount > 0 ? ` (retry attempt ${retryCount})` : ''}...`]);
             
-            const { gameContent: groqContent } = await callGroqApi(
+            const { gameContent: groqContent, tokenInfo } = await callGroqApi(
               prompt,
               gameType,
               imageUrl,
@@ -91,14 +90,22 @@ export const useGameGeneration = () => {
               }
             );
             
+            if (tokenInfo) {
+              inputTokens = tokenInfo.inputTokens || Math.ceil(prompt.length / 4);
+              outputTokens = tokenInfo.outputTokens || Math.ceil(groqContent.length / 4);
+              setTerminalOutput(prev => [...prev, `> Used ${inputTokens} input tokens and ${outputTokens} output tokens`]);
+            } else {
+              inputTokens = Math.ceil(prompt.length / 4);
+              outputTokens = Math.ceil(groqContent.length / 4);
+            }
+            
             return groqContent;
           } else {
-            // Use Anthropic API
             setTerminalOutput(prev => [...prev, `> Connecting to Anthropic API${retryCount > 0 ? ` (retry attempt ${retryCount})` : ''}...`]);
             
             console.log("Sending prompt to Anthropic:", prompt);
             
-            const { gameContent: anthropicContent } = await callAnthropicApi(
+            const { gameContent: anthropicContent, tokenInfo } = await callAnthropicApi(
               prompt,
               gameType,
               imageUrl,
@@ -113,9 +120,7 @@ export const useGameGeneration = () => {
                 onContent: (content) => {
                   combinedResponse += content;
                   
-                  // Display the content in smaller chunks for better visibility
                   if (content.includes('\n')) {
-                    // If it contains newlines, split it and display each line
                     const contentLines = content.split('\n');
                     for (const contentLine of contentLines) {
                       if (contentLine.trim()) {
@@ -123,7 +128,6 @@ export const useGameGeneration = () => {
                       }
                     }
                   } else {
-                    // Otherwise display the chunk directly
                     setTerminalOutput(prev => [...prev, `> ${content}`]);
                   }
                 },
@@ -136,10 +140,18 @@ export const useGameGeneration = () => {
               }
             );
             
+            if (tokenInfo) {
+              inputTokens = tokenInfo.inputTokens || Math.ceil(prompt.length / 4);
+              outputTokens = tokenInfo.outputTokens || Math.ceil(anthropicContent.length / 4);
+              setTerminalOutput(prev => [...prev, `> Used ${inputTokens} input tokens and ${outputTokens} output tokens`]);
+            } else {
+              inputTokens = Math.ceil(prompt.length / 4);
+              outputTokens = Math.ceil((anthropicContent || combinedResponse).length / 4);
+            }
+            
             return anthropicContent || combinedResponse;
           }
         } catch (error) {
-          // Handle retryable errors
           const errorMessage = error instanceof Error ? error.message : String(error);
           
           if ((errorMessage.includes('network') || 
@@ -154,31 +166,25 @@ export const useGameGeneration = () => {
             setTerminalOutput(prev => [...prev, `> Network error: ${errorMessage}. Retrying (attempt ${retryCount} of ${maxRetries})...`]);
             console.error(`Network error occurred, retrying (${retryCount}/${maxRetries}):`, error);
             
-            // Wait before retrying
             await new Promise(resolve => setTimeout(resolve, 2000));
             
-            // Try again
             return makeApiCallWithRetry();
           }
           
-          // If we've collected some content, try to use that even if we hit an error
-          if (combinedResponse.length > 500) {
+          if (gameContent.length > 500) {
             setTerminalOutput(prev => [...prev, `> Error: ${errorMessage}, but using partial content collected so far.`]);
             console.warn("Using partial content despite error:", error);
             return combinedResponse;
           }
           
-          // Otherwise, propagate the error
           throw error;
         }
       };
       
-      // Make API call with retries
       gameContent = await makeApiCallWithRetry();
       
       setTerminalOutput(prev => [...prev, "> Saving to database..."]);
 
-      // Save the generated game
       const gameData = await saveGeneratedGame({
         gameContent,
         prompt,
@@ -189,6 +195,23 @@ export const useGameGeneration = () => {
         visibility
       });
       
+      if (gameData && gameData.id) {
+        try {
+          await trackTokenUsage(
+            user?.id,
+            gameData.id,
+            `generation-${gameData.id}`,
+            prompt,
+            inputTokens,
+            outputTokens,
+            activeModelType
+          );
+          setTerminalOutput(prev => [...prev, "> Token usage tracked successfully"]);
+        } catch (tokenError) {
+          console.error("Error tracking token usage:", tokenError);
+        }
+      }
+      
       setTerminalOutput(prev => [...prev, "> Saved successfully!"]);
       
       return gameData;
@@ -196,11 +219,9 @@ export const useGameGeneration = () => {
     } catch (error) {
       console.error('Generation error:', error);
       
-      // If we have some usable content even after error, try to save it
       if (gameContent.length > 500 && existingGameId) {
         setTerminalOutput(prev => [...prev, `> Error occurred, but trying to save partial content: ${error instanceof Error ? error.message : String(error)}`]);
         try {
-          // Attempt to save the partial game content with error indication
           const partialGameData = await saveGeneratedGame({
             gameContent,
             prompt,
@@ -214,7 +235,6 @@ export const useGameGeneration = () => {
           
           setTerminalOutput(prev => [...prev, "> Saved partial content to database"]);
           
-          // Return the existing game ID to avoid losing progress
           return partialGameData;
         } catch (saveError) {
           console.error("Failed to save partial content:", saveError);

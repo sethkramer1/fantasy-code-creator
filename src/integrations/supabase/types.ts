@@ -190,30 +190,33 @@ export type Database = {
           created_at: string
           game_id: string
           id: string
+          input_tokens: number
           message_id: string | null
           model_type: string
+          output_tokens: number
           prompt: string
-          tokens_used: number
           user_id: string | null
         }
         Insert: {
           created_at?: string
           game_id: string
           id?: string
+          input_tokens?: number
           message_id?: string | null
           model_type: string
+          output_tokens?: number
           prompt: string
-          tokens_used?: number
           user_id?: string | null
         }
         Update: {
           created_at?: string
           game_id?: string
           id?: string
+          input_tokens?: number
           message_id?: string | null
           model_type?: string
+          output_tokens?: number
           prompt?: string
-          tokens_used?: number
           user_id?: string | null
         }
         Relationships: [
