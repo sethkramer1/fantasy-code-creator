@@ -9,12 +9,12 @@ export const useGames = () => {
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
   const { toast } = useToast();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, checkIsAdmin } = useAuth();
 
   const fetchGames = useCallback(async () => {
     try {
       setGamesLoading(true);
-      console.log("Fetching games, user is admin:", isAdmin);
+      console.log("Fetching games, user is admin:", isAdmin, "User ID:", user?.id);
       
       let query = supabase
         .from('games')
@@ -47,11 +47,28 @@ export const useGames = () => {
     } finally {
       setGamesLoading(false);
     }
-  }, [toast, isAdmin]);
+  }, [toast, isAdmin, user?.id]);
 
   useEffect(() => {
     fetchGames();
   }, [fetchGames]);
+  
+  // Refresh admin status and games when component mounts
+  useEffect(() => {
+    const refreshAdminStatus = async () => {
+      if (user?.id) {
+        const isUserAdmin = await checkIsAdmin();
+        console.log("Admin status refreshed:", isUserAdmin);
+        
+        // Refetch games after admin status is updated
+        if (isUserAdmin) {
+          fetchGames();
+        }
+      }
+    };
+    
+    refreshAdminStatus();
+  }, [user?.id, checkIsAdmin, fetchGames]);
 
   const deleteGame = async (gameId: string) => {
     try {
@@ -69,6 +86,9 @@ export const useGames = () => {
         });
         return false;
       }
+      
+      // Refresh admin status before proceeding with deletion
+      await checkIsAdmin();
       
       // If user is an admin, they can delete any game
       if (isAdmin) {

@@ -1,5 +1,5 @@
 
-import React, { createContext, useState, useEffect, useContext } from "react";
+import React, { createContext, useState, useEffect, useContext, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import type { Session, User } from "@supabase/supabase-js";
 
@@ -21,8 +21,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isAdmin, setIsAdmin] = useState(false);
 
   // Function to check if the current user is an admin
-  const checkIsAdmin = async (): Promise<boolean> => {
+  const checkIsAdmin = useCallback(async (): Promise<boolean> => {
     if (!user) {
+      console.log("No user detected, setting isAdmin to false");
       setIsAdmin(false);
       return false;
     }
@@ -49,12 +50,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setIsAdmin(false);
       return false;
     }
-  };
+  }, [user]);
 
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
       try {
+        setLoading(true);
         const { data, error } = await supabase.auth.getSession();
         if (error) {
           console.error("Error getting auth session:", error);
@@ -97,12 +99,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return () => {
       subscription.unsubscribe();
     };
-  }, []);
+  }, [checkIsAdmin]);
+  
+  // Re-check admin status whenever the user changes
+  useEffect(() => {
+    if (user) {
+      checkIsAdmin();
+    }
+  }, [user, checkIsAdmin]);
 
   const signOut = async () => {
     try {
       await supabase.auth.signOut();
       setIsAdmin(false);
+      console.log("User signed out successfully");
     } catch (error) {
       console.error("Error signing out:", error);
     }

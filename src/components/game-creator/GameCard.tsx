@@ -28,6 +28,13 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { user, isAdmin } = useAuth();
   
+  // Force a refresh of admin status
+  useEffect(() => {
+    if (user?.id) {
+      console.log(`GameCard for ${game.id} - User ID: ${user.id}, Admin Status: ${isAdmin}`);
+    }
+  }, [user?.id, isAdmin, game.id]);
+  
   // Enhanced deletion permission check - admins can delete ANY game
   const canDelete = onDelete && (
     (user?.id && isAdmin) || // Admin can delete any game
@@ -47,6 +54,8 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   useEffect(() => {
     if (!canDelete) {
       console.log(`Delete button not shown for game ${game.id} - user:${user?.id}, isAdmin:${isAdmin}, game.user_id:${game.user_id}`);
+    } else {
+      console.log(`Delete button SHOWN for game ${game.id} - user:${user?.id}, isAdmin:${isAdmin}, game.user_id:${game.user_id}`);
     }
   }, [canDelete, game.id, user?.id, isAdmin, game.user_id]);
   
@@ -59,7 +68,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
-    console.log("Delete button clicked for game:", game.id);
+    console.log("Delete button clicked for game:", game.id, "isAdmin:", isAdmin);
     setShowDeleteDialog(true);
   };
   
@@ -146,8 +155,15 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
           </div>
         </div>
         
-        {/* Delete button - fixed to use proper conditional rendering */}
-        {canDelete && (
+        {/* Admin indicator for debugging */}
+        {isAdmin && (
+          <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700 font-bold">
+            Admin
+          </div>
+        )}
+        
+        {/* Delete button - always show for admins, show for owners otherwise */}
+        {(isAdmin || (user?.id && game.user_id === user.id)) && onDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"
             onClick={handleDelete}
