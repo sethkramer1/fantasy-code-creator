@@ -29,7 +29,7 @@ export const useGameVersions = (filteredGames: Game[]) => {
         
         console.log(`Fetching versions for ${gameIds.length} games`);
         
-        // Fetch the latest version for each game
+        // Fetch the latest version for each game - RLS policies will handle access control
         const { data, error } = await supabase
           .from('game_versions')
           .select('id, game_id, code, version_number, created_at')

@@ -59,6 +59,7 @@ export function usePlayGameData(gameId: string | undefined) {
     
     try {
       console.log("Fetching game data for ID:", gameId);
+      // RLS policies will handle access control
       const { data: gameData, error: gameError } = await supabase
         .from('games')
         .select('*, user_id')
@@ -105,6 +106,7 @@ export function usePlayGameData(gameId: string | undefined) {
       setGame(gameData);
 
       console.log("Fetching versions for game:", gameId);
+      // RLS policies will handle access control for versions
       const { data: versionData, error: versionError } = await supabase
         .from('game_versions')
         .select('*')
