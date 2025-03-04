@@ -19,12 +19,7 @@ export const useGames = () => {
         .from('games')
         .select('id, prompt, created_at, type, visibility, user_id');
       
-      if (user) {
-        query = query.or(`visibility.eq.public,and(visibility.eq.private,user_id.eq.${user.id})`);
-      } else {
-        query = query.eq('visibility', 'public');
-      }
-      
+      // With RLS, this will automatically filter to show only games the user has permission to see
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) throw error;
@@ -50,11 +45,9 @@ export const useGames = () => {
     try {
       console.log("=== DELETE OPERATION STARTED ===");
       console.log("Attempting to delete game with ID:", gameId);
-      console.log("Current user:", user);
       
       // Check if game exists in local state first
       const gameInState = games.find(game => game.id === gameId);
-      console.log("Game found in local state:", gameInState);
       
       if (!gameInState) {
         console.error("Game not found in local state!");
@@ -73,7 +66,10 @@ export const useGames = () => {
         .delete()
         .eq('game_id', gameId);
       
-      console.log("Delete game_versions result:", { error: versionsError });
+      if (versionsError) {
+        console.error("Error deleting game versions:", versionsError);
+        // We'll continue with the deletion process even if this fails
+      }
 
       // Then delete related game_messages (if any)
       console.log("Deleting related game_messages for game ID:", gameId);
@@ -82,9 +78,12 @@ export const useGames = () => {
         .delete()
         .eq('game_id', gameId);
       
-      console.log("Delete game_messages result:", { error: messagesError });
+      if (messagesError) {
+        console.error("Error deleting game messages:", messagesError);
+        // We'll continue with the deletion process even if this fails
+      }
       
-      // Finally delete the game itself
+      // Finally delete the game itself - RLS will ensure only the owner can delete
       console.log("Now deleting main game record with ID:", gameId);
       const { data, error } = await supabase
         .from('games')
@@ -95,51 +94,31 @@ export const useGames = () => {
       console.log("Delete game result:", { data, error });
       
       if (error) {
-        console.error("Database error deleting game:", error);
-        toast({
-          title: "Error deleting design",
-          description: error.message || "Database error, please try again",
-          variant: "destructive"
-        });
+        // Handle specific errors
+        if (error.code === '42501') {
+          // Permission denied error
+          toast({
+            title: "Access denied",
+            description: "You don't have permission to delete this design.",
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Error deleting design",
+            description: error.message || "Database error, please try again",
+            variant: "destructive"
+          });
+        }
         return false;
       }
       
       if (!data || data.length === 0) {
-        console.error("No records were deleted for game ID:", gameId);
-        
-        // Let's double check if the game exists in the database
-        const { data: checkData, error: checkError } = await supabase
-          .from('games')
-          .select('id, user_id, visibility')
-          .eq('id', gameId);
-        
-        console.log("Check if game exists:", { checkData, checkError });
-        
-        if (checkData && checkData.length > 0) {
-          const gameRecord = checkData[0];
-          console.log("Game exists but couldn't be deleted. Game record:", gameRecord);
-          
-          if (gameRecord.user_id !== user?.id) {
-            console.error("User doesn't have permission to delete this game!");
-            toast({
-              title: "Access denied",
-              description: "You don't have permission to delete this design.",
-              variant: "destructive"
-            });
-          } else {
-            toast({
-              title: "Error deleting design",
-              description: "The design exists but couldn't be deleted. Please try again later.",
-              variant: "destructive"
-            });
-          }
-        } else {
-          toast({
-            title: "Error deleting design",
-            description: "The design could not be found in the database.",
-            variant: "destructive"
-          });
-        }
+        // RLS might have prevented deletion without throwing an error
+        toast({
+          title: "Access denied",
+          description: "You don't have permission to delete this design or it doesn't exist.",
+          variant: "destructive"
+        });
         return false;
       }
       
