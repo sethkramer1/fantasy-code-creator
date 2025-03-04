@@ -4,6 +4,12 @@ export const updateTerminalOutput = (
   newContent: string, 
   isNewMessage = false
 ) => {
+  // Skip token information completely
+  if (isTokenInfo(newContent)) {
+    console.log("Skipping token info from terminal:", newContent);
+    return;
+  }
+
   setTerminalOutput(prev => {
     // Special markers that should always be on a new line
     if (isNewMessage || 
@@ -33,13 +39,13 @@ export const updateTerminalOutput = (
       
       // Add middle segments as new lines
       for (let i = 1; i < lines.length - 1; i++) {
-        if (lines[i]) {
+        if (lines[i] && !isTokenInfo(lines[i])) {
           result.push(`> ${lines[i]}`);
         }
       }
       
       // Add last segment if it exists
-      if (lines.length > 1 && lines[lines.length - 1]) {
+      if (lines.length > 1 && lines[lines.length - 1] && !isTokenInfo(lines[lines.length - 1])) {
         result.push(`> ${lines[lines.length - 1]}`);
       }
       
@@ -193,10 +199,7 @@ export const processAnthropicStream = async (
           switch (data.type) {
             case 'message_start':
               updateTerminalOutputFn("> Starting response generation...", true);
-              // Only show input tokens, not in the code response
-              if (data.message?.usage) {
-                updateTerminalOutputFn(`> Input tokens: ${data.message.usage.input_tokens}`, true);
-              }
+              // Don't show token info in terminal
               isInitialGeneration = false; // First message received
               break;
               
@@ -216,16 +219,10 @@ export const processAnthropicStream = async (
                 }
               } else if (data.delta?.type === 'text_delta') {
                 const contentChunk = data.delta.text || '';
-                if (contentChunk) {
-                  // Check if this is token information
-                  if (isTokenInfo(contentChunk)) {
-                    // Display token info in terminal only
-                    updateTerminalOutputFn(`> Token info: ${contentChunk}`, true);
-                  } else {
-                    // Add to actual content and display in terminal
-                    content += contentChunk;
-                    updateTerminalOutputFn(`> ${contentChunk}`, false);
-                  }
+                if (contentChunk && !isTokenInfo(contentChunk)) {
+                  // Only add non-token content
+                  content += contentChunk;
+                  updateTerminalOutputFn(`> ${contentChunk}`, false);
                 }
               }
               break;
@@ -234,10 +231,7 @@ export const processAnthropicStream = async (
               if (data.delta?.stop_reason) {
                 updateTerminalOutputFn(`> Generation ${data.delta.stop_reason}`, true);
               }
-              // Show output tokens separately, not in the code response
-              if (data.usage?.output_tokens) {
-                updateTerminalOutputFn(`> Output tokens: ${data.usage.output_tokens}`, true);
-              }
+              // Don't show token info in terminal
               break;
               
             case 'message_stop':
@@ -276,30 +270,48 @@ export const processAnthropicStream = async (
 
 // Helper function to detect token information
 function isTokenInfo(text: string): boolean {
+  if (!text) return false;
+  
   // Check for various token info patterns
   return (
     text.includes("Tokens used:") ||
+    text.includes("Token usage:") ||
     text.includes("input tokens") ||
     text.includes("output tokens") ||
     /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
-    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) // Pattern like "264 input tokens, 1543 output tokens"
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) || // Pattern like "264 input tokens, 1543 output tokens"
+    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) || // Pattern like "input: 264, output: 1543"
+    /\b(input|output)\b.*?\b\d+\b/.test(text) // Pattern with "input" or "output" followed by numbers
   );
 }
 
 // Helper function to remove token information from content
 function removeTokenInfo(content: string): string {
+  if (!content) return content;
+
   // Remove full lines containing token information
   content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
+  content = content.replace(/.*?input:?\s*\d+\s*,?\s*output:?\s*\d+.*?\n/g, '');
   
   // Remove inline token information (without newlines)
   content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?(?=\s)/g, '');
   content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
   content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
+  content = content.replace(/input:?\s*\d+\s*,?\s*output:?\s*\d+/g, '');
   
   // Clean up any remaining token information that might be in different formats
   content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
+  content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
+  content = content.replace(/\b\d+ tokens\b/g, '');
+  content = content.replace(/\btokens: \d+\b/g, '');
   
-  return content;
+  // Remove any residual patterns with just numbers that might be token counts
+  content = content.replace(/\b\d+ input\b/g, '');
+  content = content.replace(/\b\d+ output\b/g, '');
+  
+  return content.trim();
 }

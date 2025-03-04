@@ -91,24 +91,19 @@ export const callAnthropicApi = async (
                 onThinking(thinking);
               }
             }
-            // Handle text content - filter out token information
+            // Handle text content - completely filter out token information
             else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
               const content = data.delta.text || '';
-              if (content && onContent) {
-                // Don't add token information to the actual content
-                if (!isTokenInfo(content)) {
-                  combinedContent += content;
-                  onContent(content);
-                } else {
-                  // Still call onContent to show token info in terminal, but don't add to combinedContent
-                  onContent(content);
-                }
+              if (content && onContent && !isTokenInfo(content)) {
+                // Only add non-token information to the content
+                combinedContent += content;
+                onContent(content);
               }
             }
-            // Handle token information separately
+            // Track token information internally but don't display it
             else if (data.type === 'message_delta' && data.usage) {
               console.log("Received token usage:", data.usage);
-              // Don't add this to the content, but you could call a callback if needed
+              // We're intentionally not calling onContent for token info
             }
             // Handle errors
             else if (data.type === 'error' && onError) {
@@ -133,7 +128,7 @@ export const callAnthropicApi = async (
       // Remove token information from the actual content
       gameContent = removeTokenInfo(gameContent);
       
-      // Extract token information if available
+      // Extract token information if available (for internal tracking only)
       const tokenInfo = data.usage ? {
         inputTokens: data.usage.input_tokens,
         outputTokens: data.usage.output_tokens
@@ -155,25 +150,38 @@ function isTokenInfo(text: string): boolean {
     text.includes("Tokens used:") ||
     text.includes("input tokens") ||
     text.includes("output tokens") ||
+    text.includes("Token usage:") ||
     /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
-    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) // Pattern like "264 input tokens, 1543 output tokens"
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) || // Pattern like "264 input tokens, 1543 output tokens"
+    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) // Pattern like "input: 264, output: 1543"
   );
 }
 
 // Helper function to remove token information from content
 function removeTokenInfo(content: string): string {
+  if (!content) return content;
+
   // Remove full lines containing token information
   content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
+  content = content.replace(/.*?input:?\s*\d+\s*,?\s*output:?\s*\d+.*?\n/g, '');
   
   // Remove inline token information (without newlines)
   content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?(?=\s)/g, '');
   content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
   content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
+  content = content.replace(/input:?\s*\d+\s*,?\s*output:?\s*\d+/g, '');
   
   // Clean up any remaining token information that might be in different formats
   content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
+  content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
+  
+  // Additional cleanup to catch any remaining patterns
+  content = content.replace(/\b\d+ tokens\b/g, '');
+  content = content.replace(/\btokens: \d+\b/g, '');
   
   return content;
 }

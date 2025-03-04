@@ -22,13 +22,18 @@ function extractBase64FromDataUrl(dataUrl: string): string {
 }
 
 function isTokenInfo(text) {
+  if (!text) return false;
+  
   // Check for various token info patterns
   return (
     text.includes("Tokens used:") ||
+    text.includes("Token usage:") ||
     text.includes("input tokens") ||
     text.includes("output tokens") ||
     /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
-    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) // Pattern like "264 input tokens, 1543 output tokens"
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) || // Pattern like "264 input tokens, 1543 output tokens"
+    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) || // Pattern like "input: 264, output: 1543"
+    /\b(input|output)\b.*?\b\d+\b/.test(text) // Pattern with "input" or "output" followed by numbers
   );
 }
 
@@ -37,18 +42,29 @@ function removeTokenInfo(content) {
   
   // Remove full lines containing token information
   content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
+  content = content.replace(/.*?input:?\s*\d+\s*,?\s*output:?\s*\d+.*?\n/g, '');
   
   // Remove inline token information (without newlines)
   content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?(?=\s)/g, '');
   content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
   content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
+  content = content.replace(/input:?\s*\d+\s*,?\s*output:?\s*\d+/g, '');
   
   // Clean up any remaining token information that might be in different formats
   content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
+  content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
+  content = content.replace(/\b\d+ tokens\b/g, '');
+  content = content.replace(/\btokens: \d+\b/g, '');
   
-  return content;
+  // Remove any residual patterns with just numbers that might be token counts
+  content = content.replace(/\b\d+ input\b/g, '');
+  content = content.replace(/\b\d+ output\b/g, '');
+  
+  return content.trim();
 }
 
 serve(async (req) => {
@@ -193,8 +209,7 @@ Return only the full new HTML code with all needed CSS and JavaScript embedded. 
             
 Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
 
-After the code, please include a single line with token information in exactly this format:
-"Tokens used: <input_count> input, <output_count> output"
+DO NOT include any token information in your response. Do not add comments about token usage or any metrics.
 
 Follow these structure requirements precisely and generate clean, semantic, and accessible code.`;
 
@@ -282,7 +297,6 @@ Follow these structure requirements precisely and generate clean, semantic, and 
     if (!requestBody.stream) {
       try {
         const responseData = await response.json();
-        const content = responseData.content.join('');
         
         const inputTokens = responseData.usage?.input_tokens;
         const outputTokens = responseData.usage?.output_tokens;
@@ -359,6 +373,20 @@ Follow these structure requirements precisely and generate clean, semantic, and 
               }
             }
           }
+        }
+        
+        if (responseData.content && Array.isArray(responseData.content)) {
+          responseData.content = responseData.content.map(item => {
+            if (typeof item === 'object' && item.type === 'text') {
+              return {
+                ...item,
+                text: removeTokenInfo(item.text)
+              };
+            }
+            return item;
+          });
+        } else if (responseData.content) {
+          responseData.content = removeTokenInfo(responseData.content);
         }
         
         return new Response(JSON.stringify(responseData), {
