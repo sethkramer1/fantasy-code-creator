@@ -1,6 +1,6 @@
 
 import { Game } from "@/types/game";
-import { Loader2, ArrowUpRight, Trash2 } from "lucide-react";
+import { Loader2, ArrowUpRight, Trash2, Globe, Lock } from "lucide-react";
 import { getTypeInfo, prepareIframeContent } from "./utils/gamesListUtils";
 import { useEffect, useState, MouseEvent } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -19,9 +19,10 @@ interface GameCardProps {
   gameCode: string | undefined;
   onClick: () => void;
   onDelete?: (gameId: string) => Promise<boolean>;
+  showVisibility?: boolean;
 }
 
-export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
+export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = false }: GameCardProps) {
   const { label, badgeColor } = getTypeInfo(game.type);
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -49,6 +50,9 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
     localAdminStatus || 
     (user?.id && game.user_id === user.id)
   );
+  
+  // Is the current user the owner of this game?
+  const isOwner = user?.id && game.user_id === user.id;
   
   console.log(`GameCard ${game.id}: admin=${localAdminStatus}, canDelete=${canDelete}, user=${user?.id}, userEmail=${user?.email}, gameOwner=${game.user_id}`);
   
@@ -128,12 +132,25 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
                 {game.prompt}
               </p>
               
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {game.type && (
                   <span className={`text-xs px-2.5 py-1 ${badgeColor} whitespace-nowrap flex-shrink-0 font-medium`}>
                     {label.split(' ')[0]}
                   </span>
                 )}
+                
+                {showVisibility && (
+                  <span className={`text-xs px-2.5 py-1 flex items-center gap-1 whitespace-nowrap flex-shrink-0 font-medium ${
+                    game.visibility === 'public' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-gray-100 text-gray-800'
+                  }`}>
+                    {game.visibility === 'public' 
+                      ? <><Globe size={12} /> Public</> 
+                      : <><Lock size={12} /> Private</>}
+                  </span>
+                )}
+                
                 {localAdminStatus && !game.user_id && (
                   <span className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 whitespace-nowrap flex-shrink-0 font-medium">
                     Anonymous

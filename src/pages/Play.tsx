@@ -244,6 +244,47 @@ const Play = () => {
       });
     }
   };
+  
+  const handleVisibilityChange = async (newVisibility: string) => {
+    if (!gameId || !user) return;
+    
+    try {
+      // Check if user is the owner of the game
+      if (game?.user_id !== user.id) {
+        toast({
+          title: "Permission denied",
+          description: "You can only change visibility of your own designs",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Update visibility in database
+      const { error } = await supabase
+        .from('games')
+        .update({ visibility: newVisibility })
+        .eq('id', gameId)
+        .eq('user_id', user.id);
+      
+      if (error) throw error;
+      
+      // Update local game state
+      if (game) {
+        setGame({
+          ...game,
+          visibility: newVisibility
+        });
+      }
+      
+    } catch (error) {
+      console.error("Error changing visibility:", error);
+      toast({
+        title: "Error changing visibility",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    }
+  };
 
   if (!gameId) {
     return (
@@ -286,6 +327,9 @@ const Play = () => {
       <PlayNavbar
         gameId={gameId}
         gameName={initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading...")}
+        gameUserId={game?.user_id}
+        visibility={game?.visibility}
+        onVisibilityChange={handleVisibilityChange}
         showCodeEditor={showCode}
         onShowCodeEditorChange={setShowCode}
         onExport={() => {}}

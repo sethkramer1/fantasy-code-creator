@@ -6,7 +6,7 @@ import { GameCard } from "./GameCard";
 import { GamesEmptyState } from "./GamesEmptyState";
 import { GamesLoadingState } from "./GamesLoadingState";
 import { useGameVersions } from "@/hooks/useGameVersions";
-import { useAuth } from "@/context/AuthContext"; // Add this import
+import { useAuth } from "@/context/AuthContext";
 import { 
   Pagination, 
   PaginationContent, 
@@ -14,6 +14,8 @@ import {
   PaginationNext, 
   PaginationPrevious 
 } from "@/components/ui/pagination";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface GamesListProps {
   games: Game[];
@@ -31,8 +33,9 @@ export function GamesList({
   const [selectedType, setSelectedType] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const pageSize = 9; // Number of designs per page (changed from 24)
-  const { checkIsAdmin } = useAuth(); // Get the checkIsAdmin function
+  const [viewMode, setViewMode] = useState<"user" | "community">("user");
+  const pageSize = 9; // Number of designs per page
+  const { user, checkIsAdmin } = useAuth();
   
   // Force admin status check on component mount
   useEffect(() => {
@@ -43,20 +46,34 @@ export function GamesList({
     refreshAdminStatus();
   }, [checkIsAdmin]);
   
-  // Use useMemo to prevent unnecessary recalculations
+  // Filter games based on view mode and other filters
   const filteredGames = useMemo(() => {
     return games.filter(game => {
+      // Filter by view mode
+      if (viewMode === "user") {
+        // Only show user's designs
+        if (user && game.user_id !== user.id) {
+          return false;
+        }
+      } else if (viewMode === "community") {
+        // Show all public designs
+        if (game.visibility !== "public") {
+          return false;
+        }
+      }
+      
+      // Apply type and search filters
       const matchesType = !selectedType || game.type === selectedType;
       const matchesSearch = !searchQuery || 
         (game.prompt && game.prompt.toLowerCase().includes(searchQuery.toLowerCase()));
       return matchesType && matchesSearch;
     });
-  }, [games, selectedType, searchQuery]);
+  }, [games, selectedType, searchQuery, viewMode, user]);
 
-  // Reset to first page when filters change
+  // Reset to first page when filters or view mode change
   useEffect(() => {
     setCurrentPage(1);
-  }, [selectedType, searchQuery]);
+  }, [selectedType, searchQuery, viewMode]);
 
   // Calculate pagination values
   const totalPages = Math.max(1, Math.ceil(filteredGames.length / pageSize));
@@ -86,6 +103,18 @@ export function GamesList({
 
   return (
     <div className="glass-panel p-8 card-shadow">
+      <Tabs
+        defaultValue="user"
+        value={viewMode}
+        onValueChange={(value) => setViewMode(value as "user" | "community")}
+        className="mb-6"
+      >
+        <TabsList className="grid w-full max-w-md grid-cols-2">
+          <TabsTrigger value="user">Your Designs</TabsTrigger>
+          <TabsTrigger value="community">Community Designs</TabsTrigger>
+        </TabsList>
+      </Tabs>
+      
       <GamesFilter 
         games={games}
         selectedType={selectedType}
@@ -112,6 +141,7 @@ export function GamesList({
                 gameCode={gameCodeVersions[game.id]}
                 onClick={() => onGameClick(game.id)}
                 onDelete={onGameDelete}
+                showVisibility={true}
               />
             ))}
           </div>
