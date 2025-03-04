@@ -169,10 +169,20 @@ Do not include any explanations, markdown formatting or code blocks - only retur
       const data = await response.json();
       const content = data.content[0]?.text || '';
       
+      // Extract and include token usage for non-streaming responses
+      const tokenInfo = data.usage ? {
+        input_tokens: data.usage.input_tokens,
+        output_tokens: data.usage.output_tokens
+      } : null;
+      
       console.log('Non-streaming response processed, content length:', content.length);
+      console.log('Token usage information:', tokenInfo || 'Not available');
       
       return new Response(
-        JSON.stringify({ content }),
+        JSON.stringify({ 
+          content,
+          usage: tokenInfo // Include token usage in the response
+        }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "./types";
 
@@ -96,7 +97,7 @@ export const trackTokenUsage = async (
   try {
     if (!gameId) {
       console.error("Cannot track token usage: gameId is required");
-      return;
+      return null;
     }
     
     // Validate input to avoid bad database entries
@@ -104,6 +105,7 @@ export const trackTokenUsage = async (
     const validOutputTokens = Math.max(1, isNaN(outputTokens) ? 0 : outputTokens);
     
     console.log(`Tracking token usage: ${validInputTokens} input / ${validOutputTokens} output tokens for model ${modelType}`);
+    console.log(`Message ID: ${messageId}, Game ID: ${gameId}, User ID: ${userId || 'anonymous'}`);
     
     const insertData = {
       user_id: userId,
@@ -114,6 +116,8 @@ export const trackTokenUsage = async (
       output_tokens: validOutputTokens,
       model_type: modelType
     };
+    
+    console.log("Insert data for token_usage:", insertData);
     
     const { data, error } = await supabase
       .from('token_usage')

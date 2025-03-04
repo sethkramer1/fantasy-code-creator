@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ModelType } from "@/types/generation";
@@ -182,19 +183,23 @@ export function usePlayTerminal(
       let content = '';
       let inputTokens = 0;
       let outputTokens = 0;
+      let tokenInfoExtracted = false;
       
       if (modelType === "smart" && response.body) {
         const reader = response.body.getReader();
         updateTerminalOutputWrapper("> Stream connected, processing real-time content...", true);
         content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
         
+        // Look for token usage information in the content
         const usageMatch = content.match(/Tokens used: (\d+) input, (\d+) output/);
         if (usageMatch) {
           inputTokens = parseInt(usageMatch[1], 10);
           outputTokens = parseInt(usageMatch[2], 10);
+          tokenInfoExtracted = true;
           updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
           console.log("Extracted token usage from stream:", inputTokens, outputTokens);
         } else {
+          // Fallback to estimating if we can't extract
           inputTokens = Math.ceil(initialPrompt.length / 4);
           outputTokens = Math.ceil(content.length / 4);
           updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
@@ -215,25 +220,38 @@ export function usePlayTerminal(
         
         content = data.content;
         
-        if (data.tokenInfo) {
+        // Try to extract token usage from different possible response formats
+        if (data.usage) {
+          // First check for Anthropic format
+          if (data.usage.input_tokens && data.usage.output_tokens) {
+            inputTokens = data.usage.input_tokens;
+            outputTokens = data.usage.output_tokens;
+            tokenInfoExtracted = true;
+            console.log("Using Anthropic token usage data:", inputTokens, outputTokens);
+          }
+          // Then check for Groq format
+          else if (data.usage.prompt_tokens && data.usage.completion_tokens) {
+            inputTokens = data.usage.prompt_tokens;
+            outputTokens = data.usage.completion_tokens;
+            tokenInfoExtracted = true;
+            console.log("Using Groq token usage data:", inputTokens, outputTokens);
+          }
+          
+          if (tokenInfoExtracted) {
+            updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+          }
+        } 
+        // Try alternative response format
+        else if (data.tokenInfo) {
           inputTokens = data.tokenInfo.inputTokens || Math.ceil(initialPrompt.length / 4);
           outputTokens = data.tokenInfo.outputTokens || Math.ceil(content.length / 4);
+          tokenInfoExtracted = true;
           updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
           console.log("Using tokenInfo data:", inputTokens, outputTokens);
-        } else if (data.usage) {
-          if (data.usage.prompt_tokens && data.usage.completion_tokens) {
-            inputTokens = data.usage.prompt_tokens || Math.ceil(initialPrompt.length / 4);
-            outputTokens = data.usage.completion_tokens || Math.ceil(content.length / 4);
-          } else if (data.usage.input_tokens && data.usage.output_tokens) {
-            inputTokens = data.usage.input_tokens || Math.ceil(initialPrompt.length / 4);
-            outputTokens = data.usage.output_tokens || Math.ceil(content.length / 4);
-          } else {
-            inputTokens = Math.ceil(initialPrompt.length / 4);
-            outputTokens = Math.ceil(content.length / 4);
-          }
-          updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
-          console.log("Using usage data:", inputTokens, outputTokens);
-        } else {
+        }
+        
+        // If we still don't have token info, estimate based on text length
+        if (!tokenInfoExtracted) {
           inputTokens = Math.ceil(initialPrompt.length / 4);
           outputTokens = Math.ceil(content.length / 4);
           updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
@@ -253,7 +271,7 @@ export function usePlayTerminal(
       
       if (gameId) {
         try {
-          const initialMessageId = `initial-${gameId}`;
+          const initialMessageId = `initial-generation-${gameId}`;
           
           console.log("Tracking token usage for initial generation:", {
             gameId,
@@ -263,7 +281,7 @@ export function usePlayTerminal(
             modelType
           });
           
-          await trackTokenUsage(
+          const result = await trackTokenUsage(
             user?.id,
             gameId,
             initialMessageId,
@@ -273,8 +291,12 @@ export function usePlayTerminal(
             modelType
           );
           
-          updateTerminalOutputWrapper("> Token usage tracked for initial generation", true);
-          console.log("Token usage tracked successfully");
+          if (result) {
+            updateTerminalOutputWrapper("> Token usage tracked for initial generation", true);
+            console.log("Token usage tracked successfully with ID:", result.id);
+          } else {
+            updateTerminalOutputWrapper("> Warning: Token usage tracking returned null", true);
+          }
         } catch (error) {
           console.error("Error tracking token usage:", error);
           updateTerminalOutputWrapper(`> Warning: Failed to track token usage: ${error.message}`, true);

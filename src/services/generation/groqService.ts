@@ -40,6 +40,11 @@ export const callGroqApi = async (
   
   callbacks?.onStreamStart();
   
+  console.log("Calling Groq API with:", {
+    promptLength: finalPrompt.length,
+    imageUrl: imageUrl ? "provided" : "none"
+  });
+  
   const response = await fetch(
     GROQ_API_ENDPOINT,
     {
@@ -105,6 +110,10 @@ export const callGroqApi = async (
     };
     
     callbacks?.onContent(`Tokens used: ${tokenInfo.inputTokens} input, ${tokenInfo.outputTokens} output`);
+    console.log("Extracted token usage from Groq:", tokenInfo);
+  } else {
+    console.log("No token usage info in Groq response, using estimates");
+    tokenInfo.outputTokens = Math.ceil(gameContent.length / 4);
   }
 
   console.log("Final token usage for Groq:", tokenInfo);
