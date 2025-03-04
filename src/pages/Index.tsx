@@ -11,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ModelType } from "@/types/generation";
-import { saveInitialGenerationTokens } from "@/services/generation/tokenTrackingService";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
@@ -120,26 +119,6 @@ const Index = () => {
         console.error("Error creating placeholder version:", versionError);
       }
       
-      const estimatedInputTokens = Math.ceil(prompt.length / 4);
-      const estimatedOutputTokens = 1;
-      
-      console.log(`Creating initial token usage record for game ${placeholderGame.id}`);
-      
-      const tokenSaved = await saveInitialGenerationTokens(
-        user?.id,
-        placeholderGame.id,
-        prompt,
-        modelType,
-        estimatedInputTokens,
-        estimatedOutputTokens
-      );
-      
-      if (tokenSaved) {
-        console.log("Initial token usage record created successfully");
-      } else {
-        console.warn("Initial token tracking failed, will retry during generation");
-      }
-
       let navigationParams = `?generating=true&type=${gameType}&modelType=${modelType}`;
       
       if (imageUrl) {

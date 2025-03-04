@@ -28,10 +28,34 @@ export const saveInitialGenerationTokens = async (
     console.log(`[TOKEN TRACKING] Saving initial generation tokens for game ${gameId}`);
     console.log(`[TOKEN TRACKING] Model: ${modelType}, Input: ${validInputTokens}, Output: ${validOutputTokens}`);
     
-    // Use a consistent message ID format for initial generations
-    const messageId = `initial-generation-${gameId}`;
+    // Unlike before, we're NOT going to create a string message ID
+    // We'll create a proper UUID for the initial message to match what happens with later edits
+    const { data: messageData, error: messageError } = await supabase
+      .from('game_messages')
+      .insert({
+        game_id: gameId,
+        message: "Initial Generation",
+        response: "Generating initial content...",
+        is_system: true,
+        model_type: modelType
+      })
+      .select('id')
+      .single();
+      
+    if (messageError) {
+      console.error("[TOKEN TRACKING] Error creating initial message record:", messageError);
+      return false;
+    }
     
-    // Check if a record already exists for this initial generation
+    if (!messageData?.id) {
+      console.error("[TOKEN TRACKING] Failed to get ID from created message");
+      return false;
+    }
+    
+    const messageId = messageData.id;
+    console.log(`[TOKEN TRACKING] Created message record with ID: ${messageId}`);
+    
+    // Check if a record already exists for this initial generation message
     const { data: existingData, error: checkError } = await supabase
       .from('token_usage')
       .select('id')
@@ -94,23 +118,60 @@ export const saveInitialGenerationTokens = async (
     
   } catch (error) {
     console.error("[TOKEN TRACKING] Critical error saving tokens:", error);
-    // Attempt a fallback insertion with minimal data if possible
-    try {
-      await supabase
-        .from('token_usage')
-        .insert({
-          game_id: gameId,
-          message_id: `initial-generation-${gameId}`,
-          prompt: prompt.substring(0, 100) + "... (truncated)",
-          input_tokens: Math.ceil(prompt.length / 4),
-          output_tokens: 1,
-          model_type: modelType || "unknown",
-          user_id: userId
-        });
-      console.log("[TOKEN TRACKING] Emergency fallback token record created");
-    } catch (fallbackError) {
-      console.error("[TOKEN TRACKING] Even fallback insertion failed:", fallbackError);
+    return false;
+  }
+};
+
+/**
+ * Update token counts for an existing message
+ * This can be used to update the token counts after generation completes
+ */
+export const updateTokenCounts = async (
+  messageId: string,
+  inputTokens: number,
+  outputTokens: number
+): Promise<boolean> => {
+  try {
+    if (!messageId) {
+      console.error("[TOKEN TRACKING] Cannot update token counts: messageId is required");
+      return false;
     }
+
+    // Find the token usage record for this message
+    const { data: existingData, error: checkError } = await supabase
+      .from('token_usage')
+      .select('id')
+      .eq('message_id', messageId)
+      .maybeSingle();
+      
+    if (checkError) {
+      console.error("[TOKEN TRACKING] Error checking for existing token usage:", checkError);
+      return false;
+    }
+    
+    if (!existingData?.id) {
+      console.error("[TOKEN TRACKING] No token usage record found for message:", messageId);
+      return false;
+    }
+
+    // Update the token counts
+    const { error: updateError } = await supabase
+      .from('token_usage')
+      .update({
+        input_tokens: Math.max(1, inputTokens),
+        output_tokens: Math.max(1, outputTokens)
+      })
+      .eq('id', existingData.id);
+      
+    if (updateError) {
+      console.error("[TOKEN TRACKING] Error updating token counts:", updateError);
+      return false;
+    }
+    
+    console.log("[TOKEN TRACKING] Token counts updated successfully for message:", messageId);
+    return true;
+  } catch (error) {
+    console.error("[TOKEN TRACKING] Error updating token counts:", error);
     return false;
   }
 };

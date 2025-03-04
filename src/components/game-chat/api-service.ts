@@ -100,6 +100,11 @@ export const trackTokenUsage = async (
       return null;
     }
     
+    if (!messageId) {
+      console.error("Cannot track token usage: messageId is required");
+      return null;
+    }
+    
     // Validate input to avoid bad database entries
     const validInputTokens = Math.max(1, isNaN(inputTokens) ? Math.ceil(prompt.length / 4) : inputTokens);
     const validOutputTokens = Math.max(1, isNaN(outputTokens) ? 0 : outputTokens);
@@ -137,7 +142,7 @@ export const trackTokenUsage = async (
         
       if (updateError) {
         console.error("[TOKEN TRACKING] Error updating token usage:", updateError);
-        throw updateError;
+        return null;
       }
       
       console.log("[TOKEN TRACKING] Token usage updated successfully with ID:", updatedData?.id);
@@ -165,7 +170,7 @@ export const trackTokenUsage = async (
     
     if (error) {
       console.error("[TOKEN TRACKING] Error tracking token usage:", error);
-      throw error;
+      return null;
     }
     
     console.log("[TOKEN TRACKING] Token usage tracked successfully with ID:", data?.id);

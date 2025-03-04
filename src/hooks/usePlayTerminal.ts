@@ -5,7 +5,7 @@ import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { useAuth } from "@/context/AuthContext";
 import { updateTerminalOutput, processAnthropicStream } from "@/components/game-chat/terminal-utils";
 import { trackTokenUsage } from "@/components/game-chat/api-service";
-import { saveInitialGenerationTokens } from "@/services/generation/tokenTrackingService";
+import { saveInitialGenerationTokens, updateTokenCounts } from "@/services/generation/tokenTrackingService";
 
 interface TerminalState {
   generationInProgress: boolean;
@@ -184,6 +184,49 @@ export function usePlayTerminal(
       let inputTokens = 0;
       let outputTokens = 0;
       let tokenInfoExtracted = false;
+      let initialMessageId = '';
+      
+      const { data: messageData, error: messageError } = await supabase
+        .from('game_messages')
+        .insert({
+          game_id: gameId,
+          message: "Initial Generation",
+          response: "Processing initial content...",
+          is_system: true,
+          model_type: modelType
+        })
+        .select('id')
+        .single();
+        
+      if (messageError) {
+        console.error("Error creating initial message:", messageError);
+      } else if (messageData?.id) {
+        initialMessageId = messageData.id;
+        console.log("Created initial message for token tracking:", initialMessageId);
+        
+        const estimatedInputTokens = Math.ceil(initialPrompt.length / 4);
+        const estimatedOutputTokens = 1;
+        
+        const { data: tokenData, error: tokenError } = await supabase
+          .from('token_usage')
+          .insert({
+            user_id: user?.id,
+            game_id: gameId,
+            message_id: initialMessageId,
+            prompt: initialPrompt.substring(0, 5000),
+            input_tokens: estimatedInputTokens,
+            output_tokens: estimatedOutputTokens,
+            model_type: modelType
+          })
+          .select('id')
+          .single();
+          
+        if (tokenError) {
+          console.error("Error creating initial token record:", tokenError);
+        } else {
+          console.log("Created initial token record:", tokenData.id);
+        }
+      }
       
       if (modelType === "smart" && response.body) {
         const reader = response.body.getReader();
@@ -260,55 +303,34 @@ export function usePlayTerminal(
         throw new Error("Received empty or invalid content from generation");
       }
       
-      if (gameId) {
+      if (initialMessageId && tokenInfoExtracted) {
+        const updated = await updateTokenCounts(initialMessageId, inputTokens, outputTokens);
+        if (updated) {
+          updateTerminalOutputWrapper("> Token usage updated with actual counts", true);
+          console.log("Token usage updated with actual counts");
+        }
+      } else if (gameId) {
         try {
-          const tokenSaved = await saveInitialGenerationTokens(
+          const result = await trackTokenUsage(
             user?.id,
             gameId,
+            initialMessageId || `generation-${gameId}`,
             initialPrompt,
-            modelType,
             inputTokens,
-            outputTokens
+            outputTokens,
+            modelType
           );
           
-          if (tokenSaved) {
-            updateTerminalOutputWrapper("> Token usage saved to database", true);
-            console.log("Token usage saved successfully for initial generation");
+          if (result) {
+            updateTerminalOutputWrapper("> Token usage tracked successfully", true);
+            console.log("Token usage tracked successfully with ID:", result.id);
           } else {
-            const initialMessageId = `initial-generation-${gameId}`;
-            
-            console.log("Using backup method for token tracking:", {
-              gameId,
-              initialMessageId,
-              inputTokens,
-              outputTokens,
-              modelType
-            });
-            
-            const result = await trackTokenUsage(
-              user?.id,
-              gameId,
-              initialMessageId,
-              initialPrompt,
-              inputTokens,
-              outputTokens,
-              modelType
-            );
-            
-            if (result) {
-              updateTerminalOutputWrapper("> Token usage tracked using backup method", true);
-              console.log("Token usage tracked successfully with backup method, ID:", result.id);
-            } else {
-              updateTerminalOutputWrapper("> Warning: Token usage tracking failed", true);
-            }
+            updateTerminalOutputWrapper("> Warning: Token usage tracking failed", true);
           }
         } catch (error) {
           console.error("Error tracking token usage:", error);
           updateTerminalOutputWrapper(`> Warning: Failed to track token usage: ${error.message}`, true);
         }
-      } else {
-        console.error("Cannot track token usage: gameId is undefined");
-        updateTerminalOutputWrapper("> Warning: Cannot track token usage (missing gameId)", true);
       }
       
       updateTerminalOutputWrapper("> Processing and saving generated content...", true);
@@ -346,11 +368,22 @@ export function usePlayTerminal(
       
       updateTerminalOutputWrapper("> Content saved successfully", true);
       
-      await supabase
-        .from('game_messages')
-        .update({ response: "Generating initial content..." })
-        .eq('game_id', gameId)
-        .is('response', null);
+      if (initialMessageId) {
+        const { error: messageUpdateError } = await supabase
+          .from('game_messages')
+          .update({ response: "Initial content generated successfully" })
+          .eq('id', initialMessageId);
+          
+        if (messageUpdateError) {
+          console.error("Error updating initial message:", messageUpdateError);
+        }
+      } else {
+        await supabase
+          .from('game_messages')
+          .update({ response: "Initial content generated successfully" })
+          .eq('game_id', gameId)
+          .is('response', null);
+      }
         
       console.log("Generation completed successfully");
       
