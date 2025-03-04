@@ -10,9 +10,6 @@ import { usePlayTerminal } from "@/hooks/usePlayTerminal";
 import { useToast } from "@/components/ui/use-toast";
 import { ViewToggle } from "@/components/game-player/ViewToggle";
 import { VersionHistory } from "@/components/game-player/components/VersionHistory";
-import { useAuth } from "@/context/AuthContext";
-import { forceTokenTracking } from "@/services/generation/tokenTrackingService";
-import { supabase } from "@/integrations/supabase/client";
 import JSZip from 'jszip';
 
 const Play = () => {
@@ -24,8 +21,6 @@ const Play = () => {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const { toast } = useToast();
   const contentInitializedRef = useRef(false);
-  const tokenCheckPerformedRef = useRef(false);
-  const { user } = useAuth();
   
   const generating = searchParams.get("generating") === "true";
   const initialType = searchParams.get("type") || "webdesign";
@@ -78,60 +73,9 @@ const Play = () => {
            version.code.length > 100;
   }, [displayedVersion]);
 
-  const checkForTokenData = useCallback(async () => {
-    if (!gameId || !game || tokenCheckPerformedRef.current || generationInProgress) {
-      return;
-    }
-    
-    try {
-      tokenCheckPerformedRef.current = true;
-      console.log("[TOKEN TRACKING] Checking for existing token data for game:", gameId);
-      
-      const { data, error } = await supabase
-        .from('token_usage')
-        .select('id, input_tokens, output_tokens')
-        .eq('game_id', gameId)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-        
-      if (error) {
-        console.error("[TOKEN TRACKING] Error checking for token data:", error);
-        return;
-      }
-      
-      if (!data) {
-        console.log("[TOKEN TRACKING] No token data found, creating backup record");
-        
-        if (game.code && game.prompt) {
-          const estimatedInputTokens = Math.ceil(game.prompt.length / 4);
-          const estimatedOutputTokens = Math.ceil(game.code.length / 4);
-          
-          console.log(`[TOKEN TRACKING] Creating backup token record with estimated values - Input: ${estimatedInputTokens}, Output: ${estimatedOutputTokens}`);
-          
-          await forceTokenTracking(
-            gameId,
-            user?.id,
-            game.prompt,
-            game.model_type || 'smart',
-            estimatedInputTokens,
-            estimatedOutputTokens
-          );
-          
-          console.log("[TOKEN TRACKING] Backup token record created");
-        }
-      } else {
-        console.log("[TOKEN TRACKING] Found existing token data:", data);
-      }
-    } catch (checkError) {
-      console.error("[TOKEN TRACKING] Error in token data check:", checkError);
-    }
-  }, [gameId, game, user?.id, generationInProgress]);
-
   useEffect(() => {
     generationHandledRef.current = false;
     contentInitializedRef.current = false;
-    tokenCheckPerformedRef.current = false;
     setSelectedVersionId(null);
   }, [gameId]);
 
@@ -173,12 +117,8 @@ const Play = () => {
     if (hasValidContent() && !contentInitializedRef.current) {
       contentInitializedRef.current = true;
       console.log("Content initialized successfully");
-      
-      if (game && gameId && !tokenCheckPerformedRef.current) {
-        checkForTokenData();
-      }
     }
-  }, [hasValidContent, game, gameId, checkForTokenData]);
+  }, [hasValidContent]);
 
   useEffect(() => {
     setSelectedVersionId(null);

@@ -241,12 +241,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      increment_version: {
-        Args: {
-          game_id_param: string
-        }
-        Returns: undefined
-      }
+      [_ in never]: never
     }
     Enums: {
       [_ in never]: never

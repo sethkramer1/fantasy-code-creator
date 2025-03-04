@@ -1,23 +1,11 @@
 
+
 export interface Game {
   id: string;
   prompt: string;
   created_at: string;
   type?: string;
   thumbnail_url?: string;
-}
-
-export interface GameData {
-  id: string;
-  code: string;
-  prompt: string;
-  type?: string;
-  created_at: string;
-  current_version?: number;
-  model_type?: string;
-  visibility?: string;
-  instructions?: string;
-  user_id?: string;
 }
 
 export const contentTypes = [
@@ -58,3 +46,4 @@ export const contentTypes = [
     promptPrefix: 'Create an infographic with the following requirements. Use HTML and CSS:'
   }
 ] as const;
+

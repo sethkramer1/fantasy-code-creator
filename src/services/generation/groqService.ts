@@ -1,7 +1,6 @@
+
 import { contentTypes } from "@/types/game";
 import { getContentTypeInstructions } from "@/utils/contentTypeInstructions";
-import { supabase } from "@/integrations/supabase/client";
-import { saveInitialGenerationTokens } from "./tokenTrackingService";
 
 const GROQ_API_ENDPOINT = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-with-groq';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo';
@@ -17,9 +16,6 @@ export interface TokenInfo {
   inputTokens?: number;
   outputTokens?: number;
 }
-
-// Export the saveInitialGenerationTokens function from tokenTrackingService to maintain backward compatibility
-export { saveInitialGenerationTokens };
 
 export const callGroqApi = async (
   prompt: string,
@@ -39,14 +35,10 @@ export const callGroqApi = async (
   const enhancedPrompt = selectedType.promptPrefix + " " + prompt;
   const { systemInstructions } = getContentTypeInstructions(gameType);
   
+  // Combine the system instructions with the enhanced prompt and image URL
   const finalPrompt = `${systemInstructions}\n\n${enhancedPrompt}`;
   
   callbacks?.onStreamStart();
-  
-  console.log("[GROQ] Calling Groq API with:", {
-    promptLength: finalPrompt.length,
-    imageUrl: imageUrl ? "provided" : "none"
-  });
   
   const response = await fetch(
     GROQ_API_ENDPOINT,
@@ -102,9 +94,9 @@ export const callGroqApi = async (
     throw new Error("Invalid response format from Groq API");
   }
 
-  // Extract token usage information from the Groq response with better error handling
+  // Extract token usage information from the Groq response
   if (data.usage) {
-    console.log("[GROQ] Token usage from Groq:", data.usage);
+    console.log("Token usage from Groq:", data.usage);
     
     // In Groq's response, prompt_tokens are the input tokens and completion_tokens are the output tokens
     tokenInfo = {
@@ -113,12 +105,8 @@ export const callGroqApi = async (
     };
     
     callbacks?.onContent(`Tokens used: ${tokenInfo.inputTokens} input, ${tokenInfo.outputTokens} output`);
-    console.log("[GROQ] Extracted token usage from Groq:", tokenInfo);
-  } else {
-    console.log("[GROQ] No token usage info in Groq response, using estimates");
-    tokenInfo.outputTokens = Math.ceil(gameContent.length / 4);
   }
 
-  console.log("[GROQ] Final token usage for Groq:", tokenInfo);
+  console.log("Final token usage for Groq:", tokenInfo);
   return { response, gameContent, tokenInfo };
 };

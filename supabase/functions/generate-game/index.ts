@@ -1,7 +1,6 @@
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import "https://deno.land/x/xhr@0.1.0/mod.ts"
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.5.0'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,8 +8,6 @@ const corsHeaders = {
 };
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 
 // Function to extract Base64 data from a data URL
 function extractBase64FromDataUrl(dataUrl: string): string {
@@ -38,17 +35,7 @@ serve(async (req) => {
 
   try {
     const requestData = await req.json();
-    const { 
-      prompt, 
-      imageUrl, 
-      contentType, 
-      system, 
-      partialResponse, 
-      model = "claude-3-7-sonnet-20250219", 
-      stream = true, 
-      userId, 
-      gameId 
-    } = requestData;
+    const { prompt, imageUrl, contentType, system, partialResponse, model = "claude-3-7-sonnet-20250219", stream = true } = requestData;
     
     console.log("Received request with prompt:", prompt);
     console.log("Prompt raw:", JSON.stringify(prompt));
@@ -59,11 +46,6 @@ serve(async (req) => {
     console.log("Image URL provided:", imageUrl ? "Yes" : "No");
     console.log("Partial response provided:", partialResponse ? "Yes" : "No");
     console.log("Stream mode:", stream ? "Enabled" : "Disabled");
-    console.log("User ID:", userId || "Not provided");
-    console.log("Game ID:", gameId || "Not provided");
-    
-    // Initialize supabase client for token tracking
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
     
     // Improved validation to reject "Loading..." or very short prompts
     if (!prompt || typeof prompt !== 'string' || prompt === "Loading..." || prompt.trim() === "" || prompt.length < 3) {
@@ -174,59 +156,6 @@ Do not include any explanations, markdown formatting or code blocks - only retur
     
     if (stream) {
       console.log('Streaming response back to client');
-      
-      // For streaming mode, we need to create a token entry in the database
-      // with estimated token counts that can be updated later
-      if (gameId && userId) {
-        try {
-          console.log('[TOKEN TRACKING] Creating initial token record for streaming generation');
-          
-          // Create an initial message record for this generation
-          const { data: messageData, error: messageError } = await supabase
-            .from('game_messages')
-            .insert({
-              game_id: gameId,
-              message: "Initial Generation",
-              response: "Processing initial content...",
-              is_system: true,
-              model_type: requestBody.model
-            })
-            .select('id')
-            .single();
-            
-          if (messageError) {
-            console.error('[TOKEN TRACKING] Error creating initial message:', messageError);
-          } else if (messageData?.id) {
-            const messageId = messageData.id;
-            console.log('[TOKEN TRACKING] Created initial message for token tracking:', messageId);
-            
-            // Estimate input tokens (rough approximation)
-            const estimatedInputTokens = Math.ceil(prompt.length / 4);
-            
-            // Create token usage record with estimated values
-            const { error: tokenError } = await supabase
-              .from('token_usage')
-              .insert({
-                user_id: userId,
-                game_id: gameId,
-                message_id: messageId,
-                prompt: prompt.substring(0, 5000), // Truncate long prompts
-                input_tokens: estimatedInputTokens,
-                output_tokens: 1, // Placeholder, will be updated later
-                model_type: requestBody.model
-              });
-              
-            if (tokenError) {
-              console.error('[TOKEN TRACKING] Error creating token record:', tokenError);
-            } else {
-              console.log('[TOKEN TRACKING] Created initial token record with estimated values');
-            }
-          }
-        } catch (tokenError) {
-          console.error('[TOKEN TRACKING] Error in token tracking for streaming generation:', tokenError);
-        }
-      }
-      
       return new Response(response.body, {
         headers: {
           ...corsHeaders,
@@ -240,69 +169,10 @@ Do not include any explanations, markdown formatting or code blocks - only retur
       const data = await response.json();
       const content = data.content[0]?.text || '';
       
-      // Extract and include token usage for non-streaming responses
-      const inputTokens = data.usage?.input_tokens || Math.ceil(prompt.length / 4);
-      const outputTokens = data.usage?.output_tokens || Math.ceil(content.length / 4);
-      
       console.log('Non-streaming response processed, content length:', content.length);
-      console.log('Token usage information:', { inputTokens, outputTokens });
-      
-      // Record token usage in the database if gameId and userId are provided
-      if (gameId && userId) {
-        try {
-          console.log('[TOKEN TRACKING] Recording token usage for non-streaming generation');
-          
-          // Create a message record for this generation
-          const { data: messageData, error: messageError } = await supabase
-            .from('game_messages')
-            .insert({
-              game_id: gameId,
-              message: "Initial Generation",
-              response: content.substring(0, 5000), // Truncate long responses
-              is_system: true,
-              model_type: requestBody.model
-            })
-            .select('id')
-            .single();
-            
-          if (messageError) {
-            console.error('[TOKEN TRACKING] Error creating message record:', messageError);
-          } else if (messageData?.id) {
-            const messageId = messageData.id;
-            console.log('[TOKEN TRACKING] Created message record for token tracking:', messageId);
-            
-            // Create token usage record
-            const { error: tokenError } = await supabase
-              .from('token_usage')
-              .insert({
-                user_id: userId,
-                game_id: gameId,
-                message_id: messageId,
-                prompt: prompt.substring(0, 5000), // Truncate long prompts
-                input_tokens: inputTokens,
-                output_tokens: outputTokens,
-                model_type: requestBody.model
-              });
-              
-            if (tokenError) {
-              console.error('[TOKEN TRACKING] Error creating token record:', tokenError);
-            } else {
-              console.log('[TOKEN TRACKING] Token usage recorded successfully');
-            }
-          }
-        } catch (tokenError) {
-          console.error('[TOKEN TRACKING] Error in token tracking for non-streaming generation:', tokenError);
-        }
-      }
       
       return new Response(
-        JSON.stringify({ 
-          content,
-          usage: { 
-            input_tokens: inputTokens,
-            output_tokens: outputTokens
-          } 
-        }),
+        JSON.stringify({ content }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
