@@ -28,8 +28,7 @@ export const saveInitialGenerationTokens = async (
     console.log(`[TOKEN TRACKING] Saving initial generation tokens for game ${gameId}`);
     console.log(`[TOKEN TRACKING] Model: ${modelType}, Input: ${validInputTokens}, Output: ${validOutputTokens}`);
     
-    // Unlike before, we're NOT going to create a string message ID
-    // We'll create a proper UUID for the initial message to match what happens with later edits
+    // Create a message record first to get a proper UUID
     const { data: messageData, error: messageError } = await supabase
       .from('game_messages')
       .insert({
@@ -137,6 +136,9 @@ export const updateTokenCounts = async (
       return false;
     }
 
+    console.log(`[TOKEN TRACKING] Updating token counts for message ${messageId}`);
+    console.log(`[TOKEN TRACKING] New values - Input: ${inputTokens}, Output: ${outputTokens}`);
+
     // Find the token usage record for this message
     const { data: existingData, error: checkError } = await supabase
       .from('token_usage')
@@ -151,7 +153,39 @@ export const updateTokenCounts = async (
     
     if (!existingData?.id) {
       console.error("[TOKEN TRACKING] No token usage record found for message:", messageId);
-      return false;
+      
+      // Try to get the game_id from the message record
+      const { data: messageData, error: messageError } = await supabase
+        .from('game_messages')
+        .select('game_id, model_type')
+        .eq('id', messageId)
+        .single();
+        
+      if (messageError || !messageData) {
+        console.error("[TOKEN TRACKING] Error retrieving message data:", messageError);
+        return false;
+      }
+      
+      // Create a new token usage record since one doesn't exist
+      console.log(`[TOKEN TRACKING] Creating new token usage record for message ${messageId}`);
+      
+      const { error: insertError } = await supabase
+        .from('token_usage')
+        .insert({
+          message_id: messageId,
+          game_id: messageData.game_id,
+          model_type: messageData.model_type || 'unknown',
+          input_tokens: Math.max(1, inputTokens),
+          output_tokens: Math.max(1, outputTokens)
+        });
+        
+      if (insertError) {
+        console.error("[TOKEN TRACKING] Error creating token usage record:", insertError);
+        return false;
+      }
+      
+      console.log("[TOKEN TRACKING] New token usage record created successfully");
+      return true;
     }
 
     // Update the token counts
