@@ -59,7 +59,43 @@ export const useGames = () => {
         return false;
       }
       
-      // First delete related game_versions (if any)
+      // First delete related token_usage records
+      console.log("Deleting related token_usage records for game ID:", gameId);
+      const { error: tokenUsageError } = await supabase
+        .from('token_usage')
+        .delete()
+        .eq('game_id', gameId);
+      
+      if (tokenUsageError) {
+        console.error("Error deleting token usage records:", tokenUsageError);
+        // Continue with deletion process even if this fails
+      }
+      
+      // Also delete token_usage records that reference game_messages for this game
+      console.log("Deleting token_usage records linked to game_messages for game ID:", gameId);
+      
+      // First, get all message IDs for this game
+      const { data: messageIds, error: messageIdsError } = await supabase
+        .from('game_messages')
+        .select('id')
+        .eq('game_id', gameId);
+        
+      if (messageIdsError) {
+        console.error("Error fetching game message IDs:", messageIdsError);
+      } else if (messageIds && messageIds.length > 0) {
+        // Delete token_usage records referencing these message IDs
+        const ids = messageIds.map(msg => msg.id);
+        const { error: relatedTokenUsageError } = await supabase
+          .from('token_usage')
+          .delete()
+          .in('message_id', ids);
+          
+        if (relatedTokenUsageError) {
+          console.error("Error deleting token usage records for messages:", relatedTokenUsageError);
+        }
+      }
+      
+      // Then delete related game_versions
       console.log("Deleting related game_versions for game ID:", gameId);
       const { error: versionsError } = await supabase
         .from('game_versions')
@@ -68,10 +104,9 @@ export const useGames = () => {
       
       if (versionsError) {
         console.error("Error deleting game versions:", versionsError);
-        // We'll continue with the deletion process even if this fails
       }
 
-      // Then delete related game_messages (if any)
+      // Then delete related game_messages
       console.log("Deleting related game_messages for game ID:", gameId);
       const { error: messagesError } = await supabase
         .from('game_messages')
@@ -80,7 +115,6 @@ export const useGames = () => {
       
       if (messagesError) {
         console.error("Error deleting game messages:", messagesError);
-        // We'll continue with the deletion process even if this fails
       }
       
       // Finally delete the game itself - RLS will ensure only the owner can delete
