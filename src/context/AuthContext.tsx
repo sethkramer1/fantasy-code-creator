@@ -29,7 +29,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
-      console.log("Checking admin status for user:", user.id);
+      console.log("ADMIN CHECK: Checking admin status for user ID:", user.id, "Email:", user.email);
+      
       // Use the has_role function we created in the database
       const { data, error } = await supabase.rpc('has_role', {
         user_id: user.id,
@@ -42,12 +43,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
-      console.log("Admin check result:", data);
+      console.log("ADMIN CHECK RESULT:", data);
       const isUserAdmin = !!data;
       setIsAdmin(isUserAdmin);
       
       // Log the updated admin status
-      console.log(">>> ADMIN STATUS SET TO:", isUserAdmin, "for user:", user.id);
+      console.log(">>> ADMIN STATUS SET TO:", isUserAdmin, "for user:", user.id, "Email:", user.email);
       return isUserAdmin;
     } catch (error) {
       console.error("Unexpected error checking admin role:", error);
@@ -67,7 +68,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.error("Error getting auth session:", error);
         } else {
           console.log("Initial session retrieved:", !!data.session, 
-                     "User ID:", data.session?.user?.id);
+                     "User ID:", data.session?.user?.id, 
+                     "Email:", data.session?.user?.email);
         }
         
         setSession(data.session);
@@ -75,8 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Check admin status after setting user
         if (data.session?.user) {
-          const adminStatus = await checkIsAdmin();
-          console.log("Initial admin status check result:", adminStatus);
+          await checkIsAdmin();
         }
       } catch (error) {
         console.error("Unexpected error during auth init:", error);
@@ -89,15 +90,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
-        console.log("Auth state changed:", _event, session?.user?.id);
+      async (event, session) => {
+        console.log("Auth state changed:", event, "User ID:", session?.user?.id, "Email:", session?.user?.email);
         setSession(session);
         setUser(session?.user || null);
         
         // Check admin status after auth state change
         if (session?.user) {
-          const adminStatus = await checkIsAdmin();
-          console.log("User admin status after auth change:", adminStatus);
+          await checkIsAdmin();
         } else {
           setIsAdmin(false);
         }
@@ -134,7 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Log when admin status changes
   useEffect(() => {
-    console.log("AuthContext state updated - isAdmin:", isAdmin, "user:", user?.id);
+    console.log("AuthContext state updated - isAdmin:", isAdmin, "user:", user?.id, "email:", user?.email);
   }, [isAdmin, user]);
 
   return (

@@ -14,7 +14,7 @@ export const useGames = () => {
   const fetchGames = useCallback(async () => {
     try {
       setGamesLoading(true);
-      console.log("Fetching games, user is admin:", isAdmin);
+      console.log("Fetching games, user is admin:", isAdmin, "user email:", user?.email);
       
       let query = supabase
         .from('games')
@@ -39,7 +39,7 @@ export const useGames = () => {
     } finally {
       setGamesLoading(false);
     }
-  }, [toast, isAdmin]);
+  }, [toast, isAdmin, user]);
 
   useEffect(() => {
     fetchGames();
@@ -50,6 +50,7 @@ export const useGames = () => {
       console.log("=== DELETE OPERATION STARTED ===");
       console.log("Deleting game ID:", gameId);
       console.log("User ID:", user?.id);
+      console.log("User Email:", user?.email);
       console.log("Is admin:", isAdmin);
       
       if (!user?.id) {
@@ -67,7 +68,7 @@ export const useGames = () => {
       
       // DIFFERENT DELETE PATHS FOR ADMIN VS REGULAR USERS
       if (isAdmin) {
-        console.log("ADMIN DELETE PATH: Admins can delete any game");
+        console.log("ADMIN DELETE PATH: Admin user is attempting to delete game:", gameId);
         
         // Admin can delete any game with a simple query
         const { error } = await supabase

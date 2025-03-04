@@ -34,7 +34,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
     (user?.id && game.user_id === user.id)
   );
   
-  console.log(`GameCard ${game.id}: admin=${isAdmin}, canDelete=${canDelete}, user=${user?.id}, gameOwner=${game.user_id}`);
+  console.log(`GameCard ${game.id}: admin=${isAdmin}, canDelete=${canDelete}, user=${user?.id}, userEmail=${user?.email}, gameOwner=${game.user_id}`);
   
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
@@ -45,7 +45,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
-    console.log(`Delete button clicked for game ${game.id}, user is admin: ${isAdmin}`);
+    console.log(`Delete button clicked for game ${game.id}, user is admin: ${isAdmin}, user email: ${user?.email}`);
     setShowDeleteDialog(true);
   };
   
@@ -55,7 +55,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
       return;
     }
     
-    console.log(`Confirming delete for game ${game.id}, by admin: ${isAdmin}`);
+    console.log(`Confirming delete for game ${game.id}, by admin: ${isAdmin}, user: ${user?.email}`);
     setIsDeleting(true);
     const success = await onDelete(game.id);
     
