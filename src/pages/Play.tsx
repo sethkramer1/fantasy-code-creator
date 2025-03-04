@@ -19,6 +19,7 @@ const Play = () => {
   const { id: gameId } = useParams();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  
   const [showCode, setShowCode] = useState(false);
   const [selectedVersionId, setSelectedVersionId] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -128,6 +129,10 @@ const Play = () => {
       console.error("[TOKEN TRACKING] Error in token data check:", checkError);
     }
   }, [gameId, game, user?.id, generationInProgress]);
+
+  useEffect(() => {
+    console.log("Play component loaded with gameId:", gameId);
+  }, [gameId]);
 
   useEffect(() => {
     generationHandledRef.current = false;
@@ -288,6 +293,7 @@ const Play = () => {
   };
 
   if (!gameId) {
+    console.error("No game ID provided in URL params");
     return (
       <div className="h-screen flex items-center justify-center">
         <p>No game ID provided</p>

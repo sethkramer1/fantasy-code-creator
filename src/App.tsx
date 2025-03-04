@@ -21,7 +21,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/play/:gameId" element={<Play />} />
+          <Route path="/play/:id" element={<Play />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/account" element={<Account />} />
           <Route path="/teams" element={<Teams />} />
