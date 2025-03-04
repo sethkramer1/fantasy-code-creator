@@ -218,7 +218,8 @@ export function useChatMessages({
       updateTerminalOutputWrapper("> Connection established, receiving content...", true);
       
       let content = '';
-      let tokensUsed = 0;
+      let inputTokens = Math.ceil(currentMessage.length / 4);
+      let outputTokens = 0;
       
       if (responseModelType === "fast") {
         updateTerminalOutputWrapper("> Using non-streaming mode for Groq API...", true);
@@ -229,8 +230,11 @@ export function useChatMessages({
         content = await processGroqResponse(responseData, updateTerminalOutputWrapper);
         
         if (responseData.usage) {
-          tokensUsed = responseData.usage.total_tokens || 0;
-          console.log(`Groq tokens used: ${tokensUsed}`);
+          inputTokens = responseData.usage.prompt_tokens || inputTokens;
+          outputTokens = responseData.usage.completion_tokens || Math.ceil(content.length / 4);
+          console.log(`Groq tokens used: input=${inputTokens}, output=${outputTokens}`);
+        } else {
+          outputTokens = Math.ceil(content.length / 4);
         }
       } else {
         const reader = apiResponse.body?.getReader();
@@ -238,8 +242,9 @@ export function useChatMessages({
         
         content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
         
-        tokensUsed = Math.ceil((currentMessage.length + content.length) / 4);
-        console.log(`Estimated Anthropic tokens used: ${tokensUsed}`);
+        inputTokens = Math.ceil(currentMessage.length / 4);
+        outputTokens = Math.ceil(content.length / 4);
+        console.log(`Estimated Anthropic tokens used: input=${inputTokens}, output=${outputTokens}`);
       }
       
       console.log("Content collection complete. Total length:", content.length);
@@ -256,8 +261,8 @@ export function useChatMessages({
         gameId,
         insertedMessage.id,
         currentMessage,
-        Math.ceil(currentMessage.length / 4),
-        tokensUsed,
+        inputTokens,
+        outputTokens,
         currentModelType
       );
       
