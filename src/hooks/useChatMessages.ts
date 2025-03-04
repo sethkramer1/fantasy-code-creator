@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "@/components/game-chat/types";
@@ -18,7 +19,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export interface UseChatMessagesProps {
   gameId: string;
-  onGameUpdate: (newCode: string, newInstructions: string) => void;
+  onGameUpdate?: (newCode: string, newInstructions: string) => Promise<void>;
   onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
   initialMessage?: string;
   modelType?: ModelType;
@@ -91,8 +92,9 @@ export function useChatMessages({
       
       const typedData: Message[] = data.map(msg => ({
         ...msg,
-        model_type: (msg.model_type as string) === "smart" ? "smart" as ModelType : 
-                    (msg.model_type as string) === "fast" ? "fast" as ModelType : null
+        user_id: msg.user_id || '',
+        is_system: !!msg.is_system,
+        model_type: msg.model_type || ((msg.model_type as string) === "smart" ? "smart" : "fast")
       }));
       
       if (typedData.length === 1 && typedData[0].id === 'initial-message') {
@@ -128,7 +130,8 @@ export function useChatMessages({
           game_id: gameId,
           message,
           response,
-          is_system: true
+          is_system: true,
+          user_id: user?.id || ''
         })
         .select('*')
         .single();
@@ -143,8 +146,8 @@ export function useChatMessages({
         
         const newMessage: Message = {
           ...messageData,
-          model_type: messageData.model_type === "smart" ? "smart" as ModelType : 
-                      messageData.model_type === "fast" ? "fast" as ModelType : null
+          model_type: messageData.model_type || 'smart',
+          is_system: true
         };
         
         setMessages(prev => [...prev, newMessage]);
@@ -155,10 +158,13 @@ export function useChatMessages({
       console.error("Error in addSystemMessage:", error);
       throw error;
     }
-  }, [gameId]);
+  }, [gameId, user?.id]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault();
+    }
+    
     if ((!message.trim() && !imageUrl) || loading) return;
     
     setLoading(true);
@@ -180,7 +186,11 @@ export function useChatMessages({
       created_at: new Date().toISOString(),
       image_url: imageUrl,
       model_type: modelType,
-      isLoading: true
+      isLoading: true,
+      game_id: gameId,
+      response: '',
+      user_id: user?.id || '',
+      is_system: false
     };
     
     setMessages(prev => [...prev, tempMessage]);
@@ -272,7 +282,9 @@ export function useChatMessages({
       updateTerminalOutputWrapper("> Processing received content...", true);
       updateTerminalOutputWrapper("> Updating content in the application...", true);
       
-      onGameUpdate(content, "Content updated successfully");
+      if (onGameUpdate) {
+        await onGameUpdate(content, "Content updated successfully");
+      }
       
       await updateMessageResponse(insertedMessage.id, "Content updated successfully");
       
@@ -297,8 +309,9 @@ export function useChatMessages({
       if (updatedMessages) {
         const typedMessages: Message[] = updatedMessages.map(msg => ({
           ...msg,
-          model_type: msg.model_type === "smart" ? "smart" as ModelType : 
-                      msg.model_type === "fast" ? "fast" as ModelType : null
+          user_id: msg.user_id || '',
+          is_system: !!msg.is_system,
+          model_type: msg.model_type || 'smart'
         }));
         
         setMessages(typedMessages);

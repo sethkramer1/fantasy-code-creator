@@ -1,3 +1,4 @@
+
 export interface Message {
   id: string;
   created_at: string;
@@ -19,7 +20,7 @@ export interface ChatInputProps {
   setImageUrl: (url: string | null) => void;
   modelType: string;
   handleModelChange: (modelType: string) => void;
-  handleSubmit: () => Promise<void>;
+  handleSubmit: (e?: React.FormEvent) => Promise<void>;
   loading: boolean;
   disabled: boolean;
 }
@@ -43,7 +44,7 @@ export interface MessageItemProps {
 export interface GameChatProps {
   gameId?: string;
   onGameUpdate?: (newCode: string, instructions: string) => Promise<void>;
-  onTerminalStatusChange?: (running: boolean, showTerminal?: boolean) => void;
+  onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
   disabled?: boolean;
   onRevertToVersion?: (message: Message) => void;
   gameVersions?: GameVersion[];
@@ -60,4 +61,19 @@ export interface GameVersion {
   code: string;
   instructions: string | null;
   created_at: string;
+}
+
+export interface ImageUploadProps {
+  imageUrl: string | null;
+  setImageUrl: (url: string | null) => void;
+  disabled?: boolean;
+}
+
+export interface ImageUploadResult {
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  isUploading: boolean;
+  handleImageFile: (file: File) => void;
+  handleImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  handleRemoveImage: () => void;
+  imagePreview: JSX.Element | null;
 }

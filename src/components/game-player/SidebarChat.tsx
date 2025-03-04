@@ -6,12 +6,13 @@ import { ModelType } from "@/types/generation";
 interface SidebarChatProps {
   gameId: string;
   generationInProgress: boolean;
-  onGameUpdate: (newCode: string, newInstructions: string) => void;
+  onGameUpdate: (newCode: string, newInstructions: string) => Promise<void>;
   onTerminalStatusChange: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
   onRevertToMessageVersion: (message: Message) => Promise<void>;
   gameVersions: any[];
   initialPrompt: string;
   modelType?: ModelType;
+  gameUserId?: string | null;
 }
 
 export function SidebarChat({
@@ -22,7 +23,8 @@ export function SidebarChat({
   onRevertToMessageVersion,
   gameVersions,
   initialPrompt,
-  modelType = "smart"
+  modelType = "smart",
+  gameUserId
 }: SidebarChatProps) {
   return (
     <div className="w-[380px] flex flex-col bg-white border-r border-gray-100">
@@ -36,6 +38,7 @@ export function SidebarChat({
           gameVersions={gameVersions}
           initialMessage={initialPrompt}
           modelType={modelType}
+          gameUserId={gameUserId}
         />
       </div>
     </div>

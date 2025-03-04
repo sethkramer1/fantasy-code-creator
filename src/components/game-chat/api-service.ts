@@ -24,8 +24,12 @@ export const fetchChatHistory = async (gameId: string, initialMessage?: string) 
       const newMessage: Message = {
         id: 'initial-message',
         message: initialMessage,
+        response: "Generating initial content...",
         created_at: new Date().toISOString(),
-        response: "Generating initial content..."
+        game_id: gameId,
+        user_id: '',
+        is_system: false,
+        model_type: 'smart'
       };
       
       return [newMessage];

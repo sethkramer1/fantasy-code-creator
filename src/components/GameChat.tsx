@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import { MessageList } from "./game-chat/MessageList";
 import { ChatInput } from "./game-chat/ChatInput";
@@ -38,7 +39,11 @@ export const GameChat = ({
     fetchMessages
   } = useChatMessages({
     gameId,
-    onGameUpdate,
+    onGameUpdate: onGameUpdate ? async (newCode: string, instructions: string) => {
+      if (onGameUpdate) {
+        await onGameUpdate(newCode, instructions);
+      }
+    } : undefined,
     onTerminalStatusChange,
     initialMessage,
     modelType

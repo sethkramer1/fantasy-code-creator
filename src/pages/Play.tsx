@@ -1,4 +1,3 @@
-
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -349,6 +348,7 @@ const Play = () => {
           onRevertToMessageVersion={revertToMessageVersion}
           gameVersions={gameVersions}
           initialPrompt={initialPrompt}
+          modelType={initialModelType as ModelType}
           gameUserId={game?.user_id}
         />
         
