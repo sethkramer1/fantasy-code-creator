@@ -53,7 +53,8 @@ export const updateTerminalOutput = (
       if (lastLine.startsWith("> ") && !lastLine.startsWith("> Thinking:") && 
           newContent.startsWith("> ") && !newContent.startsWith("> Thinking:")) {
         
-        const updatedLastLine = lastLine + newContent.slice(2); // Remove the '> ' prefix when appending
+        // Fix: Use slice(1) instead of slice(2) to properly handle prefixes
+        const updatedLastLine = lastLine + newContent.slice(1);
         return [...prev.slice(0, -1), updatedLastLine];
       }
     }
