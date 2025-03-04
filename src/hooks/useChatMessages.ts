@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "@/components/game-chat/types";
@@ -88,24 +87,28 @@ export function useChatMessages({
       setLoadingHistory(true);
       console.log("Fetching chat messages for game:", gameId);
       
-      const data = await fetchChatHistory(gameId, initialMessage);
+      const fetchData = async () => {
+        const data = await fetchChatHistory(gameId, initialMessage);
+        
+        const typedData: Message[] = data.map(msg => ({
+          ...msg,
+          user_id: msg.user_id || '',
+          is_system: !!msg.is_system,
+          model_type: msg.model_type || ((msg.model_type as string) === "smart" ? "smart" : "fast")
+        }));
+        
+        if (typedData.length === 1 && typedData[0].id === 'initial-message') {
+          setInitialMessageId('initial-message');
+        }
+        
+        console.log(`Loaded ${typedData.length} messages for game ${gameId}`);
+        setMessages(typedData);
+        setLoadingHistory(false);
+      };
       
-      const typedData: Message[] = data.map(msg => ({
-        ...msg,
-        user_id: msg.user_id || '',
-        is_system: !!msg.is_system,
-        model_type: msg.model_type || ((msg.model_type as string) === "smart" ? "smart" : "fast")
-      }));
-      
-      if (typedData.length === 1 && typedData[0].id === 'initial-message') {
-        setInitialMessageId('initial-message');
-      }
-      
-      console.log(`Loaded ${typedData.length} messages for game ${gameId}`);
-      setMessages(typedData);
+      fetchData();
     } catch (error) {
       console.error("Error loading chat history:", error);
-    } finally {
       setLoadingHistory(false);
     }
   }, [gameId, initialMessage]);
@@ -147,7 +150,8 @@ export function useChatMessages({
         const newMessage: Message = {
           ...messageData,
           model_type: messageData.model_type || 'smart',
-          is_system: true
+          is_system: true,
+          user_id: messageData.user_id || user?.id || ''
         };
         
         setMessages(prev => [...prev, newMessage]);

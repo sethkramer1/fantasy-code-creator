@@ -1,3 +1,4 @@
+
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -13,6 +14,7 @@ import { VersionHistory } from "@/components/game-player/components/VersionHisto
 import { useAuth } from "@/context/AuthContext";
 import { forceTokenTracking } from "@/services/generation/tokenTrackingService";
 import { supabase } from "@/integrations/supabase/client";
+import { ModelType } from "@/types/generation";
 import JSZip from 'jszip';
 
 const Play = () => {

@@ -1,12 +1,14 @@
-
 import { Message } from "@/components/game-chat/types";
 
-// Generate a placeholder message that follows the Message type
-export const generatePlaceholderMessage = (initialPrompt: string): Message => {
+export const createSystemMessage = (messageText: string, responseText: string): Message => {
   return {
-    id: 'initial-message',
-    message: initialPrompt,
+    id: crypto.randomUUID(),
+    message: messageText,
     created_at: new Date().toISOString(),
-    response: "Generating initial content..."
+    response: responseText,
+    game_id: '',
+    user_id: '',
+    is_system: true,
+    model_type: 'smart'
   };
 };
