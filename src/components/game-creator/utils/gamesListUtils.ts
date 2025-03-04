@@ -1,5 +1,6 @@
 
 import { contentTypes } from "@/types/game";
+import { Game } from "@/types/game";
 
 // Function to get type label and badge color
 export function getTypeInfo(type?: string) {
@@ -55,5 +56,33 @@ export const prepareIframeContent = (html: string) => {
   } else {
     // If neither, just prepend the script
     return helperScript + html;
+  }
+};
+
+// Filter games based on the provided filter criteria
+export const filterGames = (games: Game[], filter: string, userId?: string): Game[] => {
+  if (!games || games.length === 0) {
+    return [];
+  }
+
+  switch (filter) {
+    case 'my':
+      // Only show games created by the current user
+      return games.filter(game => game.user_id === userId);
+    case 'public':
+      // Only show public games
+      return games.filter(game => game.visibility === 'public');
+    case 'private':
+      // Only show private games created by the current user
+      return games.filter(game => game.visibility !== 'public' && game.user_id === userId);
+    default:
+      // Show all games the user has access to
+      if (userId) {
+        // If user is logged in, show their games plus public games
+        return games.filter(game => game.user_id === userId || game.visibility === 'public');
+      } else {
+        // If not logged in, only show public games
+        return games.filter(game => game.visibility === 'public');
+      }
   }
 };
