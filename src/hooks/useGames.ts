@@ -34,6 +34,7 @@ export const useGames = () => {
       
       // If user is not logged in, only show public games
       if (!user) {
+        console.log("User not logged in - only fetching public games");
         query = query.eq('visibility', 'public');
       }
       

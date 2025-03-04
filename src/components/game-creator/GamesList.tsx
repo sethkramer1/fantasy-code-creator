@@ -53,7 +53,10 @@ export function GamesList({
 
   // Set initial view mode based on user status and if they have designs
   useEffect(() => {
-    if (user && userHasDesigns) {
+    if (!user) {
+      // Always set to community view if not logged in
+      setViewMode("community");
+    } else if (user && userHasDesigns) {
       setViewMode("user");
     } else {
       setViewMode("community");
@@ -117,6 +120,15 @@ export function GamesList({
     }
   };
 
+  // Force community view if user is logged out
+  const handleTabChange = (value: string) => {
+    if (!user && value === "user") {
+      // Prevent changing to user tab if not logged in
+      return;
+    }
+    setViewMode(value as "user" | "community");
+  };
+
   // Fetch game versions for paginated games only
   const { gameCodeVersions, fetchError, loading: versionsLoading } = useGameVersions(paginatedGames);
 
@@ -125,11 +137,17 @@ export function GamesList({
       <Tabs
         defaultValue={viewMode}
         value={viewMode}
-        onValueChange={(value) => setViewMode(value as "user" | "community")}
+        onValueChange={handleTabChange}
         className="mb-6"
       >
         <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="user" disabled={!user}>Your Designs</TabsTrigger>
+          <TabsTrigger 
+            value="user" 
+            disabled={!user}
+            className={!user ? "pointer-events-none opacity-50" : ""}
+          >
+            Your Designs
+          </TabsTrigger>
           <TabsTrigger value="community">Community Designs</TabsTrigger>
         </TabsList>
       </Tabs>
