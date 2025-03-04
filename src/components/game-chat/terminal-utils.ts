@@ -5,6 +5,7 @@ export const updateTerminalOutput = (
   isNewMessage = false
 ) => {
   setTerminalOutput(prev => {
+    // Special markers that should always be on a new line
     if (isNewMessage || 
         newContent.startsWith("> Thinking:") || 
         newContent.startsWith("> Generation") || 
@@ -13,13 +14,46 @@ export const updateTerminalOutput = (
       return [...prev, newContent];
     }
     
+    // If there are newlines in the content, split and process each line
+    if (newContent.includes('\n')) {
+      const lines = newContent.split('\n');
+      let result = [...prev];
+      
+      // Process first segment - append to last line if possible
+      if (prev.length > 0 && lines[0]) {
+        const lastLine = prev[prev.length - 1];
+        if (lastLine.startsWith("> ") && !lastLine.startsWith("> Thinking:")) {
+          result[result.length - 1] = lastLine + lines[0];
+        } else {
+          result.push(lines[0]);
+        }
+      } else if (lines[0]) {
+        result.push(lines[0]);
+      }
+      
+      // Add middle segments as new lines
+      for (let i = 1; i < lines.length - 1; i++) {
+        if (lines[i]) {
+          result.push(`> ${lines[i]}`);
+        }
+      }
+      
+      // Add last segment if it exists
+      if (lines.length > 1 && lines[lines.length - 1]) {
+        result.push(`> ${lines[lines.length - 1]}`);
+      }
+      
+      return result;
+    }
+    
+    // Handle inline updates by appending to the last line
     if (prev.length > 0) {
       const lastLine = prev[prev.length - 1];
       
       if (lastLine.startsWith("> ") && !lastLine.startsWith("> Thinking:") && 
           newContent.startsWith("> ") && !newContent.startsWith("> Thinking:")) {
         
-        const updatedLastLine = lastLine + newContent.slice(1);
+        const updatedLastLine = lastLine + newContent.slice(2); // Remove the '> ' prefix when appending
         return [...prev.slice(0, -1), updatedLastLine];
       }
     }
@@ -119,6 +153,7 @@ export const processAnthropicStream = async (
   let totalChunks = 0;
   let buffer = '';
   let currentLineContent = '';
+  let isInThinkingPhase = false;
   
   updateTerminalOutputFn("> Anthropic stream connected, receiving content...", true);
   
@@ -157,14 +192,17 @@ export const processAnthropicStream = async (
               if (contentChunk) {
                 content += contentChunk;
                 
+                // Only create a new line when the content chunk contains newlines
                 if (contentChunk.includes('\n')) {
                   const lines = contentChunk.split('\n');
                   
+                  // Process first line - append to current line
                   if (lines[0]) {
                     currentLineContent += lines[0];
                     updateTerminalOutputFn(`> ${currentLineContent}`, false);
                   }
                   
+                  // Process middle lines - each gets its own line
                   for (let i = 1; i < lines.length - 1; i++) {
                     if (lines[i].trim()) {
                       currentLineContent = lines[i];
@@ -172,6 +210,7 @@ export const processAnthropicStream = async (
                     }
                   }
                   
+                  // Handle last line
                   if (lines.length > 1) {
                     currentLineContent = lines[lines.length - 1];
                     if (currentLineContent) {
@@ -181,21 +220,25 @@ export const processAnthropicStream = async (
                     }
                   }
                 } else {
+                  // No newlines, just append to current line
                   currentLineContent += contentChunk;
                   updateTerminalOutputFn(`> ${currentLineContent}`, false);
                 }
               }
             } else if (parsedData.type === 'content_block_start') {
               if (parsedData.content_block?.type === 'thinking') {
+                isInThinkingPhase = true;
                 updateTerminalOutputFn("> Thinking phase started...", true);
               }
             } else if (parsedData.type === 'content_block_delta' && parsedData.delta?.type === 'thinking_delta') {
               const thinking = parsedData.delta.thinking || '';
               if (thinking && thinking.trim()) {
-                updateTerminalOutputFn(`> Thinking: ${thinking}`, true);
+                // Always put thinking output on a new line
+                updateTerminalOutputFn(`> Thinking: ${thinking.trim()}`, true);
               }
             } else if (parsedData.type === 'content_block_stop') {
               if (parsedData.content_block?.type === 'thinking') {
+                isInThinkingPhase = false;
                 updateTerminalOutputFn("> Thinking phase completed", true);
               }
             } else if (parsedData.type === 'message_delta') {
