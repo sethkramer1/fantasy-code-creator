@@ -47,4 +47,5 @@ export interface StreamEvent {
     message: string;
   };
   usage?: TokenInfo;
+  token_usage?: TokenInfo; // Added to ensure compatibility with different response formats
 }
