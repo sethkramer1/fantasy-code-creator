@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
@@ -10,6 +9,7 @@ export interface GameData {
   current_version: number | null;
   prompt: string;
   visibility?: string;
+  model_type?: string;
 }
 
 export interface GameVersion {

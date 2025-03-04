@@ -5,7 +5,7 @@ import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { useAuth } from "@/context/AuthContext";
 import { updateTerminalOutput, processAnthropicStream } from "@/components/game-chat/terminal-utils";
 import { trackTokenUsage } from "@/components/game-chat/api-service";
-import { saveInitialGenerationTokens, updateTokenCounts } from "@/services/generation/tokenTrackingService";
+import { saveInitialGenerationTokens, updateTokenCounts, forceTokenTracking } from "@/services/generation/tokenTrackingService";
 
 interface TerminalState {
   generationInProgress: boolean;
