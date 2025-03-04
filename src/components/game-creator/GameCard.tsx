@@ -28,8 +28,8 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { user, isAdmin } = useAuth();
   
-  // Simplified check for delete permission - either admin or owner
-  const canDelete = !!onDelete && (isAdmin || (user?.id && game.user_id === user?.id));
+  // Simple check - show delete button if there's a delete handler and user is either admin or owner
+  const canDelete = Boolean(onDelete && (isAdmin || user?.id === game.user_id));
   
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
@@ -123,13 +123,6 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
             </div>
           </div>
         </div>
-        
-        {/* Admin indicator for debugging */}
-        {isAdmin && (
-          <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded text-xs bg-red-100 text-red-700 font-bold">
-            Admin
-          </div>
-        )}
         
         {/* Delete button with simplified visibility logic */}
         {canDelete && (

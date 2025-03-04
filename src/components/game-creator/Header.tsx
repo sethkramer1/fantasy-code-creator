@@ -23,7 +23,7 @@ export function Header({ title, description }: HeaderProps) {
     navigate("/account");
   };
   
-  // Memoize the account section to prevent unnecessary re-renders
+  // Simplified account section with conditional rendering directly in the component
   const accountSection = useMemo(() => {
     if (loading) {
       return null;

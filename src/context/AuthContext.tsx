@@ -60,15 +60,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [user, isAdmin, isCheckingAdmin]);
 
-  // Use memo to stabilize the auth context value
-  const authContextValue = useMemo(() => ({
-    session,
-    user,
-    loading,
-    signOut,
-    isAdmin,
-    checkIsAdmin
-  }), [session, user, loading, isAdmin, checkIsAdmin]);
+  async function signOut() {
+    try {
+      await supabase.auth.signOut();
+      setIsAdmin(false);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  }
 
   useEffect(() => {
     // Get initial session
@@ -118,14 +117,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [checkIsAdmin]);
 
-  async function signOut() {
-    try {
-      await supabase.auth.signOut();
-      setIsAdmin(false);
-    } catch (error) {
-      console.error("Error signing out:", error);
-    }
-  }
+  // Use memo to stabilize the auth context value
+  const authContextValue = useMemo(() => ({
+    session,
+    user,
+    loading,
+    signOut,
+    isAdmin,
+    checkIsAdmin
+  }), [session, user, loading, isAdmin, checkIsAdmin]);
 
   return (
     <AuthContext.Provider value={authContextValue}>

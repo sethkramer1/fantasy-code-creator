@@ -46,7 +46,7 @@ export const useGames = () => {
 
   const deleteGame = async (gameId: string) => {
     try {
-      if (!user?.id) {
+      if (!user) {
         toast({
           title: "Access denied",
           description: "You must be logged in to delete designs",
@@ -55,74 +55,30 @@ export const useGames = () => {
         return false;
       }
       
-      // If user is an admin, they can delete any game
-      if (isAdmin) {
-        // First, get the game details to confirm it exists
-        const { data: gameData, error: gameError } = await supabase
-          .from('games')
-          .select('id')
-          .eq('id', gameId)
-          .single();
-        
-        if (gameError) {
-          toast({
-            title: "Error deleting design",
-            description: gameError.message || "Could not find the design",
-            variant: "destructive"
-          });
-          return false;
-        }
-        
-        // Proceed with the deletion
-        const { error } = await supabase
-          .from('games')
-          .update({ deleted: true })
-          .eq('id', gameId);
-        
-        if (error) {
-          toast({
-            title: "Error deleting design",
-            description: error.message || "Database error, please try again",
-            variant: "destructive"
-          });
-          return false;
-        }
-        
-        // Update local state
-        setGames(currentGames => currentGames.filter(game => game.id !== gameId));
-        
-        toast({
-          title: "Design deleted",
-          description: "The design has been removed successfully",
-        });
-        
-        return true;
-      }
+      // Optimistically update the UI immediately
+      setGames(currentGames => currentGames.filter(game => game.id !== gameId));
       
-      // For regular users, they can only delete their own games
+      // Simple deletion logic - let RLS handle permissions
       const { error } = await supabase
         .from('games')
         .update({ deleted: true })
-        .match({ 
-          id: gameId,
-          user_id: user.id 
-        });
+        .eq('id', gameId);
       
       if (error) {
+        // If there's an error, revert the optimistic update
         toast({
           title: "Error deleting design",
-          description: error.message || "Database error, please try again",
+          description: error.message || "Please try again",
           variant: "destructive"
         });
+        // Refresh games to restore accurate state
+        fetchGames();
         return false;
       }
       
-      // Update local state immediately without refetching
-      setGames(currentGames => currentGames.filter(game => game.id !== gameId));
-      
       toast({
         title: "Design deleted",
-        description: "Your design has been removed successfully",
+        description: "The design has been removed successfully",
       });
       
       return true;
@@ -133,6 +89,8 @@ export const useGames = () => {
         description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive"
       });
+      // Refresh games to restore accurate state
+      fetchGames();
       return false;
     }
   };
