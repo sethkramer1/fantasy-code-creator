@@ -52,6 +52,7 @@ export const callAnthropicApi = async (
       
       let buffer = '';
       let combinedContent = '';
+      let currentThinking = '';
       
       // Process the stream line by line
       while (true) {
@@ -85,7 +86,8 @@ export const callAnthropicApi = async (
             // Handle thinking content
             if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
               const thinking = data.delta.thinking || '';
-              if (thinking && onThinking) {
+              if (thinking && thinking !== currentThinking && onThinking) {
+                currentThinking = thinking;
                 onThinking(thinking);
               }
             }
