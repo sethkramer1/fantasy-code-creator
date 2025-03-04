@@ -40,7 +40,7 @@ export const callGroqApi = async (
   
   callbacks?.onStreamStart();
   
-  console.log("Calling Groq API with:", {
+  console.log("[GROQ] Calling Groq API with:", {
     promptLength: finalPrompt.length,
     imageUrl: imageUrl ? "provided" : "none"
   });
@@ -101,7 +101,7 @@ export const callGroqApi = async (
 
   // Extract token usage information from the Groq response
   if (data.usage) {
-    console.log("Token usage from Groq:", data.usage);
+    console.log("[GROQ] Token usage from Groq:", data.usage);
     
     // In Groq's response, prompt_tokens are the input tokens and completion_tokens are the output tokens
     tokenInfo = {
@@ -110,12 +110,12 @@ export const callGroqApi = async (
     };
     
     callbacks?.onContent(`Tokens used: ${tokenInfo.inputTokens} input, ${tokenInfo.outputTokens} output`);
-    console.log("Extracted token usage from Groq:", tokenInfo);
+    console.log("[GROQ] Extracted token usage from Groq:", tokenInfo);
   } else {
-    console.log("No token usage info in Groq response, using estimates");
+    console.log("[GROQ] No token usage info in Groq response, using estimates");
     tokenInfo.outputTokens = Math.ceil(gameContent.length / 4);
   }
 
-  console.log("Final token usage for Groq:", tokenInfo);
+  console.log("[GROQ] Final token usage for Groq:", tokenInfo);
   return { response, gameContent, tokenInfo };
 };

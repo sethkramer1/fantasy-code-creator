@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ModelType } from "@/types/generation";
+import { trackInitialGameTokens } from "@/components/game-chat/api-service";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
@@ -122,6 +123,21 @@ const Index = () => {
       if (versionError) {
         console.error("Error creating placeholder version:", versionError);
       }
+      
+      // Create initial token usage record with estimated token usage
+      // This ensures token usage is recorded even if the generation process fails
+      const estimatedInputTokens = Math.ceil(prompt.length / 4);
+      const estimatedOutputTokens = 1; // Will be updated with real value later
+      
+      console.log(`Creating initial token usage record for game ${placeholderGame.id}`);
+      await trackInitialGameTokens(
+        user?.id,
+        placeholderGame.id,
+        prompt,
+        modelType,
+        estimatedInputTokens,
+        estimatedOutputTokens
+      );
 
       // Pass the image URL, game type, and model type in the URL parameters
       let navigationParams = `?generating=true&type=${gameType}&modelType=${modelType}`;
