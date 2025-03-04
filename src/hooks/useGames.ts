@@ -71,60 +71,45 @@ export const useGames = () => {
       
       console.log("Attempting to delete game with ID:", gameId);
       
-      // First verify the game exists in the database
-      const { data: existingGame, error: checkError } = await supabase
+      // Delete directly without checking existence first
+      const { data, error } = await supabase
         .from('games')
-        .select('id')
+        .delete()
         .eq('id', gameId)
-        .single();
+        .select(); // This will return the deleted records
       
-      if (checkError) {
-        console.error("Error checking if game exists:", checkError);
-        if (checkError.code === 'PGRST116') {
-          console.error("Game not found in database:", gameId);
-          toast({
-            title: "Error deleting design",
-            description: "The design could not be found in the database",
-            variant: "destructive"
-          });
-          return false;
-        }
+      console.log("Delete response:", { data, error });
+      
+      if (error) {
+        console.error("Database error deleting game:", error);
+        toast({
+          title: "Error deleting design",
+          description: error.message || "Database error, please try again",
+          variant: "destructive"
+        });
+        return false;
+      }
+      
+      if (!data || data.length === 0) {
+        console.error("No records were deleted for game ID:", gameId);
+        
+        // Let's double check if the game exists in the database
+        const { data: checkData, error: checkError } = await supabase
+          .from('games')
+          .select('id')
+          .eq('id', gameId);
+        
+        console.log("Check if game exists:", { checkData, checkError });
         
         toast({
           title: "Error deleting design",
-          description: checkError.message || "Please try again",
+          description: "The design could not be deleted. It may have been deleted already.",
           variant: "destructive"
         });
         return false;
       }
       
-      if (!existingGame) {
-        console.error("Game does not exist in database:", gameId);
-        toast({
-          title: "Error deleting design",
-          description: "The design could not be found in the database",
-          variant: "destructive"
-        });
-        return false;
-      }
-      
-      // Now perform the deletion
-      const { error: deleteError } = await supabase
-        .from('games')
-        .delete()
-        .eq('id', gameId);
-      
-      if (deleteError) {
-        console.error("Database error deleting game:", deleteError);
-        toast({
-          title: "Error deleting design",
-          description: deleteError.message || "Database error, please try again",
-          variant: "destructive"
-        });
-        return false;
-      }
-      
-      console.log("Successfully deleted game from database:", gameId);
+      console.log("Successfully deleted game from database:", data);
       
       // Update local state immediately without refetching
       setGames(currentGames => currentGames.filter(game => game.id !== gameId));
