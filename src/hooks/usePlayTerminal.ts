@@ -370,7 +370,6 @@ export function usePlayTerminal(
                 
                 const data = JSON.parse(eventData) as StreamEvent;
                 
-                // Check for token usage in both possible locations
                 if ((data.type === 'token_usage' && data.usage) || data.token_usage) {
                   const usageData = data.usage || data.token_usage;
                   console.log("[TOKEN TRACKING] Received token usage from stream:", usageData);
@@ -382,7 +381,6 @@ export function usePlayTerminal(
                   inputTokensRef.current = inputTokens;
                   outputTokensRef.current = outputTokens;
                   
-                  // Save token usage immediately when received
                   if (gameId && user?.id) {
                     console.log("[TOKEN TRACKING] Saving token usage data directly from stream");
                     try {
@@ -471,7 +469,6 @@ export function usePlayTerminal(
           inputTokensRef.current = inputTokens;
           outputTokensRef.current = outputTokens;
           
-          // Save token usage immediately for non-streaming response
           if (gameId && user?.id) {
             console.log("[TOKEN TRACKING] Saving token usage data from non-streaming response");
             try {
@@ -540,27 +537,65 @@ export function usePlayTerminal(
         throw new Error(`Database error: ${versionUpdateError.message}`);
       }
       
+      try {
+        const { data: initialMessageData, error: initialMessageError } = await supabase
+          .from('game_messages')
+          .select('id')
+          .eq('game_id', gameId)
+          .order('created_at', { ascending: true })
+          .limit(1)
+          .maybeSingle();
+          
+        if (initialMessageError) {
+          console.error("Error finding initial game_message:", initialMessageError);
+        } else if (initialMessageData?.id) {
+          console.log("Found initial game_message to update:", initialMessageData.id);
+          
+          const { error: updateMessageError } = await supabase
+            .from('game_messages')
+            .update({ response: "Content generated" })
+            .eq('id', initialMessageData.id);
+            
+          if (updateMessageError) {
+            console.error("Error updating initial game_message response:", updateMessageError);
+          } else {
+            console.log("Updated initial game_message response to 'Content generated'");
+          }
+          
+          if (inputTokensRef.current > 0 && outputTokensRef.current > 0) {
+            console.log("Creating token_usage record for initial generation");
+            
+            const { error: tokenUsageError } = await supabase
+              .from('token_usage')
+              .insert({
+                user_id: user?.id,
+                game_id: gameId,
+                message_id: initialMessageData.id,
+                prompt: initialPrompt.substring(0, 5000),
+                input_tokens: inputTokensRef.current,
+                output_tokens: outputTokensRef.current,
+                model_type: modelTypeForSave
+              });
+              
+            if (tokenUsageError) {
+              console.error("Error creating token_usage record:", tokenUsageError);
+            } else {
+              console.log("Successfully created token_usage record for initial generation");
+            }
+          }
+        }
+      } catch (messageUpdateError) {
+        console.error("Error in game_message and token_usage update flow:", messageUpdateError);
+      }
+      
       updateTerminalOutputWrapper("> Content saved successfully", true);
       
-      // If we haven't saved token usage yet, do it now as a final attempt
-      if ((!tokenInfoExtracted || !tokenTrackingAttemptedRef.current) && gameId && user?.id) {
-        console.log("[TOKEN TRACKING] Final attempt to save token usage after generation completion");
+      if (tokenTrackingAttemptsRef.current < maxTokenTrackingAttempts) {
+        console.log(`[TOKEN TRACKING] Scheduling retry attempt #${tokenTrackingAttemptsRef.current + 1} in 2 seconds`);
         
-        try {
-          const result = await saveInitialGenerationTokens(
-            user.id,
-            gameId,
-            initialPrompt,
-            modelTypeForSave,
-            inputTokensRef.current || Math.ceil(initialPrompt.length / 4),
-            outputTokensRef.current || Math.ceil(content.length / 4)
-          );
-          
-          tokenTrackingAttemptedRef.current = true;
-          console.log("[TOKEN TRACKING] Final token save result:", result);
-        } catch (finalTokenError) {
-          console.error("[TOKEN TRACKING] Error in final token save attempt:", finalTokenError);
-        }
+        setTimeout(() => {
+          ensureFinalTokenTracking(gameId);
+        }, 2000);
       }
       
       updateTerminalOutputWrapper("> Initial generation complete", true);
