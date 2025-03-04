@@ -1,38 +1,15 @@
 export interface Message {
   id: string;
-  game_id?: string;
-  message: string;
-  response?: string | null;
   created_at: string;
+  game_id: string;
+  message: string;
+  response: string;
+  user_id: string;
+  is_system: boolean;
+  model_type: string;
   image_url?: string | null;
-  model_type?: "smart" | "fast" | null;
+  version_id?: string | null;
   isLoading?: boolean;
-  is_system?: boolean;
-  version_id?: string | null; // Add this property for the version ID
-}
-
-export interface MessageItemProps {
-  message: Message;
-  onRevertToVersion?: (message: Message) => Promise<void>;
-  gameVersions?: any[];
-}
-
-export interface MessageListProps {
-  messages: Message[];
-  loadingHistory?: boolean;
-  onRevertToVersion?: (message: Message) => Promise<void>;
-  gameVersions?: any[];
-}
-
-export interface GameChatProps {
-  gameId: string;
-  onGameUpdate: (newCode: string, newInstructions: string) => void;
-  onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
-  disabled?: boolean;
-  onRevertToVersion?: (message: Message) => Promise<void>;
-  gameVersions?: any[];
-  initialMessage?: string;
-  modelType?: "smart" | "fast";
 }
 
 export interface ChatInputProps {
@@ -40,24 +17,47 @@ export interface ChatInputProps {
   setMessage: (message: string) => void;
   imageUrl: string | null;
   setImageUrl: (url: string | null) => void;
-  modelType: "smart" | "fast";
-  handleModelChange: (value: "smart" | "fast") => void;
-  handleSubmit: (e: React.FormEvent) => void;
+  modelType: string;
+  handleModelChange: (modelType: string) => void;
+  handleSubmit: () => Promise<void>;
   loading: boolean;
-  disabled?: boolean;
+  disabled: boolean;
 }
 
-export interface ImageUploadProps {
-  imageUrl: string | null;
-  setImageUrl: (url: string | null) => void;
-  disabled?: boolean;
+export interface MessageListProps {
+  messages: Message[];
+  loadingHistory: boolean;
+  onRevertToVersion?: (message: Message) => void;
+  gameVersions?: GameVersion[];
+  ref: React.RefObject<HTMLDivElement>;
+  gameUserId?: string | null;
 }
 
-export interface ImageUploadResult {
-  fileInputRef: React.RefObject<HTMLInputElement>;
-  isUploading: boolean;
-  handleImageFile: (file: File) => void;
-  handleImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  handleRemoveImage: () => void;
-  imagePreview: JSX.Element | null;
+export interface MessageItemProps {
+  message: Message;
+  onRevertToVersion?: (message: Message) => void;
+  gameVersions?: GameVersion[];
+  gameUserId?: string | null;
+}
+
+export interface GameChatProps {
+  gameId?: string;
+  onGameUpdate?: (newCode: string, instructions: string) => Promise<void>;
+  onTerminalStatusChange?: (running: boolean, showTerminal?: boolean) => void;
+  disabled?: boolean;
+  onRevertToVersion?: (message: Message) => void;
+  gameVersions?: GameVersion[];
+  initialMessage?: string;
+  modelType?: ModelType;
+  gameUserId?: string | null;
+}
+
+export type ModelType = "fast" | "smart";
+
+export interface GameVersion {
+  id: string;
+  version_number: number;
+  code: string;
+  instructions: string | null;
+  created_at: string;
 }

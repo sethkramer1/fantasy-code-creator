@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/select";
 import { GameVersion } from "@/hooks/usePlayGameData";
 import { formatDistanceToNow } from "date-fns";
+import { useAuth } from "@/context/AuthContext";
 
 interface VersionHistoryProps {
   gameVersions: GameVersion[];
@@ -18,6 +19,7 @@ interface VersionHistoryProps {
   onRevertToVersion: (versionId: string) => Promise<void>;
   onVersionSelect: (versionId: string | null) => void;
   selectedVersionId: string | null;
+  gameUserId?: string | null;
 }
 
 export function VersionHistory({ 
@@ -25,12 +27,17 @@ export function VersionHistory({
   currentVersionId,
   onRevertToVersion,
   onVersionSelect,
-  selectedVersionId
+  selectedVersionId,
+  gameUserId
 }: VersionHistoryProps) {
   const [isReverting, setIsReverting] = useState(false);
+  const { user } = useAuth();
+  
+  // Check if the current user is the owner of the game
+  const isOwner = user?.id && gameUserId === user.id;
 
   const handleRevert = async () => {
-    if (!selectedVersionId) return;
+    if (!selectedVersionId || !isOwner) return;
     
     setIsReverting(true);
     try {
@@ -78,16 +85,18 @@ export function VersionHistory({
         </SelectContent>
       </Select>
       
-      <Button
-        size="sm"
-        variant="outline"
-        className="h-9 bg-white border-gray-200 text-gray-800 hover:bg-gray-100"
-        onClick={handleRevert}
-        disabled={!selectedVersionId || isReverting || selectedVersionId === currentVersionId}
-      >
-        <RotateCcw className="h-4 w-4 mr-1" />
-        {isReverting ? "Reverting..." : "Revert"}
-      </Button>
+      {isOwner && (
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-9 bg-white border-gray-200 text-gray-800 hover:bg-gray-100"
+          onClick={handleRevert}
+          disabled={!selectedVersionId || isReverting || selectedVersionId === currentVersionId}
+        >
+          <RotateCcw className="h-4 w-4 mr-1" />
+          {isReverting ? "Reverting..." : "Revert"}
+        </Button>
+      )}
     </div>
   );
 }

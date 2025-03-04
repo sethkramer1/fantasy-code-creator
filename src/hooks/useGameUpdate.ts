@@ -3,8 +3,13 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { GameData, GameVersion } from "./usePlayGameData";
 import { Message } from "@/components/game-chat/types";
+import { useAuth } from "@/context/AuthContext";
 
 export function useGameUpdate(gameId: string | undefined, game: GameData | null, gameVersions: GameVersion[], fetchGame: () => Promise<void>) {
+  const { user } = useAuth();
+  
+  // Check if the current user is the owner of the game
+  const isOwner = user?.id && game?.user_id === user.id;
 
   const addSystemMessage = async (message: string, response: string) => {
     if (!gameId) return;
@@ -25,6 +30,16 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
 
   const handleGameUpdate = async (newCode: string, newInstructions: string) => {
     if (!gameId || !game) return;
+    
+    // Prevent non-owners from updating the game
+    if (!isOwner) {
+      console.error("Permission denied: Only the owner can update this game");
+      addSystemMessage(
+        "Permission denied", 
+        "❌ Only the owner of the design can update it."
+      );
+      return;
+    }
 
     try {
       // Determine the next version number
@@ -93,6 +108,16 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
       if (!gameId || !game) {
         throw new Error("Game not available");
       }
+      
+      // Prevent non-owners from reverting versions
+      if (!isOwner) {
+        console.error("Permission denied: Only the owner can revert versions");
+        addSystemMessage(
+          "Permission denied", 
+          "❌ Only the owner of the design can revert to previous versions."
+        );
+        return;
+      }
 
       // Find the version in our list
       const versionToRevert = gameVersions.find(v => v.id === versionId);
@@ -145,7 +170,7 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
     } catch (error) {
       console.error("Error in revertToVersion:", error);
       addSystemMessage(
-        "Error", 
+        "Permission denied", 
         "❌ Failed to revert to the selected version."
       );
       throw error;
@@ -154,6 +179,16 @@ export function useGameUpdate(gameId: string | undefined, game: GameData | null,
 
   const revertToMessageVersion = async (message: Message) => {
     try {
+      // Prevent non-owners from reverting versions
+      if (!isOwner) {
+        console.error("Permission denied: Only the owner can revert versions");
+        addSystemMessage(
+          "Permission denied", 
+          "❌ Only the owner of the design can revert to previous versions."
+        );
+        return;
+      }
+      
       if (!message.version_id) {
         addSystemMessage(
           "Error", 

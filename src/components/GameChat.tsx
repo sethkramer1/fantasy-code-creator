@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { MessageList } from "./game-chat/MessageList";
 import { ChatInput } from "./game-chat/ChatInput";
@@ -14,7 +13,8 @@ export const GameChat = ({
   onRevertToVersion,
   gameVersions = [],
   initialMessage,
-  modelType = "smart"
+  modelType = "smart",
+  gameUserId
 }: GameChatProps) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [previousDisabledState, setPreviousDisabledState] = useState<boolean>(disabled);
@@ -41,10 +41,9 @@ export const GameChat = ({
     onGameUpdate,
     onTerminalStatusChange,
     initialMessage,
-    modelType // Pass the modelType prop to useChatMessages
+    modelType
   });
 
-  // Scroll to bottom when messages change
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -53,9 +52,7 @@ export const GameChat = ({
     scrollToBottom();
   }, [messages]);
 
-  // Handle generation completion
   useEffect(() => {
-    // Check if disabled state changed from true to false (generation completed)
     if (previousDisabledState === true && disabled === false) {
       console.log("Generation state changed from in-progress to complete");
       if (initialMessageId) {
@@ -64,11 +61,9 @@ export const GameChat = ({
       }
     }
     
-    // Update previous disabled state for next comparison
     setPreviousDisabledState(disabled);
   }, [disabled, initialMessageId, previousDisabledState, setInitialMessageId]);
 
-  // Add confirmation message after generation completes
   useEffect(() => {
     const addConfirmationMessage = async () => {
       if (generationComplete && gameId && !generationHandledRef.current) {
@@ -76,20 +71,16 @@ export const GameChat = ({
         console.log("Adding confirmation message after generation");
         
         try {
-          // Explicitly create a completion system message
           await addSystemMessage(
             "Initial generation complete",
             "✅ Content generated successfully! You can now ask me to modify the content or add new features."
           );
           
-          // Force refresh messages to ensure new message is displayed
           await fetchMessages();
           
-          // Reset the flag
           setGenerationComplete(false);
         } catch (error) {
           console.error("Error adding confirmation message:", error);
-          // Reset the ref so we can try again
           generationHandledRef.current = false;
         }
       }
@@ -97,7 +88,6 @@ export const GameChat = ({
     
     addConfirmationMessage();
     
-    // Reset the handled ref when game ID changes
     return () => {
       if (gameId !== undefined) {
         generationHandledRef.current = false;
@@ -105,10 +95,8 @@ export const GameChat = ({
     };
   }, [generationComplete, gameId, addSystemMessage, fetchMessages]);
 
-  // Additional check to add a welcome message if none exists and generation is complete
   useEffect(() => {
     const ensureWelcomeMessage = async () => {
-      // Only run this once when loading is complete and messages are loaded
       if (!disabled && !loadingHistory && messages.length === 0 && gameId) {
         console.log("No messages found after load, adding welcome message");
         try {
@@ -134,6 +122,7 @@ export const GameChat = ({
         onRevertToVersion={onRevertToVersion}
         gameVersions={gameVersions}
         ref={messagesEndRef}
+        gameUserId={gameUserId}
       />
       
       <ChatInput 
