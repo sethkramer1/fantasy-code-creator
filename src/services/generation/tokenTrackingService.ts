@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { ModelType } from "@/types/generation";
 
@@ -142,7 +141,7 @@ export const updateTokenCounts = async (
     // Find the token usage record for this message
     const { data: existingData, error: checkError } = await supabase
       .from('token_usage')
-      .select('id')
+      .select('id, prompt')
       .eq('message_id', messageId)
       .maybeSingle();
       
@@ -176,7 +175,8 @@ export const updateTokenCounts = async (
           game_id: messageData.game_id,
           model_type: messageData.model_type || 'unknown',
           input_tokens: Math.max(1, inputTokens),
-          output_tokens: Math.max(1, outputTokens)
+          output_tokens: Math.max(1, outputTokens),
+          prompt: "Token update - no prompt available" // Add default prompt value
         });
         
       if (insertError) {
@@ -193,7 +193,9 @@ export const updateTokenCounts = async (
       .from('token_usage')
       .update({
         input_tokens: Math.max(1, inputTokens),
-        output_tokens: Math.max(1, outputTokens)
+        output_tokens: Math.max(1, outputTokens),
+        // Keep the existing prompt when updating
+        prompt: existingData.prompt || "Token update - prompt preserved" 
       })
       .eq('id', existingData.id);
       
