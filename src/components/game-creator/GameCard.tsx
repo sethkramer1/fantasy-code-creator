@@ -28,15 +28,18 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { user, isAdmin } = useAuth();
   
-  // Check if user can delete this game
+  // Fixed deletion permission check:
+  // - Logged-in users can delete their own games
+  // - Admins can delete ANY game regardless of user_id
+  // - Anonymous users cannot delete any games
   const canDelete = 
     onDelete && 
     user?.id && // User must be logged in
-    (game.user_id === user.id || isAdmin); // User must own the game OR be an admin
+    (isAdmin || (game.user_id && game.user_id === user.id)); // Admin OR owner
   
   console.log("Game card render:", {
     gameId: game.id,
-    gameUserId: game.user_id,
+    gameUserId: game.user_id || 'none',
     currentUserId: user?.id,
     isAdmin: isAdmin,
     canDelete: canDelete
