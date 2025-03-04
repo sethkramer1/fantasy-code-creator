@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ModelType } from "@/types/generation";
@@ -6,6 +5,7 @@ import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { useAuth } from "@/context/AuthContext";
 import { updateTerminalOutput, processAnthropicStream } from "@/components/game-chat/terminal-utils";
 import { trackTokenUsage } from "@/components/game-chat/api-service";
+import { saveInitialGenerationTokens } from "@/services/generation/groqService";
 
 interface TerminalState {
   generationInProgress: boolean;
@@ -271,31 +271,45 @@ export function usePlayTerminal(
       
       if (gameId) {
         try {
-          const initialMessageId = `initial-generation-${gameId}`;
-          
-          console.log("Tracking token usage for initial generation:", {
-            gameId,
-            initialMessageId,
-            inputTokens,
-            outputTokens,
-            modelType
-          });
-          
-          const result = await trackTokenUsage(
+          const tokenSaved = await saveInitialGenerationTokens(
             user?.id,
             gameId,
-            initialMessageId,
             initialPrompt,
+            modelType,
             inputTokens,
-            outputTokens,
-            modelType
+            outputTokens
           );
           
-          if (result) {
-            updateTerminalOutputWrapper("> Token usage tracked for initial generation", true);
-            console.log("Token usage tracked successfully with ID:", result.id);
+          if (tokenSaved) {
+            updateTerminalOutputWrapper("> Token usage saved to database", true);
+            console.log("Token usage saved successfully for initial generation");
           } else {
-            updateTerminalOutputWrapper("> Warning: Token usage tracking returned null", true);
+            const initialMessageId = `initial-generation-${gameId}`;
+            
+            console.log("Using backup method for token tracking:", {
+              gameId,
+              initialMessageId,
+              inputTokens,
+              outputTokens,
+              modelType
+            });
+            
+            const result = await trackTokenUsage(
+              user?.id,
+              gameId,
+              initialMessageId,
+              initialPrompt,
+              inputTokens,
+              outputTokens,
+              modelType
+            );
+            
+            if (result) {
+              updateTerminalOutputWrapper("> Token usage tracked using backup method", true);
+              console.log("Token usage tracked successfully with backup method, ID:", result.id);
+            } else {
+              updateTerminalOutputWrapper("> Warning: Token usage tracking failed", true);
+            }
           }
         } catch (error) {
           console.error("Error tracking token usage:", error);
