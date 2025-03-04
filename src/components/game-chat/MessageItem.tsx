@@ -2,15 +2,10 @@
 import { Button } from "@/components/ui/button";
 import { Loader2, RotateCcw } from "lucide-react";
 import { MessageItemProps } from "./types";
-import { useAuth } from "@/context/AuthContext";
 
-export const MessageItem = ({ message, onRevertToVersion, gameVersions = [], gameUserId }: MessageItemProps) => {
+export const MessageItem = ({ message, onRevertToVersion, gameVersions = [] }: MessageItemProps) => {
   // Check if it's a system message
   const isSystemMessage = message.is_system === true;
-  const { user } = useAuth();
-  
-  // Check if the current user is the owner
-  const isOwner = user?.id && gameUserId === user.id;
   
   return (
     <div className="space-y-2">
@@ -36,7 +31,7 @@ export const MessageItem = ({ message, onRevertToVersion, gameVersions = [], gam
             />
           </div>
         )}
-        {onRevertToVersion && gameVersions.length > 1 && !isSystemMessage && isOwner && (
+        {onRevertToVersion && gameVersions.length > 1 && !isSystemMessage && (
           <div className="mt-2">
             <Button
               variant="ghost"

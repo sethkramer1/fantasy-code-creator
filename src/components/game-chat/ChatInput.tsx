@@ -78,13 +78,8 @@ export const ChatInput = ({
     };
   }, [modelType, disabled, handleImageFile]);
 
-  const onSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    handleSubmit(e);
-  };
-
   return (
-    <form onSubmit={onSubmit} className="p-4 border-t border-gray-100 relative flex-shrink-0">
+    <form onSubmit={handleSubmit} className="p-4 border-t border-gray-100 relative flex-shrink-0">
       {imagePreview}
       
       <div className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${disabled ? 'opacity-50' : ''}`}>

@@ -1,4 +1,3 @@
-
 import { useRef, useState, useEffect, useCallback } from "react";
 import { useParams, useSearchParams, useNavigate } from "react-router-dom";
 import { GamePreview } from "@/components/game-player/GamePreview";
@@ -14,7 +13,6 @@ import { VersionHistory } from "@/components/game-player/components/VersionHisto
 import { useAuth } from "@/context/AuthContext";
 import { forceTokenTracking } from "@/services/generation/tokenTrackingService";
 import { supabase } from "@/integrations/supabase/client";
-import { ModelType } from "@/types/generation";
 import JSZip from 'jszip';
 
 const Play = () => {
@@ -350,8 +348,6 @@ const Play = () => {
           onRevertToMessageVersion={revertToMessageVersion}
           gameVersions={gameVersions}
           initialPrompt={initialPrompt}
-          modelType={initialModelType as ModelType}
-          gameUserId={game?.user_id}
         />
         
         <div className="flex-1 h-full overflow-hidden bg-gray-50">
@@ -374,7 +370,6 @@ const Play = () => {
                   onRevertToVersion={revertToVersion}
                   onVersionSelect={setSelectedVersionId}
                   selectedVersionId={selectedVersionId}
-                  gameUserId={game?.user_id}
                 />
               </div>
               <div className="flex-1 overflow-hidden bg-white">

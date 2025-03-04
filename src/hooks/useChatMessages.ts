@@ -18,7 +18,7 @@ import { useAuth } from "@/context/AuthContext";
 
 export interface UseChatMessagesProps {
   gameId: string;
-  onGameUpdate?: (newCode: string, newInstructions: string) => Promise<void>;
+  onGameUpdate: (newCode: string, newInstructions: string) => void;
   onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
   initialMessage?: string;
   modelType?: ModelType;
@@ -87,28 +87,23 @@ export function useChatMessages({
       setLoadingHistory(true);
       console.log("Fetching chat messages for game:", gameId);
       
-      const fetchData = async () => {
-        const data = await fetchChatHistory(gameId, initialMessage);
-        
-        const typedData: Message[] = data.map(msg => ({
-          ...msg,
-          user_id: msg.user_id || '',
-          is_system: !!msg.is_system,
-          model_type: msg.model_type || ((msg.model_type as string) === "smart" ? "smart" : "fast")
-        }));
-        
-        if (typedData.length === 1 && typedData[0].id === 'initial-message') {
-          setInitialMessageId('initial-message');
-        }
-        
-        console.log(`Loaded ${typedData.length} messages for game ${gameId}`);
-        setMessages(typedData);
-        setLoadingHistory(false);
-      };
+      const data = await fetchChatHistory(gameId, initialMessage);
       
-      fetchData();
+      const typedData: Message[] = data.map(msg => ({
+        ...msg,
+        model_type: (msg.model_type as string) === "smart" ? "smart" as ModelType : 
+                    (msg.model_type as string) === "fast" ? "fast" as ModelType : null
+      }));
+      
+      if (typedData.length === 1 && typedData[0].id === 'initial-message') {
+        setInitialMessageId('initial-message');
+      }
+      
+      console.log(`Loaded ${typedData.length} messages for game ${gameId}`);
+      setMessages(typedData);
     } catch (error) {
       console.error("Error loading chat history:", error);
+    } finally {
       setLoadingHistory(false);
     }
   }, [gameId, initialMessage]);
@@ -133,8 +128,7 @@ export function useChatMessages({
           game_id: gameId,
           message,
           response,
-          is_system: true,
-          user_id: user?.id || ''
+          is_system: true
         })
         .select('*')
         .single();
@@ -149,9 +143,8 @@ export function useChatMessages({
         
         const newMessage: Message = {
           ...messageData,
-          model_type: messageData.model_type || 'smart',
-          is_system: true,
-          user_id: messageData.user_id || user?.id || ''
+          model_type: messageData.model_type === "smart" ? "smart" as ModelType : 
+                      messageData.model_type === "fast" ? "fast" as ModelType : null
         };
         
         setMessages(prev => [...prev, newMessage]);
@@ -162,13 +155,10 @@ export function useChatMessages({
       console.error("Error in addSystemMessage:", error);
       throw error;
     }
-  }, [gameId, user?.id]);
+  }, [gameId]);
 
-  const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) {
-      e.preventDefault();
-    }
-    
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     if ((!message.trim() && !imageUrl) || loading) return;
     
     setLoading(true);
@@ -190,11 +180,7 @@ export function useChatMessages({
       created_at: new Date().toISOString(),
       image_url: imageUrl,
       model_type: modelType,
-      isLoading: true,
-      game_id: gameId,
-      response: '',
-      user_id: user?.id || '',
-      is_system: false
+      isLoading: true
     };
     
     setMessages(prev => [...prev, tempMessage]);
@@ -286,9 +272,7 @@ export function useChatMessages({
       updateTerminalOutputWrapper("> Processing received content...", true);
       updateTerminalOutputWrapper("> Updating content in the application...", true);
       
-      if (onGameUpdate) {
-        await onGameUpdate(content, "Content updated successfully");
-      }
+      onGameUpdate(content, "Content updated successfully");
       
       await updateMessageResponse(insertedMessage.id, "Content updated successfully");
       
@@ -313,9 +297,8 @@ export function useChatMessages({
       if (updatedMessages) {
         const typedMessages: Message[] = updatedMessages.map(msg => ({
           ...msg,
-          user_id: msg.user_id || '',
-          is_system: !!msg.is_system,
-          model_type: msg.model_type || 'smart'
+          model_type: msg.model_type === "smart" ? "smart" as ModelType : 
+                      msg.model_type === "fast" ? "fast" as ModelType : null
         }));
         
         setMessages(typedMessages);
