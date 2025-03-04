@@ -26,15 +26,31 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-  const { user, isAdmin } = useAuth();
+  const [localAdminStatus, setLocalAdminStatus] = useState(false);
+  const { user, isAdmin, checkIsAdmin } = useAuth();
+  
+  // Check admin status when the component mounts or when the user changes
+  useEffect(() => {
+    const updateAdminStatus = async () => {
+      if (user) {
+        const isUserAdmin = await checkIsAdmin();
+        setLocalAdminStatus(isUserAdmin);
+        console.log(`GameCard admin status refreshed: ${isUserAdmin}, user=${user?.email}`);
+      } else {
+        setLocalAdminStatus(false);
+      }
+    };
+    
+    updateAdminStatus();
+  }, [user, checkIsAdmin]);
   
   // SIMPLIFIED: Admin can delete ANY game, normal users can only delete their own
   const canDelete = !!onDelete && (
-    isAdmin || 
+    localAdminStatus || 
     (user?.id && game.user_id === user.id)
   );
   
-  console.log(`GameCard ${game.id}: admin=${isAdmin}, canDelete=${canDelete}, user=${user?.id}, userEmail=${user?.email}, gameOwner=${game.user_id}`);
+  console.log(`GameCard ${game.id}: admin=${localAdminStatus}, canDelete=${canDelete}, user=${user?.id}, userEmail=${user?.email}, gameOwner=${game.user_id}`);
   
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
@@ -45,7 +61,12 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
-    console.log(`Delete button clicked for game ${game.id}, user is admin: ${isAdmin}, user email: ${user?.email}`);
+    // Refresh admin status right before delete attempt
+    if (user) {
+      const isUserAdmin = await checkIsAdmin();
+      setLocalAdminStatus(isUserAdmin);
+    }
+    console.log(`Delete button clicked for game ${game.id}, user is admin: ${localAdminStatus}, user email: ${user?.email}`);
     setShowDeleteDialog(true);
   };
   
@@ -55,7 +76,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
       return;
     }
     
-    console.log(`Confirming delete for game ${game.id}, by admin: ${isAdmin}, user: ${user?.email}`);
+    console.log(`Confirming delete for game ${game.id}, by admin: ${localAdminStatus}, user: ${user?.email}`);
     setIsDeleting(true);
     const success = await onDelete(game.id);
     
@@ -113,12 +134,12 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
                     {label.split(' ')[0]}
                   </span>
                 )}
-                {isAdmin && !game.user_id && (
+                {localAdminStatus && !game.user_id && (
                   <span className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 whitespace-nowrap flex-shrink-0 font-medium">
                     Anonymous
                   </span>
                 )}
-                {isAdmin && game.user_id && game.user_id !== user?.id && (
+                {localAdminStatus && game.user_id && game.user_id !== user?.id && (
                   <span className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 whitespace-nowrap flex-shrink-0 font-medium">
                     Other User
                   </span>
@@ -132,7 +153,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
           </div>
         </div>
         
-        {/* Always show delete button for admins and owners */}
+        {/* Show delete button for admins and owners */}
         {canDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"

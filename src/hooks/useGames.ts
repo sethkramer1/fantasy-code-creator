@@ -9,12 +9,23 @@ export const useGames = () => {
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(true);
   const { toast } = useToast();
-  const { user, isAdmin } = useAuth();
+  const { user, isAdmin, checkIsAdmin } = useAuth();
+
+  // Ensure we always have the latest admin status before critical operations
+  const refreshAdminStatus = useCallback(async () => {
+    console.log("Refreshing admin status before critical operation");
+    const isUserAdmin = await checkIsAdmin();
+    console.log("Refreshed admin status:", isUserAdmin);
+    return isUserAdmin;
+  }, [checkIsAdmin]);
 
   const fetchGames = useCallback(async () => {
     try {
       setGamesLoading(true);
-      console.log("Fetching games, user is admin:", isAdmin, "user email:", user?.email);
+      
+      // Refresh admin status before fetching games
+      const isUserAdmin = await refreshAdminStatus();
+      console.log("Fetching games, user is admin:", isUserAdmin, "user email:", user?.email);
       
       let query = supabase
         .from('games')
@@ -39,7 +50,7 @@ export const useGames = () => {
     } finally {
       setGamesLoading(false);
     }
-  }, [toast, isAdmin, user]);
+  }, [toast, user, refreshAdminStatus]);
 
   useEffect(() => {
     fetchGames();
@@ -47,11 +58,14 @@ export const useGames = () => {
 
   const deleteGame = async (gameId: string) => {
     try {
+      // Force refresh admin status before delete operation
+      const isUserAdmin = await refreshAdminStatus();
+      
       console.log("=== DELETE OPERATION STARTED ===");
       console.log("Deleting game ID:", gameId);
       console.log("User ID:", user?.id);
       console.log("User Email:", user?.email);
-      console.log("Is admin:", isAdmin);
+      console.log("Is admin (freshly checked):", isUserAdmin);
       
       if (!user?.id) {
         console.error("User not logged in - cannot delete games");
@@ -67,7 +81,7 @@ export const useGames = () => {
       setGames(currentGames => currentGames.filter(game => game.id !== gameId));
       
       // DIFFERENT DELETE PATHS FOR ADMIN VS REGULAR USERS
-      if (isAdmin) {
+      if (isUserAdmin) {
         console.log("ADMIN DELETE PATH: Admin user is attempting to delete game:", gameId);
         
         // Admin can delete any game with a simple query

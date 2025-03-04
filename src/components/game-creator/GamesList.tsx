@@ -6,6 +6,7 @@ import { GameCard } from "./GameCard";
 import { GamesEmptyState } from "./GamesEmptyState";
 import { GamesLoadingState } from "./GamesLoadingState";
 import { useGameVersions } from "@/hooks/useGameVersions";
+import { useAuth } from "@/context/AuthContext"; // Add this import
 import { 
   Pagination, 
   PaginationContent, 
@@ -31,6 +32,16 @@ export function GamesList({
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
   const pageSize = 9; // Number of designs per page (changed from 24)
+  const { checkIsAdmin } = useAuth(); // Get the checkIsAdmin function
+  
+  // Force admin status check on component mount
+  useEffect(() => {
+    const refreshAdminStatus = async () => {
+      await checkIsAdmin();
+      console.log("Admin status refreshed in GamesList");
+    };
+    refreshAdminStatus();
+  }, [checkIsAdmin]);
   
   // Use useMemo to prevent unnecessary recalculations
   const filteredGames = useMemo(() => {
