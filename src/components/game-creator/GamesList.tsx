@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useMemo } from "react";
 import { Game } from "@/types/game";
 import { GamesFilter } from "./GamesFilter";
@@ -17,12 +18,14 @@ interface GamesListProps {
   games: Game[];
   isLoading: boolean;
   onGameClick: (gameId: string) => void;
+  onGameDelete?: (gameId: string) => Promise<boolean>;
 }
 
 export function GamesList({
   games,
   isLoading,
-  onGameClick
+  onGameClick,
+  onGameDelete
 }: GamesListProps) {
   const [selectedType, setSelectedType] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -97,6 +100,7 @@ export function GamesList({
                 game={game}
                 gameCode={gameCodeVersions[game.id]}
                 onClick={() => onGameClick(game.id)}
+                onDelete={onGameDelete}
               />
             ))}
           </div>

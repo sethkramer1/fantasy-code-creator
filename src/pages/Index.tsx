@@ -23,7 +23,7 @@ const Index = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   
-  const { games, gamesLoading } = useGames();
+  const { games, gamesLoading, deleteGame } = useGames();
   const {
     loading,
     showTerminal,
@@ -213,6 +213,7 @@ const Index = () => {
           games={games}
           isLoading={gamesLoading}
           onGameClick={(id) => navigate(`/play/${id}`)}
+          onGameDelete={deleteGame}
         />
       </div>
 
