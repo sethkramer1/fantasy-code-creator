@@ -1,4 +1,3 @@
-
 export interface Message {
   id: string;
   game_id?: string;
@@ -33,9 +32,9 @@ export interface GameChatProps {
   onRevertToVersion?: (message: Message) => Promise<void>;
   gameVersions?: any[];
   initialMessage?: string;
+  modelType?: "smart" | "fast";
 }
 
-// Add the missing types for ChatInput
 export interface ChatInputProps {
   message: string;
   setMessage: (message: string) => void;
@@ -48,7 +47,6 @@ export interface ChatInputProps {
   disabled?: boolean;
 }
 
-// Add the missing types for ImageUpload
 export interface ImageUploadProps {
   imageUrl: string | null;
   setImageUrl: (url: string | null) => void;
