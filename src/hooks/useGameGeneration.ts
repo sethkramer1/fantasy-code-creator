@@ -97,6 +97,7 @@ export const useGameGeneration = () => {
             } else {
               inputTokens = Math.ceil(prompt.length / 4);
               outputTokens = Math.ceil(groqContent.length / 4);
+              setTerminalOutput(prev => [...prev, `> Estimated usage: ${inputTokens} input tokens and ${outputTokens} output tokens`]);
             }
             
             return groqContent;
@@ -147,6 +148,7 @@ export const useGameGeneration = () => {
             } else {
               inputTokens = Math.ceil(prompt.length / 4);
               outputTokens = Math.ceil((anthropicContent || combinedResponse).length / 4);
+              setTerminalOutput(prev => [...prev, `> Estimated usage: ${inputTokens} input tokens and ${outputTokens} output tokens`]);
             }
             
             return anthropicContent || combinedResponse;

@@ -23,6 +23,10 @@ export const callAnthropicApi = async (
   callbacks?: AnthropicStreamCallbacks
 ): Promise<{ response: Response, gameContent: string, tokenInfo?: TokenInfo }> => {
   let gameContent = '';
+  let tokenInfo: TokenInfo = {
+    inputTokens: Math.ceil(prompt.length / 4),
+    outputTokens: 0
+  };
   
   if (!prompt || prompt === "Loading...") {
     const error = new Error("Invalid or empty prompt provided: " + prompt);
@@ -70,7 +74,11 @@ export const callAnthropicApi = async (
         contentType: gameType,
         partialResponse: partialResponse,
         model: "claude-3-7-sonnet-20250219",
-        stream: true
+        stream: true,
+        thinking: {
+          type: "enabled",
+          budget_tokens: 10000
+        }
       }),
       signal: AbortSignal.timeout(300000), // 5 minute timeout for Anthropic
     }
@@ -91,6 +99,7 @@ export const callAnthropicApi = async (
     const reader = response.body.getReader();
     let buffer = '';
     let combinedResponse = partialResponse || '';
+    let usageInfo = null;
 
     try {
       while (true) {
@@ -149,6 +158,21 @@ export const callAnthropicApi = async (
                   break;
 
                 case 'message_delta':
+                  if (data.delta?.usage) {
+                    // Extract usage information if available
+                    usageInfo = data.delta.usage;
+                    console.log("Token usage from Anthropic:", usageInfo);
+                    
+                    if (usageInfo.input_tokens) {
+                      tokenInfo.inputTokens = usageInfo.input_tokens;
+                    }
+                    if (usageInfo.output_tokens) {
+                      tokenInfo.outputTokens = usageInfo.output_tokens;
+                    }
+                    
+                    callbacks.onThinking(`Tokens used: ${tokenInfo.inputTokens} input, ${tokenInfo.outputTokens} output`);
+                  }
+                  
                   if (data.delta?.stop_reason) {
                     callbacks.onThinking(`Generation ${data.delta.stop_reason}`);
                   }
@@ -177,11 +201,11 @@ export const callAnthropicApi = async (
     }
   }
 
-  // Create token info (estimate for streaming)
-  const tokenInfo: TokenInfo = {
-    inputTokens: Math.ceil(prompt.length / 4),
-    outputTokens: Math.ceil(gameContent.length / 4)
-  };
+  // If we didn't get token usage from streaming, estimate it
+  if (!tokenInfo.outputTokens) {
+    tokenInfo.outputTokens = Math.ceil(gameContent.length / 4);
+  }
 
+  console.log("Final token usage for Anthropic:", tokenInfo);
   return { response, gameContent, tokenInfo };
 };

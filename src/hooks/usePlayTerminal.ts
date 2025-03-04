@@ -137,7 +137,11 @@ export function usePlayTerminal(
         modelType: modelType as ModelType,
         imageUrl: imageUrl || undefined,
         stream: modelType === "smart",
-        userId: user?.id
+        userId: user?.id,
+        thinking: modelType === "smart" ? {
+          type: "enabled",
+          budget_tokens: 10000
+        } : undefined
       };
       
       const apiUrl = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game';
@@ -184,8 +188,16 @@ export function usePlayTerminal(
         updateTerminalOutputWrapper("> Stream connected, processing real-time content...", true);
         content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
         
-        inputTokens = Math.ceil(initialPrompt.length / 4);
-        outputTokens = Math.ceil(content.length / 4);
+        const usageMatch = content.match(/Tokens used: (\d+) input, (\d+) output/);
+        if (usageMatch) {
+          inputTokens = parseInt(usageMatch[1], 10);
+          outputTokens = parseInt(usageMatch[2], 10);
+          updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+        } else {
+          inputTokens = Math.ceil(initialPrompt.length / 4);
+          outputTokens = Math.ceil(content.length / 4);
+          updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+        }
       } else {
         const data = await response.json();
         console.log("Non-streaming response received:", {
@@ -203,9 +215,15 @@ export function usePlayTerminal(
         if (data.tokenInfo) {
           inputTokens = data.tokenInfo.inputTokens || Math.ceil(initialPrompt.length / 4);
           outputTokens = data.tokenInfo.outputTokens || Math.ceil(content.length / 4);
+          updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+        } else if (data.usage) {
+          inputTokens = data.usage.prompt_tokens || Math.ceil(initialPrompt.length / 4);
+          outputTokens = data.usage.completion_tokens || Math.ceil(content.length / 4);
+          updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
         } else {
           inputTokens = Math.ceil(initialPrompt.length / 4);
           outputTokens = Math.ceil(content.length / 4);
+          updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
         }
         
         updateTerminalOutputWrapper("> Content received successfully", true);
@@ -236,27 +254,6 @@ export function usePlayTerminal(
           updateTerminalOutputWrapper("> Token usage tracked for initial generation", true);
         } catch (error) {
           console.error("Error tracking token usage:", error);
-        }
-      }
-      
-      if (!content.includes("<html") && !content.includes("<!DOCTYPE") && !content.includes("<svg")) {
-        updateTerminalOutputWrapper("> Warning: Generated content may not be valid HTML. Attempting to fix...", true);
-        
-        if (content.includes('<') && content.includes('>')) {
-          content = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generated Content</title>
-</head>
-<body>
-  ${content}
-</body>
-</html>`;
-          updateTerminalOutputWrapper("> Content wrapped in HTML structure", true);
-        } else {
-          throw new Error("Generated content is not valid HTML and cannot be fixed");
         }
       }
       

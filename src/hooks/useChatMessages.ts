@@ -242,9 +242,23 @@ export function useChatMessages({
         
         content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
         
-        inputTokens = Math.ceil(currentMessage.length / 4);
-        outputTokens = Math.ceil(content.length / 4);
-        console.log(`Estimated Anthropic tokens used: input=${inputTokens}, output=${outputTokens}`);
+        let usageInfo = null;
+        try {
+          const usageMatch = content.match(/Tokens used: (\d+) input, (\d+) output/);
+          if (usageMatch) {
+            inputTokens = parseInt(usageMatch[1], 10);
+            outputTokens = parseInt(usageMatch[2], 10);
+          } else {
+            inputTokens = Math.ceil(currentMessage.length / 4);
+            outputTokens = Math.ceil(content.length / 4);
+          }
+        } catch (e) {
+          console.error("Error extracting token usage information:", e);
+          inputTokens = Math.ceil(currentMessage.length / 4);
+          outputTokens = Math.ceil(content.length / 4);
+        }
+        
+        console.log(`Anthropic tokens used: input=${inputTokens}, output=${outputTokens}`);
       }
       
       console.log("Content collection complete. Total length:", content.length);

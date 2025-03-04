@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "./types";
 
@@ -157,7 +156,7 @@ export const processGameUpdate = async (
   gameId: string,
   message: string,
   modelType: string,
-  imageUrl?: string,
+  imageUrl?: string | null,
   updateTerminalOutput?: (text: string, isNewMessage?: boolean) => void
 ) => {
   try {
@@ -165,8 +164,12 @@ export const processGameUpdate = async (
       gameId: string;
       message: string;
       modelType: string;
-      imageUrl?: string;
+      imageUrl?: string | null;
       stream?: boolean;
+      thinking?: {
+        type: string;
+        budget_tokens: number;
+      };
     } = {
       gameId,
       message,
@@ -179,6 +182,10 @@ export const processGameUpdate = async (
     
     if (modelType === "smart") {
       payload.stream = true;
+      payload.thinking = {
+        type: "enabled",
+        budget_tokens: 10000
+      };
     }
     
     const apiUrl = modelType === "fast" 

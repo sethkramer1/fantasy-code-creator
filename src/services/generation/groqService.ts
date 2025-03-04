@@ -24,6 +24,10 @@ export const callGroqApi = async (
   callbacks?: GroqCallbacks
 ): Promise<{ response: Response, gameContent: string, tokenInfo?: TokenInfo }> => {
   let gameContent = '';
+  let tokenInfo: TokenInfo = {
+    inputTokens: Math.ceil(prompt.length / 4),
+    outputTokens: 0
+  };
   
   const selectedType = contentTypes.find(type => type.id === gameType);
   if (!selectedType) throw new Error("Invalid content type selected");
@@ -90,14 +94,19 @@ export const callGroqApi = async (
     throw new Error("Invalid response format from Groq API");
   }
 
-  // Create token info if available in the response
-  let tokenInfo: TokenInfo | undefined;
+  // Extract token usage information from the Groq response
   if (data.usage) {
+    console.log("Token usage from Groq:", data.usage);
+    
+    // In Groq's response, prompt_tokens are the input tokens and completion_tokens are the output tokens
     tokenInfo = {
-      inputTokens: data.usage.prompt_tokens || Math.ceil(prompt.length / 4),
+      inputTokens: data.usage.prompt_tokens || tokenInfo.inputTokens,
       outputTokens: data.usage.completion_tokens || Math.ceil(gameContent.length / 4)
     };
+    
+    callbacks?.onContent(`Tokens used: ${tokenInfo.inputTokens} input, ${tokenInfo.outputTokens} output`);
   }
 
+  console.log("Final token usage for Groq:", tokenInfo);
   return { response, gameContent, tokenInfo };
 };
