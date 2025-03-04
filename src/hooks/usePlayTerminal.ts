@@ -216,6 +216,11 @@ export function usePlayTerminal(
   };
 
   const updateTerminalOutputWrapper = (newOutput: string, isNewMessage = false) => {
+    if (isTokenInfo(newOutput)) {
+      console.log("Skipping token info from terminal:", newOutput);
+      return;
+    }
+  
     setState(prev => {
       let updatedOutput: string[];
       
@@ -347,6 +352,7 @@ export function usePlayTerminal(
         
         let processedContent = '';
         let tokenInfo = null;
+        let currentThinking = '';
         
         const decoder = new TextDecoder();
         
@@ -397,26 +403,48 @@ export function usePlayTerminal(
                     }
                   }
                   
-                  updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+                  console.log(`[TOKEN TRACKING] Token usage: ${inputTokens} input, ${outputTokens} output tokens`);
                   
                   continue;
                 }
                 
-                if (data.thinking) {
+                if (data.thinking && data.thinking !== currentThinking) {
+                  currentThinking = data.thinking;
                   updateTerminalOutputWrapper(`> Thinking: ${data.thinking}`, true);
+                  continue;
+                }
+                
+                if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
+                  const thinking = data.delta.thinking || '';
+                  if (thinking && thinking !== currentThinking) {
+                    currentThinking = thinking;
+                    updateTerminalOutputWrapper(`> Thinking: ${thinking}`, true);
+                  }
                   continue;
                 }
                 
                 if (data.type === 'content_block_delta' && data.delta?.text) {
                   const contentDelta = data.delta.text;
-                  processedContent += contentDelta;
-                  updateTerminalOutputWrapper(`> ${contentDelta}`);
+                  if (!isTokenInfo(contentDelta)) {
+                    const cleanContent = removeTokenInfo(contentDelta);
+                    if (cleanContent.trim()) {
+                      processedContent += cleanContent;
+                      updateTerminalOutputWrapper(`> ${cleanContent}`);
+                    }
+                  }
+                  continue;
                 }
                 
                 if (data.type === 'content_block_start' && data.content_block?.text) {
                   const contentBlock = data.content_block.text;
-                  processedContent += contentBlock;
-                  updateTerminalOutputWrapper(`> ${contentBlock}`);
+                  if (!isTokenInfo(contentBlock)) {
+                    const cleanContent = removeTokenInfo(contentBlock);
+                    if (cleanContent.trim()) {
+                      processedContent += cleanContent;
+                      updateTerminalOutputWrapper(`> ${cleanContent}`);
+                    }
+                  }
+                  continue;
                 }
                 
                 if (data.type === 'error') {
@@ -443,7 +471,7 @@ export function usePlayTerminal(
           inputTokensRef.current = inputTokens;
           outputTokensRef.current = outputTokens;
           
-          updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+          console.log(`[TOKEN TRACKING] Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`);
         }
       } else {
         const data = await response.json();
@@ -485,7 +513,7 @@ export function usePlayTerminal(
             }
           }
           
-          updateTerminalOutputWrapper(`> Token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+          console.log(`[TOKEN TRACKING] Token usage: ${inputTokens} input, ${outputTokens} output tokens`);
         } else {
           inputTokens = Math.ceil(initialPrompt.length / 4);
           outputTokens = Math.ceil(content.length / 4);
@@ -493,7 +521,7 @@ export function usePlayTerminal(
           inputTokensRef.current = inputTokens;
           outputTokensRef.current = outputTokens;
           
-          updateTerminalOutputWrapper(`> Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`, true);
+          console.log(`[TOKEN TRACKING] Estimated token usage: ${inputTokens} input, ${outputTokens} output tokens`);
         }
         
         updateTerminalOutputWrapper("> Content received successfully", true);
@@ -719,4 +747,43 @@ export function usePlayTerminal(
     setShowTerminal,
     generationError: state.generationError
   };
+}
+
+function isTokenInfo(text: string): boolean {
+  if (!text) return false;
+  
+  return (
+    text.includes("Tokens used:") ||
+    text.includes("Token usage:") ||
+    text.includes("input tokens") ||
+    text.includes("output tokens") ||
+    /\d+\s*input\s*,\s*\d+\s*output/.test(text) ||
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) ||
+    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) ||
+    /\b(input|output)\b.*?\b\d+\b/.test(text)
+  );
+}
+
+function removeTokenInfo(content: string): string {
+  if (!content) return content;
+
+  content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
+  content = content.replace(/.*?input:?\s*\d+\s*,?\s*output:?\s*\d+.*?\n/g, '');
+  
+  content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
+  content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
+  content = content.replace(/input:?\s*\d+\s*,?\s*output:?\s*\d+/g, '');
+  
+  content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
+  content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
+  
+  content = content.replace(/\b\d+ input\b/g, '');
+  content = content.replace(/\b\d+ output\b/g, '');
+  
+  return content.trim();
 }

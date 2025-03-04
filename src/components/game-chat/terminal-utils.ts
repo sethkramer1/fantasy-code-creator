@@ -199,7 +199,6 @@ export const processAnthropicStream = async (
           switch (data.type) {
             case 'message_start':
               updateTerminalOutputFn("> Starting response generation...", true);
-              // Don't show token info in terminal
               isInitialGeneration = false; // First message received
               break;
               
@@ -231,7 +230,10 @@ export const processAnthropicStream = async (
               if (data.delta?.stop_reason) {
                 updateTerminalOutputFn(`> Generation ${data.delta.stop_reason}`, true);
               }
-              // Don't show token info in terminal
+              // We intentionally don't display token info in terminal, just log it
+              if (data.usage) {
+                console.log("[TOKEN TRACKING] Token usage from message_delta:", data.usage);
+              }
               break;
               
             case 'message_stop':

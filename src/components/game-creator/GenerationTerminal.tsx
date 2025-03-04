@@ -66,8 +66,7 @@ export function GenerationTerminal({
     // Check if line starts with "> " (code output indicator)
     else if (line.startsWith('> ')) {
       // Remove the prefix for display - except for tokens, errors, and other system messages
-      if (line.includes('tokens:') || 
-          line.includes('Error:') ||
+      if (line.includes('Error:') ||
           line.includes('Starting') ||
           line.includes('Generation') ||
           line.includes('Stream')) {
@@ -111,9 +110,8 @@ export function GenerationTerminal({
                   </div>
                 );
               }
-              // Highlight token and status information
-              else if (line.includes('tokens:') || 
-                      line.includes('Starting') || 
+              // Highlight status information
+              else if (line.includes('Starting') || 
                       line.includes('Generation') ||
                       line.includes('Stream')) {
                 return (
@@ -185,9 +183,8 @@ export function GenerationTerminal({
                     </div>
                   );
                 }
-                // Highlight token and status information
-                else if (line.includes('tokens:') || 
-                        line.includes('Starting') || 
+                // Highlight status information
+                else if (line.includes('Starting') || 
                         line.includes('Generation') ||
                         line.includes('Stream')) {
                   return (

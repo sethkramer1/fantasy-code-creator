@@ -83,25 +83,29 @@ export const callAnthropicApi = async (
             
             const data = JSON.parse(eventData);
             
-            // Handle thinking content
+            // Handle direct thinking property (used in both initial and edit generations)
+            if (data.thinking && onThinking) {
+              if (data.thinking !== currentThinking) {
+                currentThinking = data.thinking;
+                onThinking(data.thinking);
+              }
+              continue;
+            }
+            
+            // Handle thinking content from content_block_delta
             if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
               const thinking = data.delta.thinking || '';
               if (thinking && thinking !== currentThinking && onThinking) {
                 currentThinking = thinking;
                 onThinking(thinking);
               }
+              continue;
             }
-            // Handle thinking from message_delta (alternate format)
-            else if (data.thinking && onThinking) {
-              if (data.thinking !== currentThinking) {
-                currentThinking = data.thinking;
-                onThinking(data.thinking);
-              }
-            }
+            
             // Handle text content - completely filter out token information
-            else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
+            if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
               const content = data.delta.text || '';
-              if (content && onContent) {
+              if (content && onContent && !isTokenInfo(content)) {
                 // Remove any token info before adding to combined content
                 const cleanContent = removeTokenInfo(content);
                 if (cleanContent.trim()) {
@@ -109,14 +113,31 @@ export const callAnthropicApi = async (
                   onContent(cleanContent);
                 }
               }
+              continue;
             }
+            
+            // Handle content block start
+            if (data.type === 'content_block_start' && data.content_block?.text) {
+              const content = data.content_block.text || '';
+              if (content && onContent && !isTokenInfo(content)) {
+                const cleanContent = removeTokenInfo(content);
+                if (cleanContent.trim()) {
+                  combinedContent += cleanContent;
+                  onContent(cleanContent);
+                }
+              }
+              continue;
+            }
+            
             // Track token information internally but don't display it
-            else if (data.type === 'message_delta' && data.usage) {
+            if ((data.type === 'message_delta' || data.type === 'token_usage') && data.usage) {
               console.log("Received token usage:", data.usage);
               // We're intentionally not calling onContent for token info
+              continue;
             }
+            
             // Handle errors
-            else if (data.type === 'error' && onError) {
+            if (data.type === 'error' && onError) {
               onError(new Error(data.error?.message || 'Unknown stream error'));
             }
           } catch (parseError) {

@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/game-creator/Header";
@@ -33,6 +34,7 @@ const Index = () => {
     timerRef
   } = useGameGeneration();
 
+  // Effect to handle the timer for thinking time
   useEffect(() => {
     if (loading) {
       setThinkingTime(0);
