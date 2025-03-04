@@ -253,6 +253,25 @@ const Play = () => {
     );
   }
 
+  const isDeletedGame = game?.deleted === true;
+  
+  if (isDeletedGame) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center px-4 text-center">
+        <div className="bg-red-50 border border-red-200 rounded-xl p-6 max-w-md">
+          <h2 className="text-xl font-semibold text-red-700 mb-2">Design Unavailable</h2>
+          <p className="text-gray-700 mb-4">This design has been deleted and is no longer available.</p>
+          <button 
+            onClick={() => navigate('/')}
+            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md transition-colors"
+          >
+            Return to Home
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (gameDataLoading && !generationInProgress && !contentInitializedRef.current) {
     return (
       <div className="h-screen flex items-center justify-center">

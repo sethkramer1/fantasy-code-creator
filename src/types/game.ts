@@ -1,4 +1,3 @@
-
 export interface Game {
   id: string;
   prompt: string;
@@ -7,6 +6,7 @@ export interface Game {
   thumbnail_url?: string;
   user_id?: string;
   visibility?: string;
+  deleted?: boolean;
 }
 
 export interface GameData {

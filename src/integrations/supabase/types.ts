@@ -97,6 +97,7 @@ export type Database = {
           code: string
           created_at: string
           current_version: number | null
+          deleted: boolean
           id: string
           instructions: string | null
           model_type: string | null
@@ -109,6 +110,7 @@ export type Database = {
           code: string
           created_at?: string
           current_version?: number | null
+          deleted?: boolean
           id?: string
           instructions?: string | null
           model_type?: string | null
@@ -121,6 +123,7 @@ export type Database = {
           code?: string
           created_at?: string
           current_version?: number | null
+          deleted?: boolean
           id?: string
           instructions?: string | null
           model_type?: string | null

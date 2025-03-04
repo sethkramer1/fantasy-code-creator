@@ -11,6 +11,7 @@ export interface GameData {
   prompt: string;
   visibility?: string;
   model_type?: string;
+  deleted?: boolean;
 }
 
 export interface GameVersion {
