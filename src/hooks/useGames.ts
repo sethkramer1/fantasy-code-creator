@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -59,29 +58,6 @@ export const useGames = () => {
         return false;
       }
       
-      // First, delete related records in game_messages table
-      const { error: messagesError } = await supabase
-        .from('game_messages')
-        .delete()
-        .eq('game_id', gameId);
-      
-      if (messagesError) {
-        console.error("Error deleting game messages:", messagesError);
-        // Continue with deletion process
-      }
-      
-      // Delete records in game_versions table
-      const { error: versionsError } = await supabase
-        .from('game_versions')
-        .delete()
-        .eq('game_id', gameId);
-      
-      if (versionsError) {
-        console.error("Error deleting game versions:", versionsError);
-        // Continue with deletion process
-      }
-      
-      // Delete the game from the games table with better error handling
       const { error: gameError, data: deletedGame } = await supabase
         .from('games')
         .delete()
@@ -90,7 +66,12 @@ export const useGames = () => {
       
       if (gameError) {
         console.error("Error deleting game:", gameError);
-        throw gameError;
+        toast({
+          title: "Error deleting design",
+          description: gameError.message || "Please try again",
+          variant: "destructive"
+        });
+        return false;
       }
       
       if (!deletedGame || deletedGame.length === 0) {
@@ -103,7 +84,6 @@ export const useGames = () => {
         return false;
       }
       
-      // Update the local state by removing the deleted game
       setGames(currentGames => currentGames.filter(game => game.id !== gameId));
       
       toast({
@@ -111,7 +91,6 @@ export const useGames = () => {
         description: "Your design has been removed successfully",
       });
       
-      // Force a refresh of the games list to ensure everything is up to date
       await fetchGames();
       
       return true;
