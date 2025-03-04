@@ -21,6 +21,36 @@ function extractBase64FromDataUrl(dataUrl: string): string {
   throw new Error('Invalid data URL format');
 }
 
+function isTokenInfo(text) {
+  // Check for various token info patterns
+  return (
+    text.includes("Tokens used:") ||
+    text.includes("input tokens") ||
+    text.includes("output tokens") ||
+    /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) // Pattern like "264 input tokens, 1543 output tokens"
+  );
+}
+
+function removeTokenInfo(content) {
+  if (!content) return content;
+  
+  // Remove full lines containing token information
+  content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
+  
+  // Remove inline token information (without newlines)
+  content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
+  content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
+  
+  // Clean up any remaining token information that might be in different formats
+  content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
+  
+  return content;
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })

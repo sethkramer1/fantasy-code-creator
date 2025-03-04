@@ -83,11 +83,6 @@ export const callAnthropicApi = async (
             
             const data = JSON.parse(eventData);
             
-            // Debug log to see what's coming
-            if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
-              console.log("Received thinking delta:", data.delta.thinking);
-            }
-            
             // Handle thinking content
             if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
               const thinking = data.delta.thinking || '';
@@ -100,11 +95,12 @@ export const callAnthropicApi = async (
             else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
               const content = data.delta.text || '';
               if (content && onContent) {
-                // Skip token information in the actual content
-                if (!content.includes("Tokens used:") && 
-                    !content.includes("input tokens") && 
-                    !content.includes("output tokens")) {
+                // Don't add token information to the actual content
+                if (!isTokenInfo(content)) {
                   combinedContent += content;
+                  onContent(content);
+                } else {
+                  // Still call onContent to show token info in terminal, but don't add to combinedContent
                   onContent(content);
                 }
               }
@@ -125,9 +121,8 @@ export const callAnthropicApi = async (
         }
       }
       
-      // Remove any token information that might have snuck into the content
-      combinedContent = combinedContent.replace(/Tokens used:.*?(input|output).*?\n/g, '');
-      combinedContent = combinedContent.replace(/\d+ input tokens, \d+ output tokens/g, '');
+      // Final cleanup - ensure all token information is removed
+      combinedContent = removeTokenInfo(combinedContent);
       
       return { gameContent: combinedContent };
     } else {
@@ -136,8 +131,7 @@ export const callAnthropicApi = async (
       let gameContent = data.content || '';
       
       // Remove token information from the actual content
-      gameContent = gameContent.replace(/Tokens used:.*?(input|output).*?\n/g, '');
-      gameContent = gameContent.replace(/\d+ input tokens, \d+ output tokens/g, '');
+      gameContent = removeTokenInfo(gameContent);
       
       // Extract token information if available
       const tokenInfo = data.usage ? {
@@ -153,3 +147,33 @@ export const callAnthropicApi = async (
     throw error;
   }
 };
+
+// Helper function to detect token information
+function isTokenInfo(text: string): boolean {
+  // Check for various token info patterns
+  return (
+    text.includes("Tokens used:") ||
+    text.includes("input tokens") ||
+    text.includes("output tokens") ||
+    /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) // Pattern like "264 input tokens, 1543 output tokens"
+  );
+}
+
+// Helper function to remove token information from content
+function removeTokenInfo(content: string): string {
+  // Remove full lines containing token information
+  content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
+  
+  // Remove inline token information (without newlines)
+  content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
+  content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
+  
+  // Clean up any remaining token information that might be in different formats
+  content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
+  
+  return content;
+}

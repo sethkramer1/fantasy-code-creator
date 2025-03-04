@@ -74,6 +74,9 @@ export const processGroqResponse = async (
   let content = responseData.content;
   updateTerminalOutputFn("> Received complete content from Groq", true);
   
+  // Clean the content from token info before extraction
+  content = removeTokenInfo(content);
+  
   if (content.includes("```html")) {
     console.log("Found HTML code block, extracting...");
     const htmlMatch = content.match(/```html\s*([\s\S]*?)```/);
@@ -214,19 +217,14 @@ export const processAnthropicStream = async (
               } else if (data.delta?.type === 'text_delta') {
                 const contentChunk = data.delta.text || '';
                 if (contentChunk) {
-                  // Don't add any token info text into the actual content
-                  if (!contentChunk.includes("Tokens used:") && 
-                      !contentChunk.includes("input tokens") && 
-                      !contentChunk.includes("output tokens")) {
+                  // Check if this is token information
+                  if (isTokenInfo(contentChunk)) {
+                    // Display token info in terminal only
+                    updateTerminalOutputFn(`> Token info: ${contentChunk}`, true);
+                  } else {
+                    // Add to actual content and display in terminal
                     content += contentChunk;
                     updateTerminalOutputFn(`> ${contentChunk}`, false);
-                  } else {
-                    // Extract and show token info separately
-                    if (contentChunk.includes("Tokens used:") || 
-                        contentChunk.includes("input tokens") || 
-                        contentChunk.includes("output tokens")) {
-                      updateTerminalOutputFn(`> Token info: ${contentChunk}`, true);
-                    }
                   }
                 }
               }
@@ -266,11 +264,8 @@ export const processAnthropicStream = async (
     throw error;
   }
   
-  // Filter out any token info that might have been included in the content
-  if (content) {
-    content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
-    content = content.replace(/\d+ input tokens, \d+ output tokens/g, '');
-  }
+  // Final cleanup of any token information that might have been included
+  content = removeTokenInfo(content);
   
   if (!content || content.trim().length === 0) {
     throw new Error("No content received from AI. Please try again.");
@@ -278,3 +273,33 @@ export const processAnthropicStream = async (
   
   return content;
 };
+
+// Helper function to detect token information
+function isTokenInfo(text: string): boolean {
+  // Check for various token info patterns
+  return (
+    text.includes("Tokens used:") ||
+    text.includes("input tokens") ||
+    text.includes("output tokens") ||
+    /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) // Pattern like "264 input tokens, 1543 output tokens"
+  );
+}
+
+// Helper function to remove token information from content
+function removeTokenInfo(content: string): string {
+  // Remove full lines containing token information
+  content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
+  
+  // Remove inline token information (without newlines)
+  content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
+  content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
+  
+  // Clean up any remaining token information that might be in different formats
+  content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
+  
+  return content;
+}
