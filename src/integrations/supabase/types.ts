@@ -185,6 +185,54 @@ export type Database = {
         }
         Relationships: []
       }
+      token_usage: {
+        Row: {
+          created_at: string
+          game_id: string
+          id: string
+          message_id: string | null
+          model_type: string
+          prompt: string
+          tokens_used: number
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          game_id: string
+          id?: string
+          message_id?: string | null
+          model_type: string
+          prompt: string
+          tokens_used?: number
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          game_id?: string
+          id?: string
+          message_id?: string | null
+          model_type?: string
+          prompt?: string
+          tokens_used?: number
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "token_usage_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "token_usage_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "game_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

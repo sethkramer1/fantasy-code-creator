@@ -85,6 +85,71 @@ export const updateMessageResponse = async (messageId: string, response: string)
   }
 };
 
+export const trackTokenUsage = async (
+  userId: string | undefined,
+  gameId: string,
+  messageId: string,
+  prompt: string,
+  tokensUsed: number,
+  modelType: string
+) => {
+  try {
+    console.log(`Tracking token usage: ${tokensUsed} tokens for model ${modelType}`);
+    
+    const insertData = {
+      user_id: userId,
+      game_id: gameId,
+      message_id: messageId,
+      prompt: prompt,
+      tokens_used: tokensUsed,
+      model_type: modelType
+    };
+    
+    const { error } = await supabase
+      .from('token_usage')
+      .insert(insertData);
+    
+    if (error) {
+      console.error("Error tracking token usage:", error);
+      throw error;
+    }
+    
+    console.log("Token usage tracked successfully");
+  } catch (error) {
+    console.error("Error in trackTokenUsage:", error);
+    // Not throwing here to prevent disrupting the main flow
+  }
+};
+
+export const fetchTokenUsageHistory = async (userId: string | undefined) => {
+  if (!userId) {
+    return { data: null, error: new Error("User ID is required") };
+  }
+  
+  try {
+    const { data, error } = await supabase
+      .from('token_usage')
+      .select(`
+        id,
+        game_id,
+        message_id,
+        tokens_used,
+        model_type,
+        created_at,
+        games(prompt)
+      `)
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false });
+    
+    if (error) throw error;
+    
+    return { data, error: null };
+  } catch (error) {
+    console.error("Error fetching token usage history:", error);
+    return { data: null, error };
+  }
+};
+
 export const processGameUpdate = async (
   gameId: string,
   message: string,
@@ -142,3 +207,4 @@ export const processGameUpdate = async (
     throw error;
   }
 };
+

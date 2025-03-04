@@ -7,13 +7,15 @@ import {
   fetchChatHistory, 
   saveMessage, 
   updateMessageResponse, 
-  processGameUpdate 
+  processGameUpdate,
+  trackTokenUsage
 } from "@/components/game-chat/api-service";
 import { 
   updateTerminalOutput, 
   processGroqResponse, 
   processAnthropicStream 
 } from "@/components/game-chat/terminal-utils";
+import { useAuth } from "@/context/AuthContext";
 
 export interface UseChatMessagesProps {
   gameId: string;
@@ -38,6 +40,7 @@ export function useChatMessages({
   const [modelType, setModelType] = useState<ModelType>("smart");
   const [initialMessageId, setInitialMessageId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const { user } = useAuth();
 
   // Initialize timer for thinking time
   useEffect(() => {
@@ -223,6 +226,7 @@ export function useChatMessages({
       updateTerminalOutputWrapper("> Connection established, receiving content...", true);
       
       let content = '';
+      let tokensUsed = 0;
       
       if (responseModelType === "fast") {
         updateTerminalOutputWrapper("> Using non-streaming mode for Groq API...", true);
@@ -231,11 +235,22 @@ export function useChatMessages({
         console.log("Complete Groq response received:", responseData);
         
         content = await processGroqResponse(responseData, updateTerminalOutputWrapper);
+        
+        // Extract token usage from Groq response if available
+        if (responseData.usage) {
+          tokensUsed = responseData.usage.total_tokens || 0;
+          console.log(`Groq tokens used: ${tokensUsed}`);
+        }
       } else {
         const reader = apiResponse.body?.getReader();
         if (!reader) throw new Error("Unable to read response stream");
         
         content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
+        
+        // Estimate token usage for Anthropic (approximately 1 token per 4 characters)
+        // This is a rough estimate since we don't get actual token count from the streaming API
+        tokensUsed = Math.ceil((currentMessage.length + content.length) / 4);
+        console.log(`Estimated Anthropic tokens used: ${tokensUsed}`);
       }
       
       console.log("Content collection complete. Total length:", content.length);
@@ -246,6 +261,16 @@ export function useChatMessages({
       onGameUpdate(content, "Content updated successfully");
       
       await updateMessageResponse(insertedMessage.id, "Content updated successfully");
+      
+      // Track token usage
+      await trackTokenUsage(
+        user?.id,
+        gameId,
+        insertedMessage.id,
+        currentMessage,
+        tokensUsed,
+        currentModelType
+      );
       
       updateTerminalOutputWrapper("> Content updated successfully!", true);
       
@@ -322,6 +347,6 @@ export function useChatMessages({
     setInitialMessageId,
     terminalOutput,
     addSystemMessage,
-    fetchMessages // Add this to return values
+    fetchMessages
   };
 }

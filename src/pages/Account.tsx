@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import { Mail, LogOut, User, ArrowLeft } from "lucide-react";
+import { TokenUsageHistory } from "@/components/account/TokenUsageHistory";
 
 const Account = () => {
   const { user, signOut, loading } = useAuth();
@@ -53,7 +54,7 @@ const Account = () => {
 
   return (
     <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <Button 
             variant="ghost" 
@@ -67,49 +68,43 @@ const Account = () => {
           <p className="text-gray-500 mt-1">View and manage your account details</p>
         </div>
 
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User size={18} />
-              Profile Information
-            </CardTitle>
-            <CardDescription>Your personal information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Mail size={16} className="text-gray-400" />
-              <span className="text-sm font-medium">{user.email}</span>
-            </div>
-            {user.user_metadata?.full_name && (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+          <Card className="md:col-span-1">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <User size={18} />
+                Profile Information
+              </CardTitle>
+              <CardDescription>Your personal information</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
               <div className="flex items-center gap-2">
-                <User size={16} className="text-gray-400" />
-                <span className="text-sm font-medium">{user.user_metadata.full_name}</span>
+                <Mail size={16} className="text-gray-400" />
+                <span className="text-sm font-medium">{user.email}</span>
               </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Account Settings</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-500 mb-4">
-              Manage your account settings and preferences
-            </p>
-            <Separator className="my-4" />
-          </CardContent>
-          <CardFooter>
-            <Button 
-              variant="destructive" 
-              onClick={handleLogout}
-              className="w-full flex items-center justify-center gap-2"
-            >
-              <LogOut size={16} />
-              Sign Out
-            </Button>
-          </CardFooter>
-        </Card>
+              {user.user_metadata?.full_name && (
+                <div className="flex items-center gap-2">
+                  <User size={16} className="text-gray-400" />
+                  <span className="text-sm font-medium">{user.user_metadata.full_name}</span>
+                </div>
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button 
+                variant="destructive" 
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2"
+              >
+                <LogOut size={16} />
+                Sign Out
+              </Button>
+            </CardFooter>
+          </Card>
+          
+          <div className="md:col-span-2">
+            <TokenUsageHistory />
+          </div>
+        </div>
       </div>
     </div>
   );
