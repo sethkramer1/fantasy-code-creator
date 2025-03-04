@@ -1,4 +1,3 @@
-
 export const updateTerminalOutput = (
   setTerminalOutput: React.Dispatch<React.SetStateAction<string[]>>, 
   newContent: string, 
@@ -151,10 +150,8 @@ export const processAnthropicStream = async (
   updateTerminalOutputFn: (text: string, isNewLine?: boolean) => void
 ) => {
   let content = '';
-  let totalChunks = 0;
   let buffer = '';
-  let currentLineContent = '';
-  let isInThinkingPhase = false;
+  let currentThinkingPhase = '';
   
   updateTerminalOutputFn("> Anthropic stream connected, receiving content...", true);
   
@@ -163,139 +160,84 @@ export const processAnthropicStream = async (
       const { done, value } = await reader.read();
       
       if (done) {
-        console.log("Stream complete after", totalChunks, "chunks");
+        console.log("Stream complete");
         updateTerminalOutputFn("> Stream complete", true);
         break;
       }
       
-      totalChunks++;
       const chunk = new TextDecoder().decode(value);
       buffer += chunk;
-      
-      console.log(`Received chunk #${totalChunks}, size: ${chunk.length}`);
-      if (totalChunks <= 3) {
-        console.log("Chunk sample:", chunk.substring(0, 100));
-      }
       
       let lineEnd;
       while ((lineEnd = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, lineEnd);
         buffer = buffer.slice(lineEnd + 1);
         
-        if (!line) continue;
+        if (!line.startsWith('data: ')) continue;
         
-        if (line.startsWith('data: ')) {
-          try {
-            const eventData = line.slice(5).trim();
-            
-            if (eventData === '[DONE]') {
-              updateTerminalOutputFn("> Stream complete", true);
-              break;
-            }
-            
-            // Parse the JSON data
-            const data = JSON.parse(eventData);
-            
-            // Handle different event types based on Anthropic's streaming format
-            if (data.type === 'message_start') {
-              updateTerminalOutputFn("> Starting new message from Anthropic", true);
-              
-              // Log token usage if available
+        try {
+          const eventData = line.slice(5).trim();
+          
+          if (eventData === '[DONE]') {
+            updateTerminalOutputFn("> Stream complete", true);
+            break;
+          }
+          
+          const data = JSON.parse(eventData);
+          
+          switch (data.type) {
+            case 'message_start':
+              updateTerminalOutputFn("> Starting response generation...", true);
               if (data.message?.usage) {
                 updateTerminalOutputFn(`> Input tokens: ${data.message.usage.input_tokens}`, true);
               }
-            } 
-            else if (data.type === 'content_block_start') {
-              if (data.content_block?.type === 'thinking') {
-                isInThinkingPhase = true;
-                updateTerminalOutputFn("> Thinking phase started...", true);
-              } else if (data.content_block?.type === 'text') {
-                updateTerminalOutputFn("> Generation started...", true);
+              break;
+              
+            case 'content_block_start':
+              if (data.content_block?.type === 'text') {
+                updateTerminalOutputFn("> Generating content...", true);
               }
-            }
-            else if (data.type === 'content_block_delta') {
+              break;
+              
+            case 'content_block_delta':
               if (data.delta?.type === 'thinking_delta') {
-                const thinking = data.delta.thinking || '';
-                if (thinking && thinking.trim()) {
-                  // Always put thinking output on a new line
-                  updateTerminalOutputFn(`> Thinking: ${thinking.trim()}`, true);
+                const thinking = data.delta.thinking?.trim() || '';
+                if (thinking && thinking !== currentThinkingPhase) {
+                  currentThinkingPhase = thinking;
+                  updateTerminalOutputFn(`> Thinking: ${thinking}`, true);
                 }
-              }
-              else if (data.delta?.type === 'text_delta') {
+              } else if (data.delta?.type === 'text_delta') {
                 const contentChunk = data.delta.text || '';
                 if (contentChunk) {
                   content += contentChunk;
-                  
-                  // Check if content chunk contains newlines
-                  if (contentChunk.includes('\n')) {
-                    const lines = contentChunk.split('\n');
-                    
-                    // Process first line - append to current line
-                    if (lines[0]) {
-                      currentLineContent += lines[0];
-                      updateTerminalOutputFn(`> ${currentLineContent}`, false);
-                    }
-                    
-                    // Process middle lines - each gets its own line
-                    for (let i = 1; i < lines.length - 1; i++) {
-                      if (lines[i]) {
-                        currentLineContent = lines[i];
-                        updateTerminalOutputFn(`> ${currentLineContent}`, true);
-                      }
-                    }
-                    
-                    // Handle last line
-                    if (lines.length > 1) {
-                      currentLineContent = lines[lines.length - 1] || '';
-                      if (currentLineContent) {
-                        updateTerminalOutputFn(`> ${currentLineContent}`, true);
-                      } else {
-                        currentLineContent = '';
-                      }
-                    }
-                  } else {
-                    // No newlines, just append to current line
-                    currentLineContent += contentChunk;
-                    updateTerminalOutputFn(`> ${currentLineContent}`, false);
-                  }
+                  updateTerminalOutputFn(`> ${contentChunk}`, false);
                 }
               }
-            }
-            else if (data.type === 'content_block_stop') {
-              if (data.index !== undefined) {
-                if (isInThinkingPhase) {
-                  isInThinkingPhase = false;
-                  updateTerminalOutputFn("> Thinking phase completed", true);
-                }
-              }
-            }
-            else if (data.type === 'message_delta') {
+              break;
+              
+            case 'message_delta':
               if (data.delta?.stop_reason) {
                 updateTerminalOutputFn(`> Generation ${data.delta.stop_reason}`, true);
               }
-              
-              // Log token usage if available
               if (data.usage?.output_tokens) {
                 updateTerminalOutputFn(`> Output tokens: ${data.usage.output_tokens}`, true);
               }
-            }
-            else if (data.type === 'message_stop') {
+              break;
+              
+            case 'message_stop':
               updateTerminalOutputFn("> Content generation completed!", true);
-            }
-            else if (data.type === 'error') {
+              break;
+              
+            case 'error':
               const errorMessage = data.error?.message || 'Unknown error';
               const errorType = data.error?.type || 'generic_error';
               updateTerminalOutputFn(`> Error: ${errorMessage} (${errorType})`, true);
               console.error("Stream error:", data.error);
-            }
-            else if (data.type === 'ping') {
-              // Just ignore ping events
-              console.log("Received ping event");
-            }
-          } catch (e) {
-            console.warn("Error parsing Anthropic data:", e);
-            console.log("Raw data that failed to parse:", line.slice(5));
-            // Continue even if we can't parse a line - don't throw here
+              throw new Error(errorMessage);
+          }
+        } catch (parseError) {
+          if (!line.includes('[DONE]')) {
+            console.error('Error parsing stream data:', parseError, 'Line:', line);
           }
         }
       }
