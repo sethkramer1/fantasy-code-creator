@@ -73,11 +73,10 @@ export const useGames = () => {
       // Optimistic UI update - remove the game from the UI immediately
       setGames(currentGames => currentGames.filter(game => game.id !== gameId));
       
-      // If user is an admin, they can delete any game
+      // Admin delete operation - no ownership check needed
       if (isAdmin) {
-        console.log("Admin user - bypassing ownership check");
+        console.log("Admin user - performing privileged delete");
         
-        // Admin delete operation - direct delete, no ownership check
         const { data, error } = await supabase
           .from('games')
           .update({ deleted: true })

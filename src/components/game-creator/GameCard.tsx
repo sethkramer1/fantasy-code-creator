@@ -28,16 +28,10 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { user, isAdmin } = useAuth();
   
-  // Simplified delete permission check - admin can delete ANY game
-  const canDelete = !!onDelete && (!!isAdmin || (user?.id && game.user_id === user.id));
+  // Simplified check - admin can delete ANY game, regular users can only delete their own
+  const canDelete = !!onDelete && (isAdmin || (user?.id && game.user_id === user.id));
   
-  console.log(`GameCard ${game.id} (${game.prompt?.substring(0, 20)}...):`, {
-    isAdmin,
-    currentUserId: user?.id,
-    gameUserId: game.user_id,
-    canDelete,
-    hasDeleteFunction: !!onDelete
-  });
+  console.log(`GameCard ${game.id}: User isAdmin=${isAdmin}, canDelete=${canDelete}, userId=${user?.id}, gameUserId=${game.user_id}`);
   
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
@@ -135,7 +129,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
           </div>
         </div>
         
-        {/* Delete button - simplified logic, show for all games if admin */}
+        {/* Delete button - show for all games if admin, or user's own games */}
         {canDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"

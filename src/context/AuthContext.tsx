@@ -92,7 +92,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         // Check admin status after auth state change
         if (session?.user) {
-          await checkIsAdmin();
+          const adminStatus = await checkIsAdmin();
+          console.log("User admin status set to:", adminStatus);
         } else {
           setIsAdmin(false);
         }
@@ -126,6 +127,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     isAdmin, 
     checkIsAdmin
   }), [session, user, loading, isAdmin]);
+
+  // Log when admin status changes
+  useEffect(() => {
+    console.log("AuthContext state updated - isAdmin:", isAdmin);
+  }, [isAdmin]);
 
   return (
     <AuthContext.Provider value={contextValue}>
