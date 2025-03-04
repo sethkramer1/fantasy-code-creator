@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/game-creator/Header";
@@ -120,6 +119,24 @@ const Index = () => {
 
       if (versionError) {
         console.error("Error creating placeholder version:", versionError);
+      }
+      
+      // Create a game_message entry for the initial prompt
+      const { error: messageError } = await supabase
+        .from('game_messages')
+        .insert([{
+          game_id: placeholderGame.id,
+          message: prompt,
+          response: "Initial generation in progress...",
+          model_type: modelType,
+          image_url: imageUrl || null
+        }]);
+      
+      if (messageError) {
+        console.error("Error creating initial game_message:", messageError);
+        // Non-fatal error, continue with generation
+      } else {
+        console.log("Created initial game_message for prompt");
       }
       
       // Pass all necessary parameters to the Play page for generation
