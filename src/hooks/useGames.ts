@@ -46,31 +46,24 @@ export const useGames = () => {
     try {
       console.log("=== SOFT DELETE OPERATION STARTED ===");
       console.log("Attempting to mark game with ID as deleted:", gameId);
+      console.log("Current user ID:", user?.id);
       
-      // Check if game exists in local state first
-      const gameInState = games.find(game => game.id === gameId);
-      
-      if (!gameInState) {
-        console.error("Game not found in local state!");
-        toast({
-          title: "Error deleting design",
-          description: "The design could not be found in the current view",
-          variant: "destructive"
-        });
-        return false;
-      }
-
-      // Update the game record to set deleted=true instead of actually deleting it
-      console.log("Marking game as deleted in database:", gameId);
+      // Skip the local state check as it might not be reliable
+      // Directly attempt to update the game with both game ID and user ID conditions
       const { data, error } = await supabase
         .from('games')
         .update({ deleted: true })
-        .eq('id', gameId)
+        .match({ 
+          id: gameId,
+          // Only include user_id in the match if we have a logged in user
+          ...(user?.id ? { user_id: user.id } : {})
+        })
         .select();
       
       console.log("Update game result:", { data, error });
       
       if (error) {
+        console.error("Database error during delete:", error);
         // Handle specific errors
         if (error.code === '42501') {
           // Permission denied error
@@ -90,7 +83,37 @@ export const useGames = () => {
       }
       
       if (!data || data.length === 0) {
-        // RLS might have prevented update without throwing an error
+        console.error("No data returned - likely permission issue or game doesn't exist");
+        // Try a more permissive update if the user is not logged in or we couldn't match with user ID
+        if (!user?.id) {
+          console.log("Attempting permissive update for public games...");
+          const { data: publicData, error: publicError } = await supabase
+            .from('games')
+            .update({ deleted: true })
+            .eq('id', gameId)
+            .is('user_id', null)  // Only update games without a user_id
+            .select();
+            
+          console.log("Permissive update result:", { publicData, publicError });
+          
+          if (publicError || !publicData || publicData.length === 0) {
+            toast({
+              title: "Access denied",
+              description: "You don't have permission to delete this design or it doesn't exist.",
+              variant: "destructive"
+            });
+            return false;
+          }
+          
+          // If we get here, the permissive update worked
+          setGames(currentGames => currentGames.filter(game => game.id !== gameId));
+          toast({
+            title: "Design deleted",
+            description: "Your design has been removed successfully",
+          });
+          return true;
+        }
+        
         toast({
           title: "Access denied",
           description: "You don't have permission to delete this design or it doesn't exist.",
