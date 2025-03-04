@@ -32,7 +32,7 @@ export const callAnthropicApi = async (
         stream: true,
         thinking: {
           type: "enabled",
-          budget_tokens: 10000
+          budget_tokens: 3500
         }
       }),
     });

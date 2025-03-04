@@ -297,7 +297,7 @@ export function usePlayTerminal(
         userId: user?.id,
         thinking: modelType === "smart" ? {
           type: "enabled",
-          budget_tokens: 10000
+          budget_tokens: 3500
         } : undefined
       };
       
