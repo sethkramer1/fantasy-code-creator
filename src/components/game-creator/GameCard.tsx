@@ -28,7 +28,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { user, isAdmin } = useAuth();
   
-  // Simplified deletion permission check - admins can delete ANY game
+  // Enhanced deletion permission check - admins can delete ANY game
   const canDelete = onDelete && (
     (user?.id && isAdmin) || // Admin can delete any game
     (user?.id && game.user_id === user.id) // Or user owns the game
@@ -39,7 +39,8 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
     gameUserId: game.user_id || 'none',
     currentUserId: user?.id || 'not logged in',
     isAdmin: !!isAdmin, // Force boolean for consistent logging
-    canDelete: !!canDelete // Force boolean for consistent logging
+    canDelete: !!canDelete, // Force boolean for consistent logging
+    hasOnDeleteFunction: !!onDelete // Check if the onDelete function was passed
   });
   
   // Reset iframe when gameCode changes to force reload
@@ -51,14 +52,21 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
+    console.log("Delete button clicked for game:", game.id);
     setShowDeleteDialog(true);
   };
   
   const confirmDelete = async () => {
-    if (!onDelete) return;
+    if (!onDelete) {
+      console.error("No onDelete function provided");
+      return;
+    }
     
+    console.log("Confirming delete for game:", game.id, "isAdmin:", isAdmin);
     setIsDeleting(true);
     const success = await onDelete(game.id);
+    
+    console.log("Delete operation result:", success);
     
     if (!success) {
       setIsDeleting(false);
@@ -131,14 +139,16 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
           </div>
         </div>
         
-        {/* Delete button - simplified logic */}
-        {canDelete && (
+        {/* Delete button with enhanced visibility logging */}
+        {canDelete ? (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"
             onClick={handleDelete}
           >
             <Trash2 size={16} className="text-gray-400 hover:text-red-500 transition-colors" />
           </div>
+        ) : (
+          console.log(`Delete button not shown for game ${game.id} - user:${user?.id}, isAdmin:${isAdmin}, game.user_id:${game.user_id}`)
         )}
       </div>
       

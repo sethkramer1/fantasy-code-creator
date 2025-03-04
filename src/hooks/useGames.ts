@@ -73,6 +73,27 @@ export const useGames = () => {
       // If user is an admin, they can delete any game
       if (isAdmin) {
         console.log("Admin user - bypassing ownership check");
+        
+        // First, get the game details to confirm it exists
+        const { data: gameData, error: gameError } = await supabase
+          .from('games')
+          .select('id, prompt, user_id')
+          .eq('id', gameId)
+          .single();
+        
+        console.log("Game to be deleted by admin:", gameData);
+        
+        if (gameError) {
+          console.error("Error fetching game before admin delete:", gameError);
+          toast({
+            title: "Error deleting design",
+            description: gameError.message || "Could not find the design",
+            variant: "destructive"
+          });
+          return false;
+        }
+        
+        // Proceed with the deletion
         const { data, error } = await supabase
           .from('games')
           .update({ deleted: true })
@@ -92,7 +113,7 @@ export const useGames = () => {
         }
         
         if (!data || data.length === 0) {
-          console.error("No data returned - game doesn't exist");
+          console.error("No data returned - game doesn't exist or permission issue");
           toast({
             title: "Error deleting design",
             description: "This design doesn't exist or has already been deleted",
@@ -109,6 +130,7 @@ export const useGames = () => {
           description: "The design has been removed successfully",
         });
         
+        console.log("=== ADMIN DELETE OPERATION COMPLETED SUCCESSFULLY ===");
         return true;
       }
       
