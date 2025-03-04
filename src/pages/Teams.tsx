@@ -18,20 +18,28 @@ import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/context/AuthContext";
 import { Header } from "@/components/game-creator/Header";
+import { useToast } from "@/hooks/use-toast";
 
 export default function TeamsPage() {
-  const { teams, loading, createTeam } = useTeams();
+  const { teams, loading, createTeam, fetchTeams } = useTeams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const { user } = useAuth();
+  const { toast } = useToast();
   
   useEffect(() => {
     console.log("TeamsPage - User:", user?.id);
     console.log("TeamsPage - Teams loaded:", teams.length);
-    console.log("TeamsPage - Teams data:", teams);
-  }, [teams, user]);
+    console.log("TeamsPage - Teams data:", JSON.stringify(teams));
+    
+    // If the user is logged in but we have no teams, try fetching again
+    if (user && teams.length === 0 && !loading) {
+      console.log("TeamsPage - No teams found, retrying fetch...");
+      fetchTeams();
+    }
+  }, [teams, user, loading, fetchTeams]);
   
   const handleCreateTeam = async () => {
     if (!teamName.trim()) return;
@@ -41,9 +49,17 @@ export default function TeamsPage() {
       console.log("Creating team with name:", teamName);
       const team = await createTeam(teamName, teamDescription);
       console.log("Team created:", team);
-      setTeamName('');
-      setTeamDescription('');
-      setIsDialogOpen(false);
+      
+      if (team) {
+        toast({
+          title: "Team Created",
+          description: `Your team "${teamName}" has been created successfully.`
+        });
+        
+        setTeamName('');
+        setTeamDescription('');
+        setIsDialogOpen(false);
+      }
     } finally {
       setIsCreating(false);
     }

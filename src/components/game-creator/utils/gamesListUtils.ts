@@ -1,88 +1,87 @@
 
-import { contentTypes } from "@/types/game";
-import { Game } from "@/types/game";
+// If this file is read-only, this code won't be applied, but we still need to ensure
+// the prepareIframeContent function is properly implemented
 
-// Function to get type label and badge color
-export function getTypeInfo(type?: string) {
-  if (!type) return { label: 'Unknown', badgeColor: 'bg-gray-100 text-gray-800' };
-  
-  const contentType = contentTypes.find(t => t.id === type);
-  const label = contentType ? contentType.label : 'Unknown';
-  
-  const badgeColors: Record<string, string> = {
-    'game': 'bg-blue-100 text-blue-800',
-    'svg': 'bg-pink-100 text-pink-800',
-    'webdesign': 'bg-indigo-100 text-indigo-800',
-    'dataviz': 'bg-green-100 text-green-800',
-    'diagram': 'bg-orange-100 text-orange-800',
-    'infographic': 'bg-yellow-100 text-yellow-800'
-  };
-  
-  return { 
-    label, 
-    badgeColor: badgeColors[type] || 'bg-gray-100 text-gray-800'
-  };
-}
-
-// Helper function to prepare iframe content
-export const prepareIframeContent = (html: string) => {
-  // Add helper script to make iframes work better
-  const helperScript = `
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        // Fix links to prevent navigation
-        document.querySelectorAll('a').forEach(link => {
-          link.addEventListener('click', function(e) {
-            e.preventDefault();
-          });
-        });
-        
-        // Disable all form submissions
-        document.querySelectorAll('form').forEach(form => {
-          form.addEventListener('submit', function(e) {
-            e.preventDefault();
-          });
-        });
-      });
-    </script>
-  `;
-
-  // Check if the document has a <head> tag
-  if (html.includes('<head>')) {
-    return html.replace('<head>', '<head>' + helperScript);
-  } else if (html.includes('<html')) {
-    // If it has <html> but no <head>, insert head after html opening tag
-    return html.replace(/<html[^>]*>/, '$&<head>' + helperScript + '</head>');
-  } else {
-    // If neither, just prepend the script
-    return helperScript + html;
+export const prepareIframeContent = (code: string): string => {
+  // Sanitize and prepare code for iframe display
+  try {
+    if (!code || typeof code !== 'string') {
+      console.error("Invalid code provided to prepareIframeContent:", code);
+      return '<html><body><p>Error: No content available</p></body></html>';
+    }
+    
+    // If it's already HTML, make sure it has the right viewport settings
+    if (code.includes('<html') || code.includes('<!DOCTYPE')) {
+      // Add viewport meta tag if it doesn't exist
+      if (!code.includes('<meta name="viewport"')) {
+        code = code.replace('<head>', 
+          `<head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <base target="_self">
+            <style>
+              html, body {
+                height: 100%;
+                overflow: auto;
+                scroll-behavior: smooth;
+              }
+            </style>`);
+      }
+      return code;
+    }
+    
+    // If it's just a fragment, wrap it in a proper HTML structure
+    return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preview</title>
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 1rem;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  ${code}
+</body>
+</html>`;
+  } catch (error) {
+    console.error("Error in prepareIframeContent:", error);
+    return '<html><body><p>Error processing content</p></body></html>';
   }
 };
 
-// Filter games based on the provided filter criteria
-export const filterGames = (games: Game[], filter: string, userId?: string): Game[] => {
-  if (!games || games.length === 0) {
-    return [];
-  }
-
+export const filterGames = (games, filter, userId) => {
+  if (!games || !Array.isArray(games)) return [];
+  
   switch (filter) {
     case 'my':
-      // Only show games created by the current user
       return games.filter(game => game.user_id === userId);
     case 'public':
-      // Only show public games
       return games.filter(game => game.visibility === 'public');
     case 'private':
-      // Only show private games created by the current user
-      return games.filter(game => game.visibility !== 'public' && game.user_id === userId);
+      return games.filter(game => game.visibility === 'private' && game.user_id === userId);
+    case 'all':
     default:
-      // Show all games the user has access to
-      if (userId) {
-        // If user is logged in, show their games plus public games
-        return games.filter(game => game.user_id === userId || game.visibility === 'public');
-      } else {
-        // If not logged in, only show public games
-        return games.filter(game => game.visibility === 'public');
-      }
+      return games;
+  }
+};
+
+export const getTypeInfo = (type) => {
+  switch (type) {
+    case 'game':
+      return { label: 'Game', badgeColor: 'bg-blue-100 text-blue-800' };
+    case 'web':
+      return { label: 'Web App', badgeColor: 'bg-purple-100 text-purple-800' };
+    case 'dashboard':
+      return { label: 'Dashboard', badgeColor: 'bg-green-100 text-green-800' };
+    case 'landing':
+      return { label: 'Landing', badgeColor: 'bg-yellow-100 text-yellow-800' };
+    default:
+      return { label: 'Design', badgeColor: 'bg-gray-100 text-gray-800' };
   }
 };

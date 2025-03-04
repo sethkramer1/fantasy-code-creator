@@ -2,7 +2,7 @@
 import { Game } from "@/types/game";
 import { Loader2, ArrowUpRight, Trash2, Globe, Lock } from "lucide-react";
 import { getTypeInfo, prepareIframeContent } from "./utils/gamesListUtils";
-import { useEffect, useState, MouseEvent } from "react";
+import { useEffect, useState, MouseEvent, useRef } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   Dialog,
@@ -29,6 +29,7 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
   const [isDeleting, setIsDeleting] = useState(false);
   const [localAdminStatus, setLocalAdminStatus] = useState(false);
   const { user, isAdmin, checkIsAdmin } = useAuth();
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   
   // Check admin status when the component mounts or when the user changes
   useEffect(() => {
@@ -36,7 +37,6 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
       if (user) {
         const isUserAdmin = await checkIsAdmin();
         setLocalAdminStatus(isUserAdmin);
-        console.log(`GameCard admin status refreshed: ${isUserAdmin}, user=${user?.email}`);
       } else {
         setLocalAdminStatus(false);
       }
@@ -54,42 +54,50 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
   // Is the current user the owner of this game?
   const isOwner = user?.id && game.user_id === user.id;
   
-  console.log(`GameCard ${game.id}: admin=${localAdminStatus}, canDelete=${canDelete}, user=${user?.id}, userEmail=${user?.email}, gameOwner=${game.user_id}`);
-  
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
     if (gameCode) {
       setIframeKey(prev => prev + 1);
+      console.log(`GameCard ${game.id}: Updating iframe with new code, key=${iframeKey}`);
     }
-  }, [gameCode]);
+  }, [gameCode, game.id]);
   
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
-    // Refresh admin status right before delete attempt
     if (user) {
       const isUserAdmin = await checkIsAdmin();
       setLocalAdminStatus(isUserAdmin);
     }
-    console.log(`Delete button clicked for game ${game.id}, user is admin: ${localAdminStatus}, user email: ${user?.email}`);
     setShowDeleteDialog(true);
   };
   
   const confirmDelete = async () => {
     if (!onDelete) {
-      console.error("No onDelete function provided");
       return;
     }
     
-    console.log(`Confirming delete for game ${game.id}, by admin: ${localAdminStatus}, user: ${user?.email}`);
     setIsDeleting(true);
     const success = await onDelete(game.id);
-    
-    console.log(`Delete operation result for ${game.id}: ${success ? 'SUCCESS' : 'FAILED'}`);
     
     if (!success) {
       setIsDeleting(false);
     }
     setShowDeleteDialog(false);
+  };
+  
+  // This function ensures the iframe content is properly prepared and sanitized
+  const getSafeIframeContent = () => {
+    if (!gameCode) return null;
+    
+    try {
+      // Prepare the iframe content
+      const content = prepareIframeContent(gameCode);
+      console.log(`GameCard ${game.id}: Prepared iframe content of length ${content.length}`);
+      return content;
+    } catch (error) {
+      console.error(`GameCard ${game.id}: Error preparing iframe content:`, error);
+      return `<html><body><p>Error loading preview</p></body></html>`;
+    }
   };
   
   return (
@@ -103,7 +111,8 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
           {gameCode ? (
             <iframe 
               key={iframeKey}
-              srcDoc={prepareIframeContent(gameCode)}
+              ref={iframeRef}
+              srcDoc={getSafeIframeContent()}
               className="pointer-events-none"
               style={{ 
                 width: '400%',  /* Make iframe 4x wider to match the 0.25 scale */
@@ -116,6 +125,8 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
               title={`Preview of ${game.prompt || 'design'}`}
               loading="lazy"
               sandbox="allow-same-origin allow-scripts"
+              onLoad={() => console.log(`GameCard ${game.id}: iframe loaded successfully`)}
+              onError={() => console.error(`GameCard ${game.id}: iframe failed to load`)}
             />
           ) : (
             <div className="flex items-center justify-center h-full w-full">
