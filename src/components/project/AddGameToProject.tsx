@@ -18,7 +18,7 @@ interface AddGameToProjectProps {
 }
 
 export function AddGameToProject({ projectId }: AddGameToProjectProps) {
-  const { games, loading: gamesLoading } = useGames({ limit: 100 });
+  const { games, gamesLoading } = useGames();
   const { projectGames, addGameToProject } = useProjectGames(projectId);
   const [selectedGameId, setSelectedGameId] = useState<string>("");
   const [availableGames, setAvailableGames] = useState<Game[]>([]);

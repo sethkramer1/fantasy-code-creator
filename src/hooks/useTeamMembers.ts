@@ -23,7 +23,13 @@ export function useTeamMembers(teamId?: string) {
         
       if (error) throw error;
       
-      setMembers(data || []);
+      // Ensure the role property is always "admin" or "member" 
+      const typedMembers = data?.map(member => ({
+        ...member,
+        role: member.role === 'admin' ? 'admin' : 'member'
+      })) as TeamMember[];
+      
+      setMembers(typedMembers || []);
     } catch (error) {
       console.error("Error fetching team members:", error);
       toast({
