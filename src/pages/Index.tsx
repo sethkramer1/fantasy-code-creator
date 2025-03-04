@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/game-creator/Header";
@@ -34,7 +33,6 @@ const Index = () => {
     timerRef
   } = useGameGeneration();
 
-  // Effect to handle the timer for thinking time
   useEffect(() => {
     if (loading) {
       setThinkingTime(0);
@@ -84,7 +82,6 @@ const Index = () => {
       console.log("Generating with prompt:", prompt);
       console.log("Using model type:", modelType);
 
-      // Create a placeholder game entry to get an ID
       const { data: placeholderGame, error: placeholderError } = await supabase
         .from('games')
         .insert([{ 
@@ -123,7 +120,6 @@ const Index = () => {
         console.error("Error creating placeholder version:", versionError);
       }
       
-      // Create a game_message entry for the initial prompt
       const { error: messageError } = await supabase
         .from('game_messages')
         .insert([{
@@ -141,7 +137,6 @@ const Index = () => {
         console.log("Created initial game_message for prompt");
       }
       
-      // Pass all necessary parameters to the Play page for generation
       let navigationParams = `?generating=true&type=${gameType}&modelType=${modelType}`;
       
       if (imageUrl) {
@@ -149,7 +144,6 @@ const Index = () => {
         navigationParams += `&imageUrl=${encodedImageUrl}`;
       }
       
-      // Ensure prompt is properly encoded when passing to the Play page
       navigationParams += `&prompt=${encodeURIComponent(prompt)}`;
       
       console.log("Navigating with prompt:", prompt);
@@ -205,7 +199,9 @@ const Index = () => {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-gray-700" />
-            <h2 className="text-xl font-medium text-black">Your Designs</h2>
+            <h2 className="text-xl font-medium text-black">
+              {user ? "Designs Gallery" : "Community Designs"}
+            </h2>
           </div>
         </div>
 

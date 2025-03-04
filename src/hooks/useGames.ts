@@ -32,7 +32,11 @@ export const useGames = () => {
         .select('id, prompt, created_at, type, visibility, user_id, deleted')
         .eq('deleted', false);  // Only fetch non-deleted games
       
-      // No additional filters needed - RLS should handle permissions
+      // If user is not logged in, only show public games
+      if (!user) {
+        query = query.eq('visibility', 'public');
+      }
+      
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) throw error;

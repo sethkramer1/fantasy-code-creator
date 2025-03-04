@@ -14,7 +14,6 @@ import {
   PaginationNext, 
   PaginationPrevious 
 } from "@/components/ui/pagination";
-import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface GamesListProps {
@@ -33,7 +32,7 @@ export function GamesList({
   const [selectedType, setSelectedType] = useState<string>("");
   const [searchQuery, setSearchQuery] = useState<string>("");
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [viewMode, setViewMode] = useState<"user" | "community">("user");
+  const [viewMode, setViewMode] = useState<"user" | "community">("community");
   const pageSize = 9; // Number of designs per page
   const { user, checkIsAdmin } = useAuth();
   
@@ -46,9 +45,29 @@ export function GamesList({
     refreshAdminStatus();
   }, [checkIsAdmin]);
   
+  // Check if user has any designs
+  const userHasDesigns = useMemo(() => {
+    if (!user) return false;
+    return games.some(game => game.user_id === user.id);
+  }, [games, user]);
+
+  // Set initial view mode based on user status and if they have designs
+  useEffect(() => {
+    if (user && userHasDesigns) {
+      setViewMode("user");
+    } else {
+      setViewMode("community");
+    }
+  }, [user, userHasDesigns]);
+  
   // Filter games based on view mode and other filters
   const filteredGames = useMemo(() => {
     return games.filter(game => {
+      // If not logged in, only show public designs
+      if (!user) {
+        return game.visibility === "public";
+      }
+      
       // Filter by view mode
       if (viewMode === "user") {
         // Only show user's designs
@@ -104,13 +123,13 @@ export function GamesList({
   return (
     <div className="glass-panel p-8 card-shadow">
       <Tabs
-        defaultValue="user"
+        defaultValue={viewMode}
         value={viewMode}
         onValueChange={(value) => setViewMode(value as "user" | "community")}
         className="mb-6"
       >
         <TabsList className="grid w-full max-w-md grid-cols-2">
-          <TabsTrigger value="user">Your Designs</TabsTrigger>
+          <TabsTrigger value="user" disabled={!user}>Your Designs</TabsTrigger>
           <TabsTrigger value="community">Community Designs</TabsTrigger>
         </TabsList>
       </Tabs>
@@ -176,7 +195,9 @@ export function GamesList({
         <GamesEmptyState 
           selectedType={selectedType} 
           searchQuery={searchQuery} 
-          fetchError={null} 
+          fetchError={null}
+          viewMode={viewMode}
+          isLoggedIn={!!user}
         />
       )}
     </div>
