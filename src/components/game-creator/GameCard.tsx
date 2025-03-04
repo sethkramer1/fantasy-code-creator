@@ -28,14 +28,19 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { user, isAdmin } = useAuth();
   
-  // Updated deletion permission check:
-  // - Logged-in users can delete their own games
-  // - Admins can delete any game
-  // - Anonymous users cannot delete any games
+  // Check if user can delete this game
   const canDelete = 
     onDelete && 
     user?.id && // User must be logged in
     (game.user_id === user.id || isAdmin); // User must own the game OR be an admin
+  
+  console.log("Game card render:", {
+    gameId: game.id,
+    gameUserId: game.user_id,
+    currentUserId: user?.id,
+    isAdmin: isAdmin,
+    canDelete: canDelete
+  });
   
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
@@ -126,7 +131,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
           </div>
         </div>
         
-        {/* Delete button (visible for logged-in users who own the game OR admins) */}
+        {/* Delete button - shown for logged-in users who own the game OR admins */}
         {canDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"

@@ -14,6 +14,7 @@ export const useGames = () => {
   const fetchGames = useCallback(async () => {
     try {
       setGamesLoading(true);
+      console.log("Fetching games, user is admin:", isAdmin);
       
       let query = supabase
         .from('games')
@@ -24,6 +25,7 @@ export const useGames = () => {
       const { data, error } = await query.order('created_at', { ascending: false });
       
       if (error) throw error;
+      console.log("Games fetched:", data?.length || 0);
       setGames(data || []);
     } catch (error) {
       console.error("Error loading games:", error);
@@ -36,7 +38,7 @@ export const useGames = () => {
     } finally {
       setGamesLoading(false);
     }
-  }, [toast, user]);
+  }, [toast, user, isAdmin]);
 
   useEffect(() => {
     fetchGames();

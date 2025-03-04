@@ -28,6 +28,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 
     try {
+      console.log("Checking admin status for user:", user.id);
       // Use the has_role function we created in the database
       const { data, error } = await supabase.rpc('has_role', {
         user_id: user.id,
@@ -40,6 +41,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
 
+      console.log("Admin check result:", data);
       setIsAdmin(!!data);
       return !!data;
     } catch (error) {
@@ -57,6 +59,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (error) {
           console.error("Error getting auth session:", error);
         }
+        
         setSession(data.session);
         setUser(data.session?.user || null);
         
@@ -76,6 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
+        console.log("Auth state changed:", _event, session?.user?.id);
         setSession(session);
         setUser(session?.user || null);
         
