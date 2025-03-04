@@ -29,6 +29,11 @@ export const callAnthropicApi = async (
         partialResponse,
         system: getSystemPrompt(gameType),
         userId: userId, // Pass the user ID for token tracking
+        stream: true,
+        thinking: {
+          type: "enabled",
+          budget_tokens: 10000
+        }
       }),
     });
 
@@ -43,65 +48,62 @@ export const callAnthropicApi = async (
       if (onStreamStart) onStreamStart();
       
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let content = '';
-      let combinedContent = '';
-      let streamComplete = false;
-      
       if (!reader) throw new Error('Stream reader is not available');
-
-      while (!streamComplete) {
+      
+      let buffer = '';
+      let combinedContent = '';
+      
+      // Process the stream line by line
+      while (true) {
         const { done, value } = await reader.read();
         
         if (done) {
-          streamComplete = true;
           if (onComplete) onComplete(combinedContent);
           break;
         }
         
-        const chunk = decoder.decode(value);
-        const lines = chunk.split('\n');
+        const chunk = new TextDecoder().decode(value);
+        buffer += chunk;
         
-        for (const line of lines) {
-          if (line.startsWith('data:')) {
-            try {
-              const eventData = line.slice(5).trim();
-              
-              if (eventData === '[DONE]') {
-                streamComplete = true;
-                if (onComplete) onComplete(combinedContent);
-                break;
-              }
-              
-              // Parse the JSON data
-              const data = JSON.parse(eventData);
-              
-              // Handle thinking message
-              if (data.thinking && onThinking) {
-                onThinking(data.thinking);
-                continue;
-              }
-              
-              // Handle content delta
-              if (data.type === 'content_block_delta' && data.delta?.text && onContent) {
-                content = data.delta.text;
-                combinedContent += content;
-                onContent(content);
-              }
-              // Handle whole content block
-              else if (data.type === 'content_block_start' && data.content_block?.text && onContent) {
-                content = data.content_block.text;
-                combinedContent += content;
-                onContent(content);
-              }
-              // Handle error
-              else if (data.type === 'error' && onError) {
-                onError(new Error(data.error?.message || 'Unknown stream error'));
-              }
-            } catch (parseError) {
-              console.error('Error parsing SSE event:', parseError, 'Line:', line);
-              if (onError) onError(new Error(`Stream parsing error: ${parseError.message}`));
+        let lineEnd;
+        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, lineEnd);
+          buffer = buffer.slice(lineEnd + 1);
+          
+          if (!line || !line.startsWith('data: ')) continue;
+          
+          try {
+            const eventData = line.slice(5).trim();
+            
+            if (eventData === '[DONE]') {
+              if (onComplete) onComplete(combinedContent);
+              break;
             }
+            
+            const data = JSON.parse(eventData);
+            
+            // Handle thinking content
+            if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
+              const thinking = data.delta.thinking || '';
+              if (thinking && onThinking) {
+                onThinking(thinking);
+              }
+            }
+            // Handle text content
+            else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
+              const content = data.delta.text || '';
+              if (content && onContent) {
+                combinedContent += content;
+                onContent(content);
+              }
+            }
+            // Handle errors
+            else if (data.type === 'error' && onError) {
+              onError(new Error(data.error?.message || 'Unknown stream error'));
+            }
+          } catch (parseError) {
+            console.error('Error parsing SSE event:', parseError, 'Line:', line);
+            if (onError) onError(new Error(`Stream parsing error: ${parseError.message}`));
           }
         }
       }
