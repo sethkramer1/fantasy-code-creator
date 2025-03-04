@@ -68,7 +68,7 @@ export const saveGeneratedGame = async ({
         throw new Error(`Database error: ${updateError.message}`);
       }
       
-      // Update version count separately with raw SQL
+      // Update version count separately with RPC
       const { error: versionUpdateError } = await supabase.rpc(
         'increment_version',
         { game_id_param: gameId }
