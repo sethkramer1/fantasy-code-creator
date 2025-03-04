@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -37,7 +38,7 @@ export const useGames = () => {
     } finally {
       setGamesLoading(false);
     }
-  }, [toast, user, isAdmin]);
+  }, [toast, isAdmin]);
 
   useEffect(() => {
     fetchGames();
