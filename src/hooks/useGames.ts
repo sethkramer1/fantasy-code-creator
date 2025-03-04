@@ -27,13 +27,6 @@ export const useGames = () => {
       if (error) throw error;
       console.log("Games fetched:", data?.length || 0, "games");
       
-      // Log visibility for each game to help debugging
-      if (data) {
-        data.forEach(game => {
-          console.log(`Game ID: ${game.id}, Visibility: ${game.visibility}, User ID: ${game.user_id || 'none'}`);
-        });
-      }
-      
       setGames(data || []);
     } catch (error) {
       console.error("Error loading games:", error);
@@ -55,8 +48,8 @@ export const useGames = () => {
   const deleteGame = async (gameId: string) => {
     try {
       console.log("=== DELETE OPERATION STARTED ===");
-      console.log("Attempting to mark game with ID as deleted:", gameId);
-      console.log("Current user ID:", user?.id);
+      console.log("Deleting game ID:", gameId);
+      console.log("User ID:", user?.id);
       console.log("Is admin:", isAdmin);
       
       if (!user?.id) {
@@ -72,17 +65,15 @@ export const useGames = () => {
       // Optimistic UI update - remove the game from the UI immediately
       setGames(currentGames => currentGames.filter(game => game.id !== gameId));
       
-      // ADMIN DELETE PATH - Admins can delete any game regardless of ownership
-      if (isAdmin === true) {
-        console.log("Admin user - performing privileged delete");
+      // DIFFERENT DELETE PATHS FOR ADMIN VS REGULAR USERS
+      if (isAdmin) {
+        console.log("ADMIN DELETE PATH: Admins can delete any game");
         
-        const { data, error } = await supabase
+        // Admin can delete any game with a simple query
+        const { error } = await supabase
           .from('games')
           .update({ deleted: true })
-          .eq('id', gameId)
-          .select();
-        
-        console.log("Admin delete query result:", { data, error });
+          .eq('id', gameId);
         
         if (error) {
           console.error("Database error during admin delete:", error);
@@ -96,63 +87,59 @@ export const useGames = () => {
           return false;
         }
         
+        console.log("Admin delete successful for game:", gameId);
         toast({
           title: "Design deleted",
           description: "The design has been removed successfully",
         });
         
-        console.log("=== ADMIN DELETE OPERATION COMPLETED SUCCESSFULLY ===");
+        return true;
+      } else {
+        console.log("REGULAR USER DELETE PATH: Users can only delete their own games");
+        
+        // Regular users can only delete their own games
+        const { data, error } = await supabase
+          .from('games')
+          .update({ deleted: true })
+          .match({ 
+            id: gameId,
+            user_id: user.id 
+          })
+          .select();
+        
+        if (error) {
+          console.error("Database error during user delete:", error);
+          // Revert optimistic update on error
+          fetchGames();
+          toast({
+            title: "Error deleting design",
+            description: error.message || "Database error, please try again",
+            variant: "destructive"
+          });
+          return false;
+        }
+        
+        if (!data || data.length === 0) {
+          console.error("No games affected - likely permission issue");
+          // Revert optimistic update on error
+          fetchGames();
+          toast({
+            title: "Access denied",
+            description: "You don't have permission to delete this design",
+            variant: "destructive"
+          });
+          return false;
+        }
+        
+        console.log("User delete successful for game:", gameId);
+        toast({
+          title: "Design deleted",
+          description: "Your design has been removed successfully",
+        });
+        
         return true;
       }
-      
-      // REGULAR USER DELETE PATH - Only their own games
-      console.log("Regular user - checking ownership before deleting");
-      const { data, error } = await supabase
-        .from('games')
-        .update({ deleted: true })
-        .match({ 
-          id: gameId,
-          user_id: user.id 
-        })
-        .select();
-      
-      console.log("Regular user delete query result:", { data, error });
-      
-      if (error) {
-        console.error("Database error during delete:", error);
-        // Revert optimistic update on error
-        fetchGames();
-        toast({
-          title: "Error deleting design",
-          description: error.message || "Database error, please try again",
-          variant: "destructive"
-        });
-        return false;
-      }
-      
-      if (!data || data.length === 0) {
-        console.error("No data returned - likely permission issue or game doesn't exist");
-        // Revert optimistic update on error
-        fetchGames();
-        toast({
-          title: "Access denied",
-          description: "You don't have permission to delete this design or it doesn't exist",
-          variant: "destructive"
-        });
-        return false;
-      }
-      
-      console.log("Successfully marked game as deleted in database:", data);
-      console.log("=== DELETE OPERATION COMPLETED SUCCESSFULLY ===");
-      
-      toast({
-        title: "Design deleted",
-        description: "Your design has been removed successfully",
-      });
-      
-      return true;
     } catch (error) {
-      console.error("=== DELETE OPERATION FAILED WITH EXCEPTION ===");
       console.error("Error in deleteGame function:", error);
       // Revert optimistic update on error
       fetchGames();

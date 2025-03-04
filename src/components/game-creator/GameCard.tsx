@@ -28,15 +28,13 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const { user, isAdmin } = useAuth();
   
-  // A user can delete a game if:
-  // 1. There is a delete function provided AND
-  // 2. They are either an admin OR the creator of the game
+  // SIMPLIFIED: Admin can delete ANY game, normal users can only delete their own
   const canDelete = !!onDelete && (
-    isAdmin === true || 
+    isAdmin || 
     (user?.id && game.user_id === user.id)
   );
   
-  console.log(`GameCard ${game.id}: isAdmin=${!!isAdmin}, canDelete=${canDelete}, userId=${user?.id}, gameUserId=${game.user_id}`);
+  console.log(`GameCard ${game.id}: admin=${isAdmin}, canDelete=${canDelete}, user=${user?.id}, gameOwner=${game.user_id}`);
   
   // Reset iframe when gameCode changes to force reload
   useEffect(() => {
@@ -47,7 +45,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
   
   const handleDelete = async (e: MouseEvent) => {
     e.stopPropagation();
-    console.log(`Delete initiated for game ${game.id} by ${isAdmin ? 'ADMIN' : 'regular user'}`);
+    console.log(`Delete button clicked for game ${game.id}, user is admin: ${isAdmin}`);
     setShowDeleteDialog(true);
   };
   
@@ -57,7 +55,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
       return;
     }
     
-    console.log(`Confirming delete for game ${game.id}, isAdmin: ${isAdmin}`);
+    console.log(`Confirming delete for game ${game.id}, by admin: ${isAdmin}`);
     setIsDeleting(true);
     const success = await onDelete(game.id);
     
@@ -134,7 +132,7 @@ export function GameCard({ game, gameCode, onClick, onDelete }: GameCardProps) {
           </div>
         </div>
         
-        {/* Delete button - explicit check for canDelete */}
+        {/* Always show delete button for admins and owners */}
         {canDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"
