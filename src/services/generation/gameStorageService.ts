@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { GameData } from "@/types/game";
 
@@ -52,11 +53,12 @@ export const saveGeneratedGame = async ({
     } else {
       // If we're updating an existing game
       console.log(`Updating existing game with ID: ${gameId}`);
+      
+      // Using raw SQL for increment instead of supabase.sql
       const { error: updateError } = await supabase
         .from('games')
         .update({
           code: gameContent,
-          current_version: supabase.sql`current_version + 1`,
           model_type: modelType
         })
         .eq('id', gameId);
@@ -64,6 +66,17 @@ export const saveGeneratedGame = async ({
       if (updateError) {
         console.error("Error updating game record:", updateError);
         throw new Error(`Database error: ${updateError.message}`);
+      }
+      
+      // Update version count separately with raw SQL
+      const { error: versionUpdateError } = await supabase.rpc(
+        'increment_version',
+        { game_id_param: gameId }
+      );
+      
+      if (versionUpdateError) {
+        console.error("Error incrementing version:", versionUpdateError);
+        throw new Error(`Database error: ${versionUpdateError.message}`);
       }
     }
     
@@ -97,14 +110,16 @@ export const saveGeneratedGame = async ({
       throw new Error(`Database error: ${versionError.message}`);
     }
     
-    // If we uploaded an image, add it to the game_images table
+    // If we uploaded an image, add it to the game_messages table instead of game_images
     if (imageUrl && !existingGameId) {
-      console.log("Saving game image reference...");
+      console.log("Saving game image reference to game_messages...");
       const { error: imageError } = await supabase
-        .from('game_images')
+        .from('game_messages')
         .insert([{
           game_id: gameId,
-          image_url: imageUrl.substring(0, 500000) // Ensure we don't exceed column size limits
+          image_url: imageUrl.substring(0, 500000), // Ensure we don't exceed column size limits
+          message: "Initial game image",
+          response: "Initial generation"
         }]);
       
       if (imageError) {
