@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "@/components/game-chat/types";
@@ -42,7 +41,6 @@ export function useChatMessages({
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { user } = useAuth();
 
-  // Initialize timer for thinking time
   useEffect(() => {
     if (loading) {
       setThinkingTime(0);
@@ -70,14 +68,12 @@ export function useChatMessages({
     };
   }, [loading]);
 
-  // Update terminal status
   useEffect(() => {
     if (onTerminalStatusChange && loading) {
       onTerminalStatusChange(true, terminalOutput, thinkingTime, loading);
     }
   }, [thinkingTime, terminalOutput, loading, onTerminalStatusChange]);
 
-  // Load chat history
   const fetchMessages = useCallback(async () => {
     if (!gameId) return;
     
@@ -87,7 +83,6 @@ export function useChatMessages({
       
       const data = await fetchChatHistory(gameId, initialMessage);
       
-      // Convert model_type from string to ModelType
       const typedData: Message[] = data.map(msg => ({
         ...msg,
         model_type: (msg.model_type as string) === "smart" ? "smart" as ModelType : 
@@ -107,7 +102,6 @@ export function useChatMessages({
     }
   }, [gameId, initialMessage]);
 
-  // Load messages when gameId changes
   useEffect(() => {
     fetchMessages();
   }, [fetchMessages]);
@@ -116,7 +110,6 @@ export function useChatMessages({
     updateTerminalOutput(setTerminalOutput, newContent, isNewMessage);
   };
 
-  // Method to add system messages to the chat
   const addSystemMessage = useCallback(async (message: string, response: string) => {
     if (!gameId) return;
     
@@ -139,7 +132,6 @@ export function useChatMessages({
         return;
       }
       
-      // Update the messages state with the new system message
       if (messageData) {
         console.log("System message added successfully:", messageData.id);
         
@@ -236,7 +228,6 @@ export function useChatMessages({
         
         content = await processGroqResponse(responseData, updateTerminalOutputWrapper);
         
-        // Extract token usage from Groq response if available
         if (responseData.usage) {
           tokensUsed = responseData.usage.total_tokens || 0;
           console.log(`Groq tokens used: ${tokensUsed}`);
@@ -247,8 +238,6 @@ export function useChatMessages({
         
         content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
         
-        // Estimate token usage for Anthropic (approximately 1 token per 4 characters)
-        // This is a rough estimate since we don't get actual token count from the streaming API
         tokensUsed = Math.ceil((currentMessage.length + content.length) / 4);
         console.log(`Estimated Anthropic tokens used: ${tokensUsed}`);
       }
@@ -262,12 +251,12 @@ export function useChatMessages({
       
       await updateMessageResponse(insertedMessage.id, "Content updated successfully");
       
-      // Track token usage
       await trackTokenUsage(
         user?.id,
         gameId,
         insertedMessage.id,
         currentMessage,
+        Math.ceil(currentMessage.length / 4),
         tokensUsed,
         currentModelType
       );
@@ -281,7 +270,6 @@ export function useChatMessages({
         .order('created_at', { ascending: true });
         
       if (updatedMessages) {
-        // Convert model_type from string to ModelType
         const typedMessages: Message[] = updatedMessages.map(msg => ({
           ...msg,
           model_type: msg.model_type === "smart" ? "smart" as ModelType : 
@@ -297,7 +285,6 @@ export function useChatMessages({
         }, 3000);
       }
       
-      // Instead of toast, add a system message
       addSystemMessage(
         "Update complete", 
         "✅ Content updated successfully! The changes have been applied."
@@ -310,7 +297,6 @@ export function useChatMessages({
         true
       );
       
-      // Add error message to chat instead of toast
       addSystemMessage(
         "Error", 
         `❌ Error processing message: ${error instanceof Error ? error.message : "Please try again"}`

@@ -12,12 +12,17 @@ export interface GroqCallbacks {
   onStreamStart: () => void;
 }
 
+export interface TokenInfo {
+  inputTokens?: number;
+  outputTokens?: number;
+}
+
 export const callGroqApi = async (
   prompt: string,
   gameType: string,
   imageUrl?: string,
   callbacks?: GroqCallbacks
-): Promise<{ response: Response, gameContent: string }> => {
+): Promise<{ response: Response, gameContent: string, tokenInfo?: TokenInfo }> => {
   let gameContent = '';
   
   const selectedType = contentTypes.find(type => type.id === gameType);
@@ -85,5 +90,14 @@ export const callGroqApi = async (
     throw new Error("Invalid response format from Groq API");
   }
 
-  return { response, gameContent };
+  // Create token info if available in the response
+  let tokenInfo: TokenInfo | undefined;
+  if (data.usage) {
+    tokenInfo = {
+      inputTokens: data.usage.prompt_tokens || Math.ceil(prompt.length / 4),
+      outputTokens: data.usage.completion_tokens || Math.ceil(gameContent.length / 4)
+    };
+  }
+
+  return { response, gameContent, tokenInfo };
 };
