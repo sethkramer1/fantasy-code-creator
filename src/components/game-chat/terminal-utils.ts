@@ -1,3 +1,4 @@
+
 export const updateTerminalOutput = (
   setTerminalOutput: React.Dispatch<React.SetStateAction<string[]>>, 
   newContent: string, 
@@ -152,6 +153,7 @@ export const processAnthropicStream = async (
   let content = '';
   let buffer = '';
   let currentThinkingPhase = '';
+  let isInitialGeneration = true; // Flag to detect first message
   
   updateTerminalOutputFn("> Anthropic stream connected, receiving content...", true);
   
@@ -188,9 +190,11 @@ export const processAnthropicStream = async (
           switch (data.type) {
             case 'message_start':
               updateTerminalOutputFn("> Starting response generation...", true);
+              // Only show input tokens, not in the code response
               if (data.message?.usage) {
                 updateTerminalOutputFn(`> Input tokens: ${data.message.usage.input_tokens}`, true);
               }
+              isInitialGeneration = false; // First message received
               break;
               
             case 'content_block_start':
@@ -204,13 +208,26 @@ export const processAnthropicStream = async (
                 const thinking = data.delta.thinking?.trim() || '';
                 if (thinking && thinking !== currentThinkingPhase) {
                   currentThinkingPhase = thinking;
+                  console.log("Thinking update:", thinking); // Debug log
                   updateTerminalOutputFn(`> Thinking: ${thinking}`, true);
                 }
               } else if (data.delta?.type === 'text_delta') {
                 const contentChunk = data.delta.text || '';
                 if (contentChunk) {
-                  content += contentChunk;
-                  updateTerminalOutputFn(`> ${contentChunk}`, false);
+                  // Don't add any token info text into the actual content
+                  if (!contentChunk.includes("Tokens used:") && 
+                      !contentChunk.includes("input tokens") && 
+                      !contentChunk.includes("output tokens")) {
+                    content += contentChunk;
+                    updateTerminalOutputFn(`> ${contentChunk}`, false);
+                  } else {
+                    // Extract and show token info separately
+                    if (contentChunk.includes("Tokens used:") || 
+                        contentChunk.includes("input tokens") || 
+                        contentChunk.includes("output tokens")) {
+                      updateTerminalOutputFn(`> Token info: ${contentChunk}`, true);
+                    }
+                  }
                 }
               }
               break;
@@ -219,6 +236,7 @@ export const processAnthropicStream = async (
               if (data.delta?.stop_reason) {
                 updateTerminalOutputFn(`> Generation ${data.delta.stop_reason}`, true);
               }
+              // Show output tokens separately, not in the code response
               if (data.usage?.output_tokens) {
                 updateTerminalOutputFn(`> Output tokens: ${data.usage.output_tokens}`, true);
               }
@@ -246,6 +264,12 @@ export const processAnthropicStream = async (
     console.error("Error processing stream:", error);
     updateTerminalOutputFn(`> Error processing stream: ${error.message}`, true);
     throw error;
+  }
+  
+  // Filter out any token info that might have been included in the content
+  if (content) {
+    content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+    content = content.replace(/\d+ input tokens, \d+ output tokens/g, '');
   }
   
   if (!content || content.trim().length === 0) {

@@ -65,7 +65,14 @@ export function GenerationTerminal({
     }
     // Check if line starts with "> " (code output indicator)
     else if (line.startsWith('> ')) {
-      // Remove the prefix for display
+      // Remove the prefix for display - except for tokens, errors, and other system messages
+      if (line.includes('tokens:') || 
+          line.includes('Error:') ||
+          line.includes('Starting') ||
+          line.includes('Generation') ||
+          line.includes('Stream')) {
+        return line;
+      }
       return line.slice(2);
     }
     return line;
@@ -100,6 +107,25 @@ export function GenerationTerminal({
               if (line.includes('🤔 Thinking:')) {
                 return (
                   <div key={index} className="text-yellow-400 font-medium py-1">
+                    {line}
+                  </div>
+                );
+              }
+              // Highlight token and status information
+              else if (line.includes('tokens:') || 
+                      line.includes('Starting') || 
+                      line.includes('Generation') ||
+                      line.includes('Stream')) {
+                return (
+                  <div key={index} className="text-green-300 italic py-1">
+                    {line}
+                  </div>
+                );
+              }
+              // Highlight errors
+              else if (line.includes('Error:')) {
+                return (
+                  <div key={index} className="text-red-400 font-bold py-1">
                     {line}
                   </div>
                 );
@@ -155,6 +181,25 @@ export function GenerationTerminal({
                 if (line.includes('🤔 Thinking:')) {
                   return (
                     <div key={index} className="text-yellow-400 font-medium py-1">
+                      {line}
+                    </div>
+                  );
+                }
+                // Highlight token and status information
+                else if (line.includes('tokens:') || 
+                        line.includes('Starting') || 
+                        line.includes('Generation') ||
+                        line.includes('Stream')) {
+                  return (
+                    <div key={index} className="text-green-300 italic py-1">
+                      {line}
+                    </div>
+                  );
+                }
+                // Highlight errors
+                else if (line.includes('Error:')) {
+                  return (
+                    <div key={index} className="text-red-400 font-bold py-1">
                       {line}
                     </div>
                   );

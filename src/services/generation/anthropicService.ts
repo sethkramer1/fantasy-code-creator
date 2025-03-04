@@ -83,6 +83,11 @@ export const callAnthropicApi = async (
             
             const data = JSON.parse(eventData);
             
+            // Debug log to see what's coming
+            if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
+              console.log("Received thinking delta:", data.delta.thinking);
+            }
+            
             // Handle thinking content
             if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
               const thinking = data.delta.thinking || '';
@@ -91,13 +96,23 @@ export const callAnthropicApi = async (
                 onThinking(thinking);
               }
             }
-            // Handle text content
+            // Handle text content - filter out token information
             else if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
               const content = data.delta.text || '';
               if (content && onContent) {
-                combinedContent += content;
-                onContent(content);
+                // Skip token information in the actual content
+                if (!content.includes("Tokens used:") && 
+                    !content.includes("input tokens") && 
+                    !content.includes("output tokens")) {
+                  combinedContent += content;
+                  onContent(content);
+                }
               }
+            }
+            // Handle token information separately
+            else if (data.type === 'message_delta' && data.usage) {
+              console.log("Received token usage:", data.usage);
+              // Don't add this to the content, but you could call a callback if needed
             }
             // Handle errors
             else if (data.type === 'error' && onError) {
@@ -110,11 +125,19 @@ export const callAnthropicApi = async (
         }
       }
       
+      // Remove any token information that might have snuck into the content
+      combinedContent = combinedContent.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+      combinedContent = combinedContent.replace(/\d+ input tokens, \d+ output tokens/g, '');
+      
       return { gameContent: combinedContent };
     } else {
       // Handle non-streaming response
       const data = await response.json();
-      const gameContent = data.content || '';
+      let gameContent = data.content || '';
+      
+      // Remove token information from the actual content
+      gameContent = gameContent.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+      gameContent = gameContent.replace(/\d+ input tokens, \d+ output tokens/g, '');
       
       // Extract token information if available
       const tokenInfo = data.usage ? {

@@ -205,7 +205,8 @@ serve(async (req) => {
 You are tasked with creating HTML/CSS/JS code based on the user's request.
 Return only the complete HTML code that's ready to be displayed in a browser.
 Include all CSS and JavaScript within the HTML file.
-Do not include any explanations, markdown formatting or code blocks - only return the actual code.`;
+Do not include any explanations, markdown formatting or code blocks - only return the actual code.
+Do NOT include token usage information in your response.`;
 
     // Prepare the request body with the correct structure for Claude 3.7 Sonnet
     let requestBody: any = {
@@ -215,7 +216,7 @@ Do not include any explanations, markdown formatting or code blocks - only retur
       system: systemMessage,
       thinking: {
         type: "enabled",
-        budget_tokens: 10000
+        budget_tokens: 3500
       }
     };
 
@@ -371,12 +372,66 @@ Do not include any explanations, markdown formatting or code blocks - only retur
                 break;
               }
               
-              // Forward the chunk to the client
-              await writer.write(value);
+              // Forward the chunk to the client, but process first
+              const chunk = new TextDecoder().decode(value);
+              let modified = chunk;
+              
+              // Try to detect and remove token usage information before forwarding
+              try {
+                const lines = chunk.split('\n');
+                const processedLines = lines.map(line => {
+                  if (line.startsWith('data: ')) {
+                    try {
+                      const eventData = line.slice(5).trim();
+                      if (eventData !== '[DONE]' && !eventData.startsWith('{')) {
+                        return line; // Not JSON, pass through
+                      }
+                      
+                      const data = JSON.parse(eventData);
+                      
+                      // Process content_block_delta events to filter out token info
+                      if (data.type === 'content_block_delta' && 
+                          data.delta?.type === 'text_delta' && 
+                          data.delta.text) {
+                        
+                        // Check if this chunk contains token information
+                        const text = data.delta.text;
+                        if (text.includes("Tokens used:") || 
+                            text.includes("input tokens") || 
+                            text.includes("output tokens")) {
+                          
+                          // Remove token info from the text content
+                          data.delta.text = text
+                            .replace(/Tokens used:.*?(input|output).*?\n/g, '')
+                            .replace(/\d+ input tokens, \d+ output tokens/g, '');
+                          
+                          // If we've removed everything, just skip this chunk
+                          if (!data.delta.text.trim()) {
+                            return null;
+                          }
+                          
+                          return `data: ${JSON.stringify(data)}`;
+                        }
+                      }
+                    } catch (e) {
+                      // If parsing fails, just return the original line
+                      return line;
+                    }
+                  }
+                  return line;
+                }).filter(Boolean); // Remove null lines
+                
+                modified = processedLines.join('\n');
+              } catch (e) {
+                console.error('Error processing stream chunk:', e);
+                // Fall back to the original chunk
+                modified = chunk;
+              }
+              
+              await writer.write(new TextEncoder().encode(modified));
               
               // Update output token estimate
-              const decodedChunk = new TextDecoder().decode(value);
-              completeChunk += decodedChunk;
+              completeChunk += new TextDecoder().decode(value);
               
               // Rough estimate of tokens
               const newEstimate = Math.ceil(completeChunk.length / 4);
@@ -404,7 +459,11 @@ Do not include any explanations, markdown formatting or code blocks - only retur
     } else {
       console.log('Processing non-streaming response');
       const data = await response.json();
-      const content = data.content[0]?.text || '';
+      let content = data.content[0]?.text || '';
+      
+      // Remove token information from the content
+      content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+      content = content.replace(/\d+ input tokens, \d+ output tokens/g, '');
       
       // Extract token usage information
       const inputTokens = data.usage?.input_tokens || estimatedInputTokens;
@@ -438,4 +497,3 @@ Do not include any explanations, markdown formatting or code blocks - only retur
     );
   }
 });
-
