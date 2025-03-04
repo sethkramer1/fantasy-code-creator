@@ -188,6 +188,168 @@ export type Database = {
         }
         Relationships: []
       }
+      project_games: {
+        Row: {
+          added_at: string
+          added_by: string
+          game_id: string
+          id: string
+          project_id: string
+        }
+        Insert: {
+          added_at?: string
+          added_by: string
+          game_id: string
+          id?: string
+          project_id: string
+        }
+        Update: {
+          added_at?: string
+          added_by?: string
+          game_id?: string
+          id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_games_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_games_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+          team_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+          team_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "projects_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_invitations: {
+        Row: {
+          created_at: string
+          created_by: string
+          id: string
+          invitation_code: string
+          team_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          id?: string
+          invitation_code: string
+          team_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          id?: string
+          invitation_code?: string
+          team_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_invitations_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      team_members: {
+        Row: {
+          id: string
+          joined_at: string
+          role: string
+          team_id: string
+          user_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          role?: string
+          team_id: string
+          user_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          role?: string
+          team_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_members_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      teams: {
+        Row: {
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          name: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
       token_usage: {
         Row: {
           created_at: string
@@ -277,6 +439,20 @@ export type Database = {
           game_id_param: string
         }
         Returns: undefined
+      }
+      is_team_admin: {
+        Args: {
+          team_id: string
+          user_id?: string
+        }
+        Returns: boolean
+      }
+      is_team_member: {
+        Args: {
+          team_id: string
+          user_id?: string
+        }
+        Returns: boolean
       }
     }
     Enums: {
