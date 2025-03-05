@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 import { updateTerminalOutput, processAnthropicStream } from "@/components/game-chat/terminal-utils";
 import { trackTokenUsage } from "@/components/game-chat/api-service";
 import { saveInitialGenerationTokens, updateTokenCounts, forceTokenTracking } from "@/services/generation/tokenTrackingService";
+import { generateGameName } from "@/services/generation/anthropicService";
 
 interface TerminalState {
   generationInProgress: boolean;
@@ -536,13 +537,35 @@ export function usePlayTerminal(
       
       const modelTypeForSave = modelType === "smart" ? "smart" : "fast";
       
+      let gameName = null;
+      try {
+        updateTerminalOutputWrapper("> Generating a name for your design...", true);
+        console.log("[NAME_GEN] Starting name generation from usePlayTerminal for prompt:", initialPrompt.substring(0, 50) + "...");
+        
+        gameName = await generateGameName(initialPrompt);
+        
+        if (gameName && gameName.trim() !== '') {
+          console.log("[NAME_GEN] Successfully generated name:", gameName);
+          updateTerminalOutputWrapper(`> Generated name: "${gameName}"`, true);
+        } else {
+          console.log("[NAME_GEN] No name was returned or empty name");
+          updateTerminalOutputWrapper("> Could not generate a name, using prompt as fallback", true);
+          gameName = initialPrompt.split(' ').slice(0, 3).join(' ') + '...';
+        }
+      } catch (nameError) {
+        console.error("[NAME_GEN] Error generating game name:", nameError);
+        updateTerminalOutputWrapper("> Could not generate a name, using prompt as fallback", true);
+        gameName = initialPrompt.split(' ').slice(0, 3).join(' ') + '...';
+      }
+      
       const { error: gameUpdateError } = await supabase
         .from('games')
         .update({
           code: content,
           instructions: "Initial content generated successfully",
           model_type: modelTypeForSave,
-          prompt: initialPrompt
+          prompt: initialPrompt,
+          name: gameName || initialPrompt.substring(0, 50)
         })
         .eq('id', gameId);
         

@@ -10,8 +10,12 @@ const corsHeaders = {
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
 
 serve(async (req) => {
+  // Log request received
+  console.log("generate-name function invoked");
+  
   // Handle CORS preflight requests
   if (req.method === 'OPTIONS') {
+    console.log("Handling CORS preflight request");
     return new Response(null, { headers: corsHeaders })
   }
 
@@ -24,9 +28,27 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, model = "claude-3-5-sonnet-20240307" } = await req.json();
+    console.log("Parsing request body");
+    const reqBody = await req.text();
+    console.log("Request body received:", reqBody.substring(0, 200) + '...');
     
-    console.log("Received request to generate name for prompt:", prompt?.substring(0, 50) + "...");
+    let promptData;
+    try {
+      promptData = JSON.parse(reqBody);
+    } catch (parseError) {
+      console.error('Failed to parse request JSON:', parseError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid JSON in request body' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
+    const { prompt, model = "claude-3-5-sonnet-20240307" } = promptData;
+    
+    console.log("Received request to generate name.");
+    console.log("Prompt length:", prompt?.length || 0);
+    console.log("Model:", model);
+    console.log("Prompt preview:", prompt?.substring(0, 100) + "...");
     
     if (!prompt || typeof prompt !== 'string' || prompt.trim() === "") {
       console.error('Invalid or empty prompt received');
@@ -49,6 +71,8 @@ Return ONLY the name with no explanations, quotes, or additional text.`;
 
     // Make the request to Anthropic API
     console.log('Sending request to Anthropic API with Claude 3.5 Sonnet');
+    console.log('API endpoint: https://api.anthropic.com/v1/messages');
+    
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -69,14 +93,29 @@ Return ONLY the name with no explanations, quotes, or additional text.`;
       }),
     });
 
+    console.log('Anthropic API response status:', response.status);
+    
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Anthropic API error response:', errorText);
+      console.error('Anthropic API error response status:', response.status);
+      console.error('Anthropic API error response text:', errorText);
       throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
     }
 
-    const data = await response.json();
-    console.log('Received response from Anthropic API');
+    console.log('Anthropic API responded successfully, parsing response');
+    const responseText = await response.text();
+    console.log('Response text preview:', responseText.substring(0, 200) + '...');
+    
+    let data;
+    try {
+      data = JSON.parse(responseText);
+    } catch (parseError) {
+      console.error('Failed to parse Anthropic API response as JSON:', parseError);
+      console.error('Response text:', responseText);
+      throw new Error('Failed to parse Anthropic API response');
+    }
+    
+    console.log('Parsed JSON response successfully');
     
     // Extract the name from the response
     const generatedName = data.content && data.content[0] && data.content[0].text 
@@ -86,13 +125,17 @@ Return ONLY the name with no explanations, quotes, or additional text.`;
     console.log('Generated name:', generatedName);
     
     // Return the generated name
+    const responseObj = { name: generatedName };
+    console.log('Returning response:', JSON.stringify(responseObj));
+    
     return new Response(
-      JSON.stringify({ name: generatedName }),
+      JSON.stringify(responseObj),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
     
   } catch (error) {
     console.error('Error in generate-name function:', error);
+    console.error('Error stack:', error.stack);
     return new Response(
       JSON.stringify({ 
         error: error instanceof Error ? error.message : 'Unknown error',
