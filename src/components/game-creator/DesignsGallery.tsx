@@ -37,31 +37,29 @@ export function DesignsGallery({ games, gamesLoading, deleteGame }: DesignsGalle
       </div>
 
       <div className="flex flex-col md:flex-row gap-6">
-        <Tabs 
-          value={activeTab} 
-          onValueChange={setActiveTab}
-          className="flex flex-col w-full"
-        >
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="flex flex-col md:flex-row gap-6">
-            <TabsList className="bg-gray-100 w-full md:w-48 h-auto flex md:flex-col flex-shrink-0">
-              <TabsTrigger 
-                value="community" 
-                className="flex-1 md:w-full data-[state=active]:bg-white"
-              >
-                Community Designs
-              </TabsTrigger>
-              {user && (
+            <div className="md:w-48 flex-shrink-0">
+              <TabsList className="bg-gray-100 w-full h-auto flex md:flex-col">
                 <TabsTrigger 
-                  value="my" 
+                  value="community" 
                   className="flex-1 md:w-full data-[state=active]:bg-white"
                 >
-                  My Designs
+                  Community Designs
                 </TabsTrigger>
-              )}
-            </TabsList>
+                {user && (
+                  <TabsTrigger 
+                    value="my" 
+                    className="flex-1 md:w-full data-[state=active]:bg-white"
+                  >
+                    My Designs
+                  </TabsTrigger>
+                )}
+              </TabsList>
+            </div>
             
             <div className="flex-1">
-              <TabsContent value="community" className="m-0">
+              <TabsContent value="community" className="m-0 mt-0">
                 <GamesList
                   games={games}
                   isLoading={gamesLoading}
@@ -73,7 +71,7 @@ export function DesignsGallery({ games, gamesLoading, deleteGame }: DesignsGalle
               </TabsContent>
               
               {user && (
-                <TabsContent value="my" className="m-0">
+                <TabsContent value="my" className="m-0 mt-0">
                   <GamesList
                     games={games}
                     isLoading={gamesLoading}

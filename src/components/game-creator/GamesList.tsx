@@ -1,5 +1,4 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { GameCard } from './GameCard';
 import { GamesEmptyState } from './GamesEmptyState';
 import { GamesLoadingState } from './GamesLoadingState';
@@ -34,9 +33,10 @@ export function GamesList({
   const [gameCodeMap, setGameCodeMap] = useState<Record<string, string>>({});
   const [loadingCodes, setLoadingCodes] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const fetchingRef = useRef(false);
+  
   const filteredGames = filterGames(games, filter, user?.id);
   
-  // Calculate filtered and paginated games
   const filteredAndTypedGames = filteredGames
     .filter(game => !selectedType || game.type === selectedType)
     .filter(game => !searchQuery || 
@@ -48,32 +48,24 @@ export function GamesList({
     currentPage * itemsPerPage
   );
   
-  // Reset to first page when filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [filter, selectedType, searchQuery]);
   
-  // Fetch game codes for all games in the list - optimized to only fetch for visible games
+  const currentGamesIds = currentGames.map(game => game.id).join(',');
+  
   useEffect(() => {
-    if (currentGames.length === 0) return;
+    if (currentGames.length === 0 || fetchingRef.current || isLoading) return;
     
     const fetchGameCodes = async () => {
+      if (fetchingRef.current) return;
+      fetchingRef.current = true;
       setLoadingCodes(true);
       
       try {
-        // Get the latest version for each visible game
         const gameIds = currentGames.map(game => game.id);
         
-        // Clear codes for games that are no longer visible
-        const newCodeMap = { ...gameCodeMap };
-        Object.keys(newCodeMap).forEach(id => {
-          if (!gameIds.includes(id)) {
-            delete newCodeMap[id];
-          }
-        });
-        
-        // Only fetch codes for games that don't have them yet
-        const idsToFetch = gameIds.filter(id => !newCodeMap[id]);
+        const idsToFetch = gameIds.filter(id => !gameCodeMap[id]);
         
         if (idsToFetch.length > 0) {
           const { data: versions, error } = await supabase
@@ -87,31 +79,34 @@ export function GamesList({
             return;
           }
           
-          if (!versions || versions.length === 0) {
-            console.log("No game versions found");
-            return;
-          }
+          const newCodeMap = { ...gameCodeMap };
           
-          // Create a map of game_id to the most recent code
-          versions.forEach(version => {
-            // Only set the code if it hasn't been set yet (first one is the most recent)
-            if (!newCodeMap[version.game_id]) {
-              newCodeMap[version.game_id] = version.code;
+          const gameVersions: Record<string, string> = {};
+          versions?.forEach(version => {
+            if (!gameVersions[version.game_id]) {
+              gameVersions[version.game_id] = version.code;
             }
           });
+          
+          if (Object.keys(gameVersions).length > 0) {
+            Object.entries(gameVersions).forEach(([gameId, code]) => {
+              newCodeMap[gameId] = code;
+            });
+            
+            setGameCodeMap(newCodeMap);
+          }
         }
-        
-        setGameCodeMap(newCodeMap);
       } catch (fetchError) {
         console.error("Error in fetchGameCodes:", fetchError);
       } finally {
         setLoadingCodes(false);
+        fetchingRef.current = false;
       }
     };
     
     fetchGameCodes();
-  }, [currentGames, gameCodeMap]);
-
+  }, [currentGamesIds, isLoading]);
+  
   if (isLoading) {
     return <GamesLoadingState />;
   }
@@ -149,7 +144,6 @@ export function GamesList({
         ))}
       </div>
       
-      {/* Pagination Controls */}
       {totalPages > 1 && (
         <div className="flex justify-center items-center mt-6 space-x-2">
           <Button 

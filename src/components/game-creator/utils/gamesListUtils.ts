@@ -2,37 +2,30 @@
 // the prepareIframeContent function is properly implemented
 
 export const prepareIframeContent = (code: string): string => {
-  if (!code || code === "Generating...") {
-    return `<html><body><div style="display:flex;justify-content:center;align-items:center;height:100%;font-family:sans-serif;color:#888;">Loading preview...</div></body></html>`;
+  if (!code || code === "Generating..." || code.length < 20) {
+    return `<html><body><div style="display:flex;justify-content:center;align-items:center;height:100%;color:#888;">Preview loading...</div></body></html>`;
   }
-
-  try {
-    // Simplified and optimized content preparation for faster rendering
-    if (!code.includes('<html') && !code.includes('<!DOCTYPE') && !code.includes('<body')) {
-      // Minimal HTML structure for faster parsing
-      return `<!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>html,body{height:100%;margin:0;overflow:auto}</style>
-        </head>
-        <body>${code}</body>
-        </html>`;
-    }
-    
-    // For full HTML documents, only add essential styles
-    if (!code.includes('<style')) {
-      code = code.replace('<head>', 
-        `<head>
-          <style>html,body{height:100%;overflow:auto}</style>`);
-    }
-    
+  
+  // If the code already includes HTML structure, use it as is
+  if (code.includes('<html') || code.includes('<!DOCTYPE html')) {
     return code;
-  } catch (error) {
-    console.error("Error in prepareIframeContent:", error);
-    return `<html><body><div style="padding:20px;font-family:sans-serif;color:red;">Error preparing content</div></body></html>`;
   }
+  
+  // Otherwise, wrap it in a basic HTML structure
+  return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { 
+      margin: 0; 
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    }
+  </style>
+</head>
+<body>${code}</body>
+</html>`;
 };
 
 export const filterGames = (games, filter, userId) => {
