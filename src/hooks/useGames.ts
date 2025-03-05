@@ -28,7 +28,7 @@ export const useGames = () => {
       
       let query = supabase
         .from('games')
-        .select('id, prompt, created_at, type, visibility, user_id, deleted')
+        .select('id, prompt, created_at, type, visibility, user_id, deleted, name')
         .eq('deleted', false);  // Only fetch non-deleted games
       
       // If user is not logged in, only show public games

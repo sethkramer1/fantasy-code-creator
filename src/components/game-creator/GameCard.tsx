@@ -190,7 +190,7 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
           <div className="flex items-start justify-between gap-2">
             <div>
               <h3 className="font-medium text-gray-900 line-clamp-1 mb-1">
-                {game.prompt || "Untitled Design"}
+                {game.name || game.prompt || "Untitled Design"}
               </h3>
               <div className="flex items-center gap-2">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${badgeColor}`}>
@@ -215,12 +215,28 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
               </div>
             </div>
           </div>
+          
+          {isOwner && onDelete && (
+            <div className="mt-3 flex justify-end">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                onClick={handleDelete}
+              >
+                <Trash2 size={14} className="mr-1" />
+                Delete
+              </Button>
+            </div>
+          )}
         </div>
         
         {canDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"
             onClick={handleDelete}
+            title="Delete this design"
+            aria-label="Delete design"
           >
             <Trash2 size={16} className="text-gray-400 hover:text-red-500 transition-colors" />
           </div>

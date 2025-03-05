@@ -38,7 +38,7 @@ export function Navbar() {
               className="text-lg font-bold mr-6 cursor-pointer bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500"
               onClick={() => navigate('/')}
             >
-              Vibe.new
+              Brew.new
             </div>
 
             {/* Navigation Links */}

@@ -323,6 +323,96 @@ const Play = () => {
     }
   };
 
+  const handleNameChange = async (newName: string) => {
+    if (!gameId || !user) return;
+    
+    try {
+      if (game?.user_id !== user.id) {
+        toast({
+          title: "Permission denied",
+          description: "You can only change the name of your own designs",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      if (!newName.trim()) {
+        toast({
+          title: "Invalid name",
+          description: "Name cannot be empty",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      const { error } = await supabase
+        .from('games')
+        .update({ name: newName.trim() })
+        .eq('id', gameId)
+        .eq('user_id', user.id);
+      
+      if (error) throw error;
+      
+      if (game) {
+        setGame({
+          ...game,
+          name: newName.trim()
+        });
+      }
+      
+      toast({
+        title: "Name updated",
+        description: "The design name has been updated successfully"
+      });
+      
+    } catch (error) {
+      console.error("Error changing name:", error);
+      toast({
+        title: "Error changing name",
+        description: "Please try again later",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleSaveCode = async (newCode: string, newInstructions: string) => {
+    if (!gameId || !user) {
+      toast({
+        title: "Authentication required",
+        description: "You must be logged in to save changes",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      if (game?.user_id !== user.id) {
+        toast({
+          title: "Permission denied",
+          description: "You can only edit your own designs",
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      // Use the handleGameUpdate function from useGameUpdate hook
+      await handleGameUpdate(newCode, newInstructions || "");
+      
+      toast({
+        title: "Changes saved",
+        description: "Your changes have been saved as a new version"
+      });
+    } catch (error) {
+      console.error("Error saving code changes:", error);
+      toast({
+        title: "Error saving changes",
+        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        variant: "destructive"
+      });
+      throw error;
+    }
+  };
+
   const testNameGeneration = async () => {
     if (!game?.prompt) return;
     
@@ -479,10 +569,11 @@ const Play = () => {
     <div className="flex flex-col h-screen w-full bg-white">
       <PlayNavbar
         gameId={gameId}
-        gameName={(game as any)?.name || (initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading..."))}
+        gameName={game?.name || (game as any)?.name || (initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading..."))}
         gameUserId={game?.user_id}
         visibility={game?.visibility || 'public'}
         onVisibilityChange={handleVisibilityChange}
+        onNameChange={handleNameChange}
         onDownload={handleDownload}
         showCodeEditor={showCode}
         onShowCodeEditorChange={setShowCode}
@@ -532,6 +623,8 @@ const Play = () => {
                   currentVersion={displayedVersion()}
                   showCode={showCode}
                   ref={iframeRef}
+                  isOwner={isOwner}
+                  onSaveCode={handleSaveCode}
                 />
               </div>
             </div>

@@ -14,6 +14,7 @@ export interface GameData {
   model_type?: string;
   deleted?: boolean;
   user_id?: string;
+  name?: string;
 }
 
 export interface GameVersion {

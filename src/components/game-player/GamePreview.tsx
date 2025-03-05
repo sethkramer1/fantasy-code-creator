@@ -14,15 +14,20 @@ interface GameVersion {
 interface GamePreviewProps {
   currentVersion: GameVersion | undefined;
   showCode: boolean;
+  isOwner: boolean;
+  onSaveCode?: (code: string, instructions: string) => Promise<void>;
 }
 
 // Create a memoized version to prevent unnecessary rerenders
 const MemoizedIframePreview = memo(IframePreview);
 
 export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
-  ({ currentVersion, showCode }, ref) => {
+  ({ currentVersion, showCode, isOwner, onSaveCode }, ref) => {
     const [processedCode, setProcessedCode] = useState<string | null>(null);
     const currentVersionIdRef = useRef<string | null>(null);
+    const [parsedHtml, setParsedHtml] = useState<string>("");
+    const [parsedCss, setParsedCss] = useState<string>("");
+    const [parsedJs, setParsedJs] = useState<string>("");
     
     // Validate code function
     const isValidCode = useCallback((code: string | undefined): boolean => {
@@ -50,66 +55,98 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
         return;
       }
       
-      // Process the code
-      if (isValidCode(currentVersion.code)) {
+      currentVersionIdRef.current = currentVersion.id;
+      
+      try {
+        // Check if the code is valid
+        if (!isValidCode(currentVersion.code)) {
+          console.warn("Invalid code format detected");
+          setProcessedCode(null);
+          return;
+        }
+        
+        // Set the processed code
         setProcessedCode(currentVersion.code);
-        currentVersionIdRef.current = currentVersion.id;
-      } 
-      // Handle code fragments by wrapping them in HTML
-      else if (currentVersion.code.length > 0 && 
-               currentVersion.code.includes('<') && 
-               currentVersion.code.includes('>')) {
-        const wrappedCode = `<!DOCTYPE html>
+        
+        // Parse code sections
+        const { html, css, js } = parseCodeSections(currentVersion.code);
+        setParsedHtml(html);
+        setParsedCss(css);
+        setParsedJs(js);
+      } catch (error) {
+        console.error("Error processing code:", error);
+        setProcessedCode(null);
+      }
+    }, [currentVersion, isValidCode]);
+    
+    const handleSaveCode = async (html: string, css: string, js: string) => {
+      if (!onSaveCode) return;
+      
+      try {
+        // Combine the code sections
+        let combinedCode = "";
+        
+        if (html.includes("<!DOCTYPE") || html.includes("<html")) {
+          // If HTML includes doctype or html tag, it's a complete HTML document
+          // We need to inject CSS and JS into it
+          
+          // Replace closing head tag with CSS
+          if (css) {
+            const styleTag = `<style>\n${css}\n</style>\n</head>`;
+            combinedCode = html.replace("</head>", styleTag);
+          } else {
+            combinedCode = html;
+          }
+          
+          // Replace closing body tag with JS
+          if (js) {
+            const scriptTag = `<script>\n${js}\n</script>\n</body>`;
+            combinedCode = combinedCode.replace("</body>", scriptTag);
+          }
+        } else {
+          // Otherwise, create a new HTML document
+          combinedCode = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Generated Content</title>
+  <style>
+${css}
+  </style>
 </head>
 <body>
-  ${currentVersion.code}
+${html}
+<script>
+${js}
+</script>
 </body>
 </html>`;
+        }
         
-        setProcessedCode(wrappedCode);
-        currentVersionIdRef.current = currentVersion.id;
+        // Save the combined code
+        await onSaveCode(combinedCode, currentVersion?.instructions || "");
+      } catch (error) {
+        console.error("Error saving code:", error);
+        throw error;
       }
-    }, [currentVersion, isValidCode, processedCode]);
-
-    // If there's no code, show a loading state
-    if (!currentVersion) {
-      return (
-        <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-          <p className="text-gray-500">Loading content...</p>
-        </div>
-      );
-    }
-
-    // When we have processed code, render the appropriate view
-    if (processedCode) {
-      if (!showCode) {
-        return (
-          <div className="h-full relative">
-            <MemoizedIframePreview code={processedCode} ref={ref} />
-          </div>
-        );
-      } else {
-        const { html, css, js } = parseCodeSections(processedCode);
-        
-        return (
-          <div className="h-full relative overflow-hidden border border-gray-200 shadow-sm">
-            <CodeEditor html={html} css={css} js={js} />
-          </div>
-        );
-      }
-    }
-
-    // Show loading state
+    };
+    
     return (
-      <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
-        <p className="text-gray-500">Processing content...</p>
+      <div className="h-full relative">
+        {showCode ? (
+          <CodeEditor 
+            html={parsedHtml} 
+            css={parsedCss} 
+            js={parsedJs}
+            isOwner={isOwner}
+            onSave={handleSaveCode}
+          />
+        ) : (
+          <MemoizedIframePreview 
+            code={processedCode} 
+            ref={ref} 
+          />
+        )}
       </div>
     );
   }

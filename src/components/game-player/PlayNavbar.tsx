@@ -2,10 +2,11 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GameActions } from "./GameActions";
 import { useAuth } from "@/context/AuthContext";
-import { Download, UserCircle, ArrowLeft, Globe, Lock, Link2 } from "lucide-react";
+import { Download, UserCircle, ArrowLeft, Globe, Lock, Link2, Pencil, Check, X } from "lucide-react";
 import { ShareButton } from "./ShareButton";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useState, useRef, useEffect } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 
 interface PlayNavbarProps {
   gameId: string;
@@ -23,6 +25,7 @@ interface PlayNavbarProps {
   gameUserId?: string | null;
   visibility?: string;
   onVisibilityChange?: (visibility: string) => Promise<void>;
+  onNameChange?: (name: string) => Promise<void>;
   onExport?: () => void;
   onDownload?: () => void;
   onFork?: () => void;
@@ -37,6 +40,7 @@ export function PlayNavbar({
   gameUserId,
   visibility = 'public',
   onVisibilityChange,
+  onNameChange,
   onExport,
   onDownload,
   onFork,
@@ -47,6 +51,21 @@ export function PlayNavbar({
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(gameName);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  
+  // Update nameValue when gameName changes
+  useEffect(() => {
+    setNameValue(gameName);
+  }, [gameName]);
+  
+  // Focus the input when editing starts
+  useEffect(() => {
+    if (isEditingName && nameInputRef.current) {
+      nameInputRef.current.focus();
+    }
+  }, [isEditingName]);
   
   // Check if current user is the owner of the game
   const isOwner = user?.id && gameUserId === user.id;
@@ -61,6 +80,32 @@ export function PlayNavbar({
 
   const handleAccountClick = () => {
     navigate("/account");
+  };
+  
+  const handleStartEditing = () => {
+    if (isOwner) {
+      setIsEditingName(true);
+    }
+  };
+  
+  const handleSaveName = async () => {
+    if (onNameChange && nameValue.trim() !== gameName) {
+      await onNameChange(nameValue.trim());
+    }
+    setIsEditingName(false);
+  };
+  
+  const handleCancelEditing = () => {
+    setNameValue(gameName);
+    setIsEditingName(false);
+  };
+  
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveName();
+    } else if (e.key === 'Escape') {
+      handleCancelEditing();
+    }
   };
   
   // Get visibility badge info
@@ -106,9 +151,50 @@ export function PlayNavbar({
             </Button>
             
             <div className="flex items-center border-l pl-4 ml-2">
-              <h1 className="text-lg font-medium text-gray-800 truncate max-w-[200px] sm:max-w-md">
-                {gameName || "Untitled Design"}
-              </h1>
+              {isEditingName ? (
+                <div className="flex items-center">
+                  <Input
+                    ref={nameInputRef}
+                    value={nameValue}
+                    onChange={(e) => setNameValue(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    className="h-8 w-[200px] sm:w-[300px] text-lg font-medium"
+                    placeholder="Enter design name"
+                  />
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 ml-1" 
+                    onClick={handleSaveName}
+                  >
+                    <Check className="h-4 w-4 text-green-600" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8" 
+                    onClick={handleCancelEditing}
+                  >
+                    <X className="h-4 w-4 text-red-600" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center">
+                  <h1 className="text-lg font-medium text-gray-800 truncate max-w-[200px] sm:max-w-md">
+                    {gameName || "Untitled Design"}
+                  </h1>
+                  {isOwner && (
+                    <Button 
+                      variant="ghost" 
+                      size="icon" 
+                      className="h-6 w-6 ml-1" 
+                      onClick={handleStartEditing}
+                    >
+                      <Pencil className="h-3 w-3 text-gray-500" />
+                    </Button>
+                  )}
+                </div>
+              )}
               
               {/* Visibility badge */}
               <Badge 
