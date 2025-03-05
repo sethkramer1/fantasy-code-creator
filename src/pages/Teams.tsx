@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { useTeams } from "@/hooks/useTeams";
 import { TeamCard } from "@/components/team/TeamCard";
@@ -22,27 +23,42 @@ import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function TeamsPage() {
+  const navigate = useNavigate();
   const { teams, loading, error, createTeam, fetchTeams } = useTeams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
+  // Redirect to login if not authenticated after auth loading completes
+  useEffect(() => {
+    if (!user && !authLoading) {
+      console.log("TeamsPage - User not authenticated, redirecting to auth");
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to view and create teams.",
+        variant: "destructive",
+      });
+      navigate("/auth");
+    }
+  }, [user, authLoading, navigate, toast]);
+  
+  // Debug logging
   useEffect(() => {
     console.log("TeamsPage - Auth state:", user ? "Logged in" : "Not logged in");
+    console.log("TeamsPage - Auth loading:", authLoading);
     console.log("TeamsPage - User ID:", user?.id);
     console.log("TeamsPage - Teams loaded:", teams.length);
-    console.log("TeamsPage - Teams data:", JSON.stringify(teams));
-    console.log("TeamsPage - Loading state:", loading);
+    console.log("TeamsPage - Teams loading state:", loading);
+    console.log("TeamsPage - Teams error:", error);
     
     // Check if user is authenticated but we have no teams
-    if (user && teams.length === 0 && !loading) {
-      console.log("TeamsPage - User is logged in but no teams found, retrying fetch...");
-      fetchTeams();
+    if (user && !authLoading && teams.length === 0 && !loading) {
+      console.log("TeamsPage - User is logged in but no teams found, will wait for fetchTeams to complete");
     }
-  }, [teams, user, loading, fetchTeams]);
+  }, [teams, user, authLoading, loading, error]);
   
   const handleCreateTeam = async () => {
     if (!teamName.trim()) {
@@ -51,6 +67,16 @@ export default function TeamsPage() {
         description: "Team name is required",
         variant: "destructive"
       });
+      return;
+    }
+    
+    if (!user) {
+      toast({
+        title: "Authentication Required",
+        description: "You must be logged in to create a team.",
+        variant: "destructive"
+      });
+      navigate("/auth");
       return;
     }
     
@@ -73,7 +99,7 @@ export default function TeamsPage() {
         // Force refresh after a short delay to ensure DB updates are reflected
         setTimeout(() => {
           fetchTeams();
-        }, 500);
+        }, 1000);
       }
     } catch (error) {
       console.error("Team creation caught error:", error);
@@ -96,8 +122,15 @@ export default function TeamsPage() {
         description: "You must be logged in to view teams.",
         variant: "destructive"
       });
+      navigate("/auth");
     }
   };
+  
+  // Determine the actual content state
+  const isInitialLoading = authLoading || loading;
+  const hasNoTeams = !isInitialLoading && teams.length === 0;
+  const hasTeams = !isInitialLoading && teams.length > 0;
+  const hasError = !isInitialLoading && error;
   
   return (
     <div className="container mx-auto py-8 px-4">
@@ -110,14 +143,14 @@ export default function TeamsPage() {
         <Button 
           variant="outline" 
           onClick={handleManualRefresh} 
-          disabled={loading}
+          disabled={isInitialLoading}
         >
-          {loading ? "Loading..." : "Refresh Teams"}
+          {isInitialLoading ? "Loading..." : "Refresh Teams"}
         </Button>
         
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button>Create Team</Button>
+            <Button disabled={!user || authLoading}>Create Team</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -165,21 +198,17 @@ export default function TeamsPage() {
       <Separator className="mb-8" />
       
       {/* Debug information */}
-      {user ? (
-        <div className="mb-4 p-4 bg-gray-100 rounded">
-          <p className="text-sm text-gray-500">User ID: {user.id}</p>
-          <p className="text-sm text-gray-500">Auth Status: {user ? "Logged In" : "Not Logged In"}</p>
-          <p className="text-sm text-gray-500">Teams Count: {teams.length}</p>
-          <p className="text-sm text-gray-500">Loading State: {loading ? "Loading" : "Not Loading"}</p>
-          {error && <p className="text-sm text-red-500">Error: {error}</p>}
-        </div>
-      ) : (
-        <div className="mb-4 p-4 bg-yellow-100 rounded">
-          <p className="text-sm text-yellow-700">You are not logged in. Please sign in to create and view teams.</p>
-        </div>
-      )}
+      <div className="mb-4 p-4 bg-gray-100 rounded">
+        <p className="text-sm text-gray-500">Auth Status: {authLoading ? "Loading Auth" : (user ? "Logged In" : "Not Logged In")}</p>
+        <p className="text-sm text-gray-500">User ID: {user?.id || "No User"}</p>
+        <p className="text-sm text-gray-500">Teams Count: {teams.length}</p>
+        <p className="text-sm text-gray-500">Teams Loading: {loading ? "Yes" : "No"}</p>
+        <p className="text-sm text-gray-500">Auth Loading: {authLoading ? "Yes" : "No"}</p>
+        {error && <p className="text-sm text-red-500">Error: {error}</p>}
+      </div>
       
-      {loading ? (
+      {/* Loading state */}
+      {isInitialLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
             <div key={i} className="border rounded-lg p-6">
@@ -189,7 +218,20 @@ export default function TeamsPage() {
             </div>
           ))}
         </div>
-      ) : teams.length === 0 ? (
+      )}
+      
+      {/* Error state */}
+      {hasError && (
+        <div className="text-center py-8 bg-red-50 rounded-lg border border-red-200">
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={handleManualRefresh} variant="outline" size="sm">
+            Try Again
+          </Button>
+        </div>
+      )}
+      
+      {/* Empty state */}
+      {hasNoTeams && !hasError && (
         <div className="text-center py-8">
           <p className="text-gray-500 mb-4">
             {user ? "You don't have any teams yet." : "Please log in to view your teams."}
@@ -200,7 +242,10 @@ export default function TeamsPage() {
             </Button>
           )}
         </div>
-      ) : (
+      )}
+      
+      {/* Teams display */}
+      {hasTeams && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {teams.map(team => (
             <TeamCard key={team.id} team={team} />

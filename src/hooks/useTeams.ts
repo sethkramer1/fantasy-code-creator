@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Team } from "@/types/team";
@@ -13,20 +12,28 @@ export function useTeams() {
   const { user } = useAuth();
 
   const fetchTeams = useCallback(async () => {
-    try {
-      if (!user) {
-        console.log("No user found, cannot fetch teams");
-        setTeams([]);
-        setLoading(false);
-        setError(null);
-        return;
-      }
+    if (!user || !user.id) {
+      console.log("No authenticated user found, skipping team fetch");
+      setTeams([]);
+      setLoading(false);
+      return;
+    }
 
+    try {
       setLoading(true);
       setError(null);
       console.log("Fetching teams for user:", user.id);
       
-      // Try direct query on teams table first
+      const { data: membershipCheck, error: membershipCheckError } = await supabase
+        .from('team_members')
+        .select('team_id')
+        .eq('user_id', user.id)
+        .limit(1);
+        
+      if (membershipCheckError) {
+        console.error("Error checking team memberships:", membershipCheckError);
+      }
+      
       const { data: myCreatedTeams, error: createdTeamsError } = await supabase
         .from('teams')
         .select('*')
@@ -37,12 +44,11 @@ export function useTeams() {
         throw createdTeamsError;
       }
       
-      console.log("Teams created by user:", myCreatedTeams?.length || 0, myCreatedTeams);
+      console.log("Teams created by user:", myCreatedTeams?.length || 0);
       
-      // Fetch teams where user is a member
       const { data: memberTeamsJoins, error: memberError } = await supabase
         .from('team_members')
-        .select('team_id, role')
+        .select('team_id')
         .eq('user_id', user.id);
         
       if (memberError) {
@@ -50,70 +56,53 @@ export function useTeams() {
         throw memberError;
       }
       
-      console.log("Team memberships found:", memberTeamsJoins?.length || 0, memberTeamsJoins);
+      console.log("Team memberships found:", memberTeamsJoins?.length || 0);
       
-      // Get unique team IDs (from both created teams and memberships)
-      const createdTeamIds = (myCreatedTeams || []).map(team => team.id);
       const memberTeamIds = (memberTeamsJoins || []).map(tm => tm.team_id);
       
-      // Combine and deduplicate IDs
-      const allTeamIds = [...new Set([...createdTeamIds, ...memberTeamIds])];
-      console.log("All team IDs to fetch:", allTeamIds);
+      const createdButNotMember = myCreatedTeams
+        ? myCreatedTeams.filter(team => !memberTeamIds.includes(team.id))
+        : [];
       
-      if (allTeamIds.length === 0) {
-        console.log("No teams found for user");
-        setTeams([]);
-        setLoading(false);
-        return;
-      }
-      
-      // Get all team details
-      const { data: allTeams, error: teamsError } = await supabase
-        .from('teams')
-        .select('*')
-        .in('id', allTeamIds);
-        
-      if (teamsError) {
-        console.error("Error fetching team details:", teamsError);
-        throw teamsError;
-      }
-      
-      console.log("Final teams data:", allTeams);
-      
-      // Ensure every team created by the user has them as a member
-      if (myCreatedTeams && myCreatedTeams.length > 0) {
-        for (const team of myCreatedTeams) {
-          const isMember = memberTeamsJoins?.some(m => m.team_id === team.id);
+      let memberTeams: Team[] = [];
+      if (memberTeamIds.length > 0) {
+        const { data: fetchedMemberTeams, error: teamsError } = await supabase
+          .from('teams')
+          .select('*')
+          .in('id', memberTeamIds);
           
-          if (!isMember) {
-            console.log(`Adding user as admin to their own team ${team.id}`);
-            
-            // Add the creator as a team member with admin role
-            const { error: addMemberError } = await supabase
-              .from('team_members')
-              .insert([{
-                team_id: team.id,
-                user_id: user.id,
-                role: 'admin'
-              }]);
-              
-            if (addMemberError) {
-              console.error("Error adding creator as team member:", addMemberError);
-            }
-          }
+        if (teamsError) {
+          console.error("Error fetching member teams details:", teamsError);
+          throw teamsError;
+        }
+        
+        memberTeams = fetchedMemberTeams || [];
+      }
+      
+      for (const team of createdButNotMember) {
+        console.log(`Adding user as admin to their own team ${team.id}`);
+        
+        const { error: addMemberError } = await supabase
+          .from('team_members')
+          .insert([{
+            team_id: team.id,
+            user_id: user.id,
+            role: 'admin'
+          }]);
+          
+        if (addMemberError) {
+          console.error("Error adding creator as team member:", addMemberError);
         }
       }
       
-      setTeams(allTeams || []);
+      const allTeams = [...memberTeams, ...createdButNotMember];
+      console.log("Final combined teams:", allTeams.length);
+      
+      setTeams(allTeams);
       setError(null);
     } catch (error: any) {
       console.error("Error in fetchTeams:", error);
       setError(error.message || "Failed to load teams");
-      toast({
-        title: "Error",
-        description: "Failed to load teams. Please try again.",
-        variant: "destructive",
-      });
     } finally {
       setLoading(false);
     }
@@ -121,22 +110,20 @@ export function useTeams() {
 
   const createTeam = async (name: string, description?: string) => {
     try {
-      if (!user) {
-        throw new Error("User not authenticated");
+      if (!user || !user.id) {
+        throw new Error("You must be logged in to create a team");
       }
 
+      setLoading(true);
       console.log("Creating team with name:", name, "by user:", user.id);
       
-      // Step 1: Create the team
       const { data, error } = await supabase
         .from('teams')
-        .insert([
-          { 
+        .insert([{ 
             name, 
             description, 
             created_by: user.id 
-          }
-        ])
+        }])
         .select()
         .single();
         
@@ -145,9 +132,12 @@ export function useTeams() {
         throw error;
       }
       
+      if (!data) {
+        throw new Error("Team was created but no data was returned");
+      }
+      
       console.log("Team created successfully:", data);
       
-      // Step 2: Add the creator as a team member with admin role
       const { error: memberError } = await supabase
         .from('team_members')
         .insert([{
@@ -158,13 +148,11 @@ export function useTeams() {
         
       if (memberError) {
         console.error("Error adding creator as team member:", memberError);
-        throw memberError;
       }
       
       console.log("Creator added as team member with admin role");
       
-      // Step 3: Refresh the teams list
-      await fetchTeams();
+      setTeams(prev => [...prev, data]);
       
       toast({
         title: "Success",
@@ -180,6 +168,9 @@ export function useTeams() {
         variant: "destructive",
       });
       return null;
+    } finally {
+      await fetchTeams();
+      setLoading(false);
     }
   };
 
@@ -240,14 +231,24 @@ export function useTeams() {
   };
 
   useEffect(() => {
-    if (user) {
-      console.log("User detected, fetching teams", user.id);
-      fetchTeams();
-    } else {
-      console.log("No user detected, clearing teams");
-      setTeams([]);
-      setLoading(false);
-    }
+    let isMounted = true;
+    
+    const loadTeams = async () => {
+      if (user && user.id && isMounted) {
+        console.log("Initial teams fetch for user:", user.id);
+        await fetchTeams();
+      } else if (!user && isMounted) {
+        console.log("No user detected, clearing teams");
+        setTeams([]);
+        setLoading(false);
+      }
+    };
+    
+    loadTeams();
+    
+    return () => {
+      isMounted = false;
+    };
   }, [user, fetchTeams]);
 
   return {
