@@ -8,6 +8,8 @@ import { Game } from '@/types/game';
 import { filterGames } from './utils/gamesListUtils';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
+import { Button } from '@/components/ui/button';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 
 interface GamesListProps {
   games: Game[];
@@ -15,6 +17,7 @@ interface GamesListProps {
   onGameClick: (id: string) => void;
   onGameDelete: (id: string) => Promise<boolean>;
   filter?: string;
+  itemsPerPage?: number;
 }
 
 export function GamesList({ 
@@ -22,18 +25,37 @@ export function GamesList({
   isLoading, 
   onGameClick, 
   onGameDelete,
-  filter = 'all'
+  filter = 'all',
+  itemsPerPage = 9
 }: GamesListProps) {
   const { user } = useAuth();
   const [selectedType, setSelectedType] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [gameCodeMap, setGameCodeMap] = useState<Record<string, string>>({});
   const [loadingCodes, setLoadingCodes] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
   const filteredGames = filterGames(games, filter, user?.id);
+  
+  // Calculate filtered and paginated games
+  const filteredAndTypedGames = filteredGames
+    .filter(game => !selectedType || game.type === selectedType)
+    .filter(game => !searchQuery || 
+      game.prompt.toLowerCase().includes(searchQuery.toLowerCase()));
+  
+  const totalPages = Math.ceil(filteredAndTypedGames.length / itemsPerPage);
+  const currentGames = filteredAndTypedGames.slice(
+    (currentPage - 1) * itemsPerPage, 
+    currentPage * itemsPerPage
+  );
+  
+  // Reset to first page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, selectedType, searchQuery]);
   
   // Fetch game codes for all games in the list
   useEffect(() => {
-    if (filteredGames.length === 0) return;
+    if (currentGames.length === 0) return;
     
     const fetchGameCodes = async () => {
       setLoadingCodes(true);
@@ -43,7 +65,7 @@ export function GamesList({
         const { data: versions, error } = await supabase
           .from('game_versions')
           .select('game_id, code')
-          .in('game_id', filteredGames.map(game => game.id))
+          .in('game_id', currentGames.map(game => game.id))
           .order('version_number', { ascending: false });
           
         if (error) {
@@ -57,7 +79,6 @@ export function GamesList({
         }
         
         // Create a map of game_id to the most recent code
-        // This handles the case where we might get multiple versions per game
         const codeMap: Record<string, string> = {};
         
         versions.forEach(version => {
@@ -76,7 +97,7 @@ export function GamesList({
     };
     
     fetchGameCodes();
-  }, [filteredGames]);
+  }, [currentGames]);
 
   if (isLoading) {
     return <GamesLoadingState />;
@@ -103,24 +124,47 @@ export function GamesList({
       />
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredGames
-          .filter(game => !selectedType || game.type === selectedType)
-          .filter(game => !searchQuery || 
-            game.prompt.toLowerCase().includes(searchQuery.toLowerCase()))
-          .map((game) => (
-            <GameCard
-              key={game.id}
-              game={game}
-              gameCode={gameCodeMap[game.id] || ""}
-              onClick={() => {
-                console.log("Game clicked with ID:", game.id); // Debug log
-                onGameClick(game.id);
-              }}
-              onDelete={onGameDelete}
-              showVisibility={true}
-            />
-          ))}
+        {currentGames.map((game) => (
+          <GameCard
+            key={game.id}
+            game={game}
+            gameCode={gameCodeMap[game.id] || ""}
+            onClick={() => {
+              console.log("Game clicked with ID:", game.id);
+              onGameClick(game.id);
+            }}
+            onDelete={onGameDelete}
+            showVisibility={true}
+          />
+        ))}
       </div>
+      
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <div className="flex justify-center items-center mt-6 space-x-2">
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            disabled={currentPage === 1}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          
+          <span className="text-sm text-gray-600">
+            Page {currentPage} of {totalPages}
+          </span>
+          
+          <Button 
+            variant="outline" 
+            size="sm"
+            onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            disabled={currentPage === totalPages}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

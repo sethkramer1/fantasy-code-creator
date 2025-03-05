@@ -11,12 +11,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ModelType } from "@/types/generation";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
   const [gameType, setGameType] = useState<string>("webdesign");
   const [imageUrl, setImageUrl] = useState<string>("");
   const [visibility, setVisibility] = useState<string>("public");
+  const [activeTab, setActiveTab] = useState<string>("community");
   const modelType: ModelType = "smart";
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -32,6 +34,16 @@ const Index = () => {
     setThinkingTime,
     timerRef
   } = useGameGeneration();
+
+  useEffect(() => {
+    const userGames = games.filter(game => game.user_id === user?.id);
+    
+    if (!user || userGames.length === 0) {
+      setActiveTab("community");
+    } else if (activeTab === "my" || userGames.length > 0) {
+      setActiveTab("my");
+    }
+  }, [user, games, activeTab]);
 
   useEffect(() => {
     if (loading) {
@@ -199,18 +211,56 @@ const Index = () => {
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-gray-700" />
-            <h2 className="text-xl font-medium text-black">
-              {user ? "Designs Gallery" : "Community Designs"}
-            </h2>
+            <h2 className="text-xl font-medium text-black">Designs Gallery</h2>
           </div>
         </div>
 
-        <GamesList
-          games={games}
-          isLoading={gamesLoading}
-          onGameClick={(id) => navigate(`/play/${id}`)}
-          onGameDelete={deleteGame}
-        />
+        <Tabs 
+          value={activeTab} 
+          onValueChange={setActiveTab}
+          className="w-full"
+        >
+          <TabsList className="mb-6 bg-gray-100">
+            <TabsTrigger 
+              value="community" 
+              className="data-[state=active]:bg-white"
+            >
+              Community Designs
+            </TabsTrigger>
+            {user && (
+              <TabsTrigger 
+                value="my" 
+                className="data-[state=active]:bg-white"
+              >
+                My Designs
+              </TabsTrigger>
+            )}
+          </TabsList>
+          
+          <TabsContent value="community">
+            <GamesList
+              games={games}
+              isLoading={gamesLoading}
+              onGameClick={(id) => navigate(`/play/${id}`)}
+              onGameDelete={deleteGame}
+              filter="public"
+              itemsPerPage={9}
+            />
+          </TabsContent>
+          
+          {user && (
+            <TabsContent value="my">
+              <GamesList
+                games={games}
+                isLoading={gamesLoading}
+                onGameClick={(id) => navigate(`/play/${id}`)}
+                onGameDelete={deleteGame}
+                filter="my"
+                itemsPerPage={9}
+              />
+            </TabsContent>
+          )}
+        </Tabs>
       </div>
 
       <GenerationTerminal
