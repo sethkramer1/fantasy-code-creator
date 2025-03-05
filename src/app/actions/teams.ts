@@ -1,7 +1,8 @@
+
 // Example team creation function
+import { supabase } from "@/integrations/supabase/client";
+
 export async function createTeam(name: string, description?: string) {
-  const supabase = createClientComponentClient();
-  
   // Get and log the current user
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   console.log('Current user:', user); // Check if we have a valid user
@@ -30,4 +31,4 @@ export async function createTeam(name: string, description?: string) {
   }
   
   return data;
-} 
+}
