@@ -5,6 +5,7 @@ import { useGames } from "@/hooks/useGames";
 import { GenerationPanel } from "@/components/game-creator/GenerationPanel";
 import { DesignsGallery } from "@/components/game-creator/DesignsGallery";
 import { AuthDebugger } from "@/components/debug/AuthDebugger";
+import { MainNavigation } from "@/components/common/MainNavigation";
 
 const Index = () => {
   const { games, gamesLoading, deleteGame } = useGames();
@@ -39,30 +40,34 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      <GenerationPanel
-        loading={loading}
-        showTerminal={showTerminal}
-        setShowTerminal={setShowTerminal}
-        terminalOutput={terminalOutput}
-      />
+      <MainNavigation />
       
-      <DesignsGallery 
-        games={games}
-        gamesLoading={gamesLoading}
-        deleteGame={deleteGame}
-      />
+      <div className="pt-8">
+        <GenerationPanel
+          loading={loading}
+          showTerminal={showTerminal}
+          setShowTerminal={setShowTerminal}
+          terminalOutput={terminalOutput}
+        />
+        
+        <DesignsGallery 
+          games={games}
+          gamesLoading={gamesLoading}
+          deleteGame={deleteGame}
+        />
 
-      <GenerationTerminal
-        open={showTerminal}
-        onOpenChange={setShowTerminal}
-        output={terminalOutput}
-        thinkingTime={thinkingTime}
-        loading={loading}
-      />
+        <GenerationTerminal
+          open={showTerminal}
+          onOpenChange={setShowTerminal}
+          output={terminalOutput}
+          thinkingTime={thinkingTime}
+          loading={loading}
+        />
 
-      {/* Auth Debugger - only shown in development mode */}
-      <div className="max-w-7xl mx-auto px-6">
-        <AuthDebugger />
+        {/* Auth Debugger - only shown in development mode */}
+        <div className="max-w-7xl mx-auto px-6">
+          <AuthDebugger />
+        </div>
       </div>
     </div>
   );
