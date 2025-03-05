@@ -1,13 +1,14 @@
-
 import React from 'react';
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/components/ui/use-toast";
 
 export function AuthDebugger() {
   const { user } = useAuth();
   const [authTest, setAuthTest] = React.useState<any>(null);
   const [loading, setLoading] = React.useState(false);
+  const { toast } = useToast();
   
   const testAuth = async () => {
     setLoading(true);
@@ -28,9 +29,21 @@ export function AuthDebugger() {
         testError,
         timestamp: new Date().toISOString()
       });
+
+      console.log('Auth test results:', {
+        userData,
+        userError,
+        testData,
+        testError
+      });
     } catch (error) {
       console.error("Auth test error:", error);
       setAuthTest({ error });
+      toast({
+        title: "Auth Test Error",
+        description: error.message || "An unexpected error occurred during the auth test",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -48,14 +61,16 @@ export function AuthDebugger() {
         <span className="text-xs text-gray-500">{user ? 'Authenticated' : 'Not Authenticated'}</span>
       </div>
       
-      <Button 
-        size="sm" 
-        variant="outline" 
-        onClick={testAuth} 
-        disabled={loading}
-      >
-        {loading ? 'Testing...' : 'Test Authentication'}
-      </Button>
+      <div className="flex gap-2">
+        <Button 
+          size="sm" 
+          variant="outline" 
+          onClick={testAuth} 
+          disabled={loading}
+        >
+          {loading ? 'Testing...' : 'Test Authentication'}
+        </Button>
+      </div>
       
       {authTest && (
         <pre className="mt-2 text-xs bg-gray-100 p-2 rounded overflow-auto max-h-40">

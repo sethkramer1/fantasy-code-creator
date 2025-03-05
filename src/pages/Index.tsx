@@ -1,10 +1,10 @@
-
 import { useEffect } from "react";
 import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal";
 import { useGameGeneration } from "@/hooks/useGameGeneration";
 import { useGames } from "@/hooks/useGames";
 import { GenerationPanel } from "@/components/game-creator/GenerationPanel";
 import { DesignsGallery } from "@/components/game-creator/DesignsGallery";
+import { AuthDebugger } from "@/components/debug/AuthDebugger";
 
 const Index = () => {
   const { games, gamesLoading, deleteGame } = useGames();
@@ -59,6 +59,11 @@ const Index = () => {
         thinkingTime={thinkingTime}
         loading={loading}
       />
+
+      {/* Auth Debugger - only shown in development mode */}
+      <div className="max-w-7xl mx-auto px-6">
+        <AuthDebugger />
+      </div>
     </div>
   );
 };
