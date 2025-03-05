@@ -12,6 +12,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import React from "react";
+import { Loader2 } from "lucide-react";
 
 // Custom DialogContent without the close button
 const CustomDialogContent = React.forwardRef<
@@ -45,35 +46,19 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
   const [loading, setLoading] = useState(false);
 
   const handleGoogleSignIn = async () => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin + "/auth",
-        },
-      });
-
-      if (error) {
-        throw error;
-      }
-    } catch (error) {
-      toast({
-        title: "Error signing in",
-        description: error.message || "An unexpected error occurred",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleSignIn = () => {
+    // Simply navigate to the auth page
     navigate("/auth");
     onClose();
   };
 
-  const handleSignUp = () => {
+  const handleSignIn = async () => {
+    // Simply navigate to the auth page
+    navigate("/auth");
+    onClose();
+  };
+
+  const handleSignUp = async () => {
+    // Simply navigate to the auth page
     navigate("/auth");
     onClose();
   };

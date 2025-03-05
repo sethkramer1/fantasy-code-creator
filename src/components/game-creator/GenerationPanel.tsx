@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -7,6 +7,11 @@ import { GenerationForm } from "@/components/game-creator/GenerationForm";
 import { useAuth } from "@/context/AuthContext";
 import { ModelType } from "@/types/generation";
 import { LoginModal } from "@/components/auth/LoginModal";
+
+// Constants for localStorage keys
+const SAVED_PROMPT_KEY = "savedPrompt";
+const SAVED_GAME_TYPE_KEY = "savedGameType";
+const SAVED_IMAGE_URL_KEY = "savedImageUrl";
 
 interface GenerationPanelProps {
   loading: boolean;
@@ -31,6 +36,32 @@ export function GenerationPanel({
   const navigate = useNavigate();
   const { user } = useAuth();
 
+  // Check for saved prompt data when component mounts or user changes
+  useEffect(() => {
+    // Only load saved prompt if user is logged in and there's a saved prompt
+    if (user) {
+      const savedPrompt = localStorage.getItem(SAVED_PROMPT_KEY);
+      const savedGameType = localStorage.getItem(SAVED_GAME_TYPE_KEY);
+      const savedImageUrl = localStorage.getItem(SAVED_IMAGE_URL_KEY);
+      
+      if (savedPrompt) {
+        setPrompt(savedPrompt);
+        // Clear the saved prompt after loading it
+        localStorage.removeItem(SAVED_PROMPT_KEY);
+      }
+      
+      if (savedGameType) {
+        setGameType(savedGameType);
+        localStorage.removeItem(SAVED_GAME_TYPE_KEY);
+      }
+      
+      if (savedImageUrl) {
+        setImageUrl(savedImageUrl);
+        localStorage.removeItem(SAVED_IMAGE_URL_KEY);
+      }
+    }
+  }, [user]);
+
   const handleImageUploaded = (url: string) => {
     setImageUrl(url);
   };
@@ -40,12 +71,6 @@ export function GenerationPanel({
   };
 
   const handleGenerate = async () => {
-    // Check if user is logged in
-    if (!user) {
-      setShowLoginModal(true);
-      return;
-    }
-
     try {
       if (!prompt.trim()) {
         toast({
@@ -61,6 +86,20 @@ export function GenerationPanel({
           description: "Choose what you want to create before proceeding",
           variant: "destructive",
         });
+        return;
+      }
+
+      // If user is not logged in, save the prompt data and show login modal
+      if (!user) {
+        // Save current prompt data to localStorage
+        localStorage.setItem(SAVED_PROMPT_KEY, prompt);
+        localStorage.setItem(SAVED_GAME_TYPE_KEY, gameType);
+        if (imageUrl) {
+          localStorage.setItem(SAVED_IMAGE_URL_KEY, imageUrl);
+        }
+        
+        // Show login modal
+        setShowLoginModal(true);
         return;
       }
 
