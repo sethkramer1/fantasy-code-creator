@@ -1,4 +1,3 @@
-
 import { Game } from "@/types/game";
 import { Loader2, ArrowUpRight, Trash2, Globe, Lock } from "lucide-react";
 import { getTypeInfo, prepareIframeContent } from "./utils/gamesListUtils";
@@ -30,6 +29,8 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
   const [localAdminStatus, setLocalAdminStatus] = useState(false);
   const { user, isAdmin, checkIsAdmin } = useAuth();
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [iframeLoading, setIframeLoading] = useState(true);
+  const [iframeError, setIframeError] = useState(false);
   
   // Check admin status when the component mounts or when the user changes
   useEffect(() => {
@@ -58,6 +59,8 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
   useEffect(() => {
     if (gameCode) {
       setIframeKey(prev => prev + 1);
+      setIframeLoading(true);
+      setIframeError(false);
       console.log(`GameCard ${game.id}: Updating iframe with new code, key=${iframeKey}`);
     }
   }, [gameCode, game.id]);
@@ -85,11 +88,28 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
     setShowDeleteDialog(false);
   };
   
+  // Handle iframe load events
+  const handleIframeLoad = () => {
+    setIframeLoading(false);
+    console.log(`GameCard ${game.id}: iframe loaded successfully`);
+  };
+  
+  const handleIframeError = () => {
+    setIframeLoading(false);
+    setIframeError(true);
+    console.error(`GameCard ${game.id}: iframe failed to load`);
+  };
+  
   // This function ensures the iframe content is properly prepared and sanitized
   const getSafeIframeContent = () => {
     if (!gameCode) return null;
     
     try {
+      // Check if the gameCode is valid
+      if (gameCode === "Generating..." || gameCode.length < 20) {
+        return `<html><body><div style="display:flex;justify-content:center;align-items:center;height:100%;color:#888;">Preview loading...</div></body></html>`;
+      }
+      
       // Prepare the iframe content
       const content = prepareIframeContent(gameCode);
       console.log(`GameCard ${game.id}: Prepared iframe content of length ${content.length}`);
@@ -125,14 +145,21 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
               title={`Preview of ${game.prompt || 'design'}`}
               loading="lazy"
               sandbox="allow-same-origin allow-scripts"
-              onLoad={() => console.log(`GameCard ${game.id}: iframe loaded successfully`)}
-              onError={() => console.error(`GameCard ${game.id}: iframe failed to load`)}
+              onLoad={handleIframeLoad}
+              onError={handleIframeError}
             />
           ) : (
             <div className="flex items-center justify-center h-full w-full">
               <Loader2 className="animate-spin h-5 w-5 text-gray-400" />
             </div>
           )}
+          
+          {iframeLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-50 bg-opacity-80">
+              <Loader2 className="animate-spin h-5 w-5 text-gray-400" />
+            </div>
+          )}
+          
           <div className="absolute inset-0 z-10" aria-hidden="true"></div>
         </div>
         
@@ -181,7 +208,6 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
           </div>
         </div>
         
-        {/* Show delete button for admins and owners */}
         {canDelete && (
           <div 
             className="absolute top-2 right-2 p-1.5 rounded-full bg-white bg-opacity-80 hover:bg-opacity-100 hover:bg-red-50 transition-colors shadow-sm z-20"
@@ -192,7 +218,6 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
         )}
       </div>
       
-      {/* Delete confirmation dialog */}
       <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

@@ -1,57 +1,46 @@
-
 // If this file is read-only, this code won't be applied, but we still need to ensure
 // the prepareIframeContent function is properly implemented
 
 export const prepareIframeContent = (code: string): string => {
-  // Sanitize and prepare code for iframe display
+  if (!code || code === "Generating...") {
+    return `<html><body><div style="display:flex;justify-content:center;align-items:center;height:100%;font-family:sans-serif;color:#888;">Loading preview...</div></body></html>`;
+  }
+
   try {
-    if (!code || typeof code !== 'string') {
-      console.error("Invalid code provided to prepareIframeContent:", code);
-      return '<html><body><p>Error: No content available</p></body></html>';
+    // Basic validation to ensure we have HTML content
+    if (!code.includes('<html') && !code.includes('<!DOCTYPE') && !code.includes('<body')) {
+      // Wrap code in basic HTML structure if it doesn't include proper HTML tags
+      return `<!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <base target="_self">
+          <style>
+            html, body { height: 100%; margin: 0; overflow: auto; }
+          </style>
+        </head>
+        <body>${code}</body>
+        </html>`;
     }
     
-    // If it's already HTML, make sure it has the right viewport settings
-    if (code.includes('<html') || code.includes('<!DOCTYPE')) {
-      // Add viewport meta tag if it doesn't exist
-      if (!code.includes('<meta name="viewport"')) {
-        code = code.replace('<head>', 
-          `<head>
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <base target="_self">
-            <style>
-              html, body {
-                height: 100%;
-                overflow: auto;
-                scroll-behavior: smooth;
-              }
-            </style>`);
-      }
-      return code;
+    // If code already has HTML structure, enhance it with base target
+    if (!code.includes('<base')) {
+      code = code.replace('<head>', 
+        `<head>
+          <base target="_self">
+          <style>
+            html, body {
+              height: 100%;
+              overflow: auto;
+            }
+          </style>`);
     }
     
-    // If it's just a fragment, wrap it in a proper HTML structure
-    return `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Preview</title>
-  <style>
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 1rem;
-      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    }
-  </style>
-</head>
-<body>
-  ${code}
-</body>
-</html>`;
+    return code;
   } catch (error) {
     console.error("Error in prepareIframeContent:", error);
-    return '<html><body><p>Error processing content</p></body></html>';
+    return `<html><body><div style="padding:20px;font-family:sans-serif;color:red;">Error preparing content</div></body></html>`;
   }
 };
 
