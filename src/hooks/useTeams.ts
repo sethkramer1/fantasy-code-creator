@@ -74,6 +74,7 @@ export function useTeams() {
       }
 
       setIsCreating(true);
+      setError(null);
       console.log("Creating team with name:", name, "by user:", user.id);
       
       const { data: newTeam, error: teamError } = await supabase
@@ -91,8 +92,9 @@ export function useTeams() {
         throw new Error(`Failed to create team: ${teamError.message}`);
       }
       
-      if (!newTeam) {
-        throw new Error("Team was created but no data was returned");
+      if (!newTeam || !newTeam.id) {
+        console.error("Team was created but returned data is invalid:", newTeam);
+        throw new Error("Team creation failed: Invalid response from server");
       }
       
       console.log("Team created successfully:", newTeam);
@@ -108,6 +110,7 @@ export function useTeams() {
       if (memberError) {
         console.error("Error adding creator as team member:", memberError);
         
+        console.log("Attempting to delete team due to membership error");
         const { error: deleteError } = await supabase
           .from('teams')
           .delete()
@@ -129,7 +132,7 @@ export function useTeams() {
         .single();
         
       if (verifyError || !verifyTeam) {
-        console.error("Team verification failed:", verifyError);
+        console.error("Team verification failed:", verifyError || "No team returned");
         throw new Error("Team creation could not be verified");
       }
       
@@ -145,6 +148,7 @@ export function useTeams() {
       return newTeam;
     } catch (error: any) {
       console.error("Error creating team:", error);
+      setError(error.message || "Failed to create team. Please try again.");
       toast({
         title: "Error",
         description: error.message || "Failed to create team. Please try again.",

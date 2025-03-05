@@ -55,12 +55,13 @@ export default function TeamsPage() {
     console.log("TeamsPage - Teams loaded:", teams.length);
     console.log("TeamsPage - Teams loading state:", loading);
     console.log("TeamsPage - Teams error:", error);
+    console.log("TeamsPage - Teams creation state:", isCreating);
     
     // Check if user is authenticated but we have no teams
-    if (user && !authLoading && teams.length === 0 && !loading) {
+    if (user && !authLoading && teams.length === 0 && !loading && !isCreating) {
       console.log("TeamsPage - User is logged in but no teams found");
     }
-  }, [teams, user, authLoading, loading, error]);
+  }, [teams, user, authLoading, loading, error, isCreating]);
   
   const handleCreateTeam = async () => {
     if (!teamName.trim()) {
@@ -99,6 +100,9 @@ export default function TeamsPage() {
         setTeamDescription('');
         // Close dialog
         setIsDialogOpen(false);
+      } else {
+        // If team is null, there was an error (which should already be displayed via toast)
+        console.log("Team creation failed, keeping dialog open");
       }
     } catch (error) {
       console.error("Team creation caught error:", error);
@@ -142,16 +146,21 @@ export default function TeamsPage() {
         <Button 
           variant="outline" 
           onClick={handleManualRefresh} 
-          disabled={isInitialLoading}
+          disabled={isInitialLoading || isCreating}
           className="flex items-center gap-2"
         >
-          <RefreshCw className="h-4 w-4" />
-          {isInitialLoading ? "Loading..." : "Refresh Teams"}
+          <RefreshCw className={`h-4 w-4 ${(isInitialLoading || isCreating) ? "animate-spin" : ""}`} />
+          {isInitialLoading ? "Loading..." : isCreating ? "Creating..." : "Refresh Teams"}
         </Button>
         
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+          // Only allow closing if we're not in the middle of creating a team
+          if (!isSubmitting && !isCreating) {
+            setIsDialogOpen(open);
+          }
+        }}>
           <DialogTrigger asChild>
-            <Button disabled={!user || authLoading}>Create Team</Button>
+            <Button disabled={!user || authLoading || isCreating}>Create Team</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -169,6 +178,7 @@ export default function TeamsPage() {
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
                   placeholder="Enter team name"
+                  disabled={isSubmitting || isCreating}
                 />
               </div>
               
@@ -180,9 +190,20 @@ export default function TeamsPage() {
                   onChange={(e) => setTeamDescription(e.target.value)}
                   placeholder="Describe the purpose of this team"
                   rows={3}
+                  disabled={isSubmitting || isCreating}
                 />
               </div>
             </div>
+            
+            {isCreating && (
+              <Alert className="mb-4">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>Creating your team</AlertTitle>
+                <AlertDescription>
+                  Please wait while we set up your team...
+                </AlertDescription>
+              </Alert>
+            )}
             
             <DialogFooter>
               <Button 
@@ -208,6 +229,7 @@ export default function TeamsPage() {
             <p className="text-gray-500">Teams Count: {teams.length}</p>
             <p className="text-gray-500">Teams Loading: {loading ? "Yes" : "No"}</p>
             <p className="text-gray-500">Teams Creating: {isCreating ? "Yes" : "No"}</p>
+            <p className="text-gray-500">Form Submitting: {isSubmitting ? "Yes" : "No"}</p>
             <p className="text-gray-500">Auth Loading: {authLoading ? "Yes" : "No"}</p>
             {error && <p className="text-red-500">Error: {error}</p>}
           </details>
@@ -247,14 +269,25 @@ export default function TeamsPage() {
         </div>
       )}
       
+      {/* Creating state */}
+      {isCreating && !isInitialLoading && (
+        <Alert className="mb-6">
+          <RefreshCw className="h-4 w-4 animate-spin" />
+          <AlertTitle>Creating Team</AlertTitle>
+          <AlertDescription>
+            Please wait while we set up your team...
+          </AlertDescription>
+        </Alert>
+      )}
+      
       {/* Empty state */}
-      {hasNoTeams && !hasError && (
+      {hasNoTeams && !hasError && !isCreating && (
         <div className="text-center py-8 border rounded-lg bg-gray-50">
           <p className="text-gray-500 mb-4">
             {user ? "You don't have any teams yet." : "Please log in to view your teams."}
           </p>
           {user && (
-            <Button onClick={() => setIsDialogOpen(true)} size="lg">
+            <Button onClick={() => setIsDialogOpen(true)} size="lg" disabled={isCreating}>
               Create Your First Team
             </Button>
           )}
