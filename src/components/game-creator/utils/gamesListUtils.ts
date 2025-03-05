@@ -1,7 +1,10 @@
+
 // If this file is read-only, this code won't be applied, but we still need to ensure
 // the prepareIframeContent function is properly implemented
 
 export const prepareIframeContent = (code: string): string => {
+  console.log("prepareIframeContent called with code length:", code?.length);
+  
   if (!code || code === "Generating..." || code.length < 20) {
     return `<html><body><div style="display:flex;justify-content:center;align-items:center;height:100%;color:#888;">Preview loading...</div></body></html>`;
   }
