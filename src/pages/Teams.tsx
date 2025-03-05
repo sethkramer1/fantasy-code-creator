@@ -21,7 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Header } from "@/components/game-creator/Header";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, RefreshCw } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function TeamsPage() {
@@ -30,6 +30,7 @@ export default function TeamsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
@@ -82,6 +83,7 @@ export default function TeamsPage() {
     }
     
     try {
+      setIsSubmitting(true);
       console.log("Creating team with name:", teamName);
       const team = await createTeam(teamName, teamDescription);
       console.log("Team creation result:", team);
@@ -100,6 +102,8 @@ export default function TeamsPage() {
       }
     } catch (error) {
       console.error("Team creation caught error:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -139,7 +143,9 @@ export default function TeamsPage() {
           variant="outline" 
           onClick={handleManualRefresh} 
           disabled={isInitialLoading}
+          className="flex items-center gap-2"
         >
+          <RefreshCw className="h-4 w-4" />
           {isInitialLoading ? "Loading..." : "Refresh Teams"}
         </Button>
         
@@ -181,9 +187,9 @@ export default function TeamsPage() {
             <DialogFooter>
               <Button 
                 onClick={handleCreateTeam}
-                disabled={!teamName.trim() || isCreating}
+                disabled={!teamName.trim() || isSubmitting || isCreating}
               >
-                {isCreating ? 'Creating...' : 'Create Team'}
+                {isSubmitting || isCreating ? 'Creating...' : 'Create Team'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -201,6 +207,7 @@ export default function TeamsPage() {
             <p className="text-gray-500">User ID: {user?.id || "No User"}</p>
             <p className="text-gray-500">Teams Count: {teams.length}</p>
             <p className="text-gray-500">Teams Loading: {loading ? "Yes" : "No"}</p>
+            <p className="text-gray-500">Teams Creating: {isCreating ? "Yes" : "No"}</p>
             <p className="text-gray-500">Auth Loading: {authLoading ? "Yes" : "No"}</p>
             {error && <p className="text-red-500">Error: {error}</p>}
           </details>

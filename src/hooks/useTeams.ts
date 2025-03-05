@@ -25,28 +25,6 @@ export function useTeams() {
       setError(null);
       console.log("Fetching teams for user:", user.id);
       
-      const { data: membershipCheck, error: membershipCheckError } = await supabase
-        .from('team_members')
-        .select('team_id')
-        .eq('user_id', user.id)
-        .limit(1);
-        
-      if (membershipCheckError) {
-        console.error("Error checking team memberships:", membershipCheckError);
-      }
-      
-      const { data: myCreatedTeams, error: createdTeamsError } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('created_by', user.id);
-        
-      if (createdTeamsError) {
-        console.error("Error fetching created teams:", createdTeamsError);
-        throw createdTeamsError;
-      }
-      
-      console.log("Teams created by user:", myCreatedTeams?.length || 0);
-      
       const { data: memberTeamsJoins, error: memberError } = await supabase
         .from('team_members')
         .select('team_id')
@@ -61,13 +39,10 @@ export function useTeams() {
       
       const memberTeamIds = (memberTeamsJoins || []).map(tm => tm.team_id);
       
-      const createdButNotMember = myCreatedTeams
-        ? myCreatedTeams.filter(team => !memberTeamIds.includes(team.id))
-        : [];
+      let allTeams: Team[] = [];
       
-      let memberTeams: Team[] = [];
       if (memberTeamIds.length > 0) {
-        const { data: fetchedMemberTeams, error: teamsError } = await supabase
+        const { data: memberTeams, error: teamsError } = await supabase
           .from('teams')
           .select('*')
           .in('id', memberTeamIds);
@@ -77,26 +52,9 @@ export function useTeams() {
           throw teamsError;
         }
         
-        memberTeams = fetchedMemberTeams || [];
+        allTeams = memberTeams || [];
       }
       
-      for (const team of createdButNotMember) {
-        console.log(`Adding user as admin to their own team ${team.id}`);
-        
-        const { error: addMemberError } = await supabase
-          .from('team_members')
-          .insert([{
-            team_id: team.id,
-            user_id: user.id,
-            role: 'admin'
-          }]);
-          
-        if (addMemberError) {
-          console.error("Error adding creator as team member:", addMemberError);
-        }
-      }
-      
-      const allTeams = [...memberTeams, ...createdButNotMember];
       console.log("Final combined teams:", allTeams.length);
       
       setTeams(allTeams);
@@ -130,7 +88,7 @@ export function useTeams() {
         
       if (teamError) {
         console.error("Error creating team:", teamError);
-        throw teamError;
+        throw new Error(`Failed to create team: ${teamError.message}`);
       }
       
       if (!newTeam) {
@@ -149,17 +107,39 @@ export function useTeams() {
         
       if (memberError) {
         console.error("Error adding creator as team member:", memberError);
-        await supabase.from('teams').delete().eq('id', newTeam.id);
-        throw memberError;
+        
+        const { error: deleteError } = await supabase
+          .from('teams')
+          .delete()
+          .eq('id', newTeam.id);
+          
+        if (deleteError) {
+          console.error("Error cleaning up team after membership error:", deleteError);
+        }
+        
+        throw new Error(`Failed to add you as team admin: ${memberError.message}`);
       }
       
       console.log("Creator added as team member with admin role");
+      
+      const { data: verifyTeam, error: verifyError } = await supabase
+        .from('teams')
+        .select('*')
+        .eq('id', newTeam.id)
+        .single();
+        
+      if (verifyError || !verifyTeam) {
+        console.error("Team verification failed:", verifyError);
+        throw new Error("Team creation could not be verified");
+      }
+      
+      console.log("Team creation verified:", verifyTeam);
       
       setTeams(prev => [...prev, newTeam]);
       
       toast({
         title: "Success",
-        description: "Team created successfully.",
+        description: `Team "${name}" created successfully.`,
       });
       
       return newTeam;
