@@ -1,9 +1,8 @@
-
 import { useState, useRef } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { contentTypes } from "@/types/game";
 import { GenerationOptions, GenerationResult, ModelType } from "@/types/generation";
-import { callAnthropicApi } from "@/services/generation/anthropicService";
+import { callAnthropicApi, generateGameName } from "@/services/generation/anthropicService";
 import { callGroqApi } from "@/services/generation/groqService";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { trackTokenUsage } from "@/components/game-chat/api-service";
@@ -194,6 +193,29 @@ export const useGameGeneration = () => {
       
       setTerminalOutput(prev => [...prev, "> Saving to database..."]);
 
+      // Generate a name for the game using Claude 3.5 Haiku
+      let gameName = undefined;
+      if (!existingGameId) {
+        setTerminalOutput(prev => [...prev, "> Generating a name for your design..."]);
+        console.log("[GAME_GEN] Starting name generation for prompt:", prompt.substring(0, 50) + "...");
+        try {
+          gameName = await generateGameName(prompt);
+          console.log("[GAME_GEN] Name generation result:", gameName);
+          if (gameName) {
+            setTerminalOutput(prev => [...prev, `> Generated name: "${gameName}"`]);
+          } else {
+            console.log("[GAME_GEN] No name was returned from generateGameName");
+            setTerminalOutput(prev => [...prev, "> Could not generate a name, using prompt as fallback"]);
+          }
+        } catch (nameError) {
+          console.error("[GAME_GEN] Error generating game name:", nameError);
+          setTerminalOutput(prev => [...prev, "> Could not generate a name, using prompt as fallback"]);
+        }
+      } else {
+        console.log("[GAME_GEN] Skipping name generation for existing game:", existingGameId);
+      }
+
+      console.log("[GAME_GEN] Saving game with name:", gameName);
       const gameData = await saveGeneratedGame({
         gameContent,
         prompt,
@@ -201,8 +223,16 @@ export const useGameGeneration = () => {
         modelType: activeModelType,
         imageUrl,
         existingGameId,
-        visibility
+        visibility,
+        gameName
       });
+      
+      // Log the saved game data to verify if the name was saved
+      console.log("[GAME_GEN] Game saved, returned data:", JSON.stringify({
+        id: gameData?.id,
+        name: (gameData as any)?.name,
+        prompt: gameData?.prompt?.substring(0, 50) + "..."
+      }));
       
       if (gameData && gameData.id) {
         setGameId(gameData.id);

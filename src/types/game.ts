@@ -7,6 +7,7 @@ export interface Game {
   user_id?: string;
   visibility?: string;
   deleted?: boolean;
+  name?: string;
 }
 
 export interface GameData {
@@ -20,6 +21,7 @@ export interface GameData {
   visibility?: string;
   instructions?: string;
   user_id?: string;
+  name?: string;
 }
 
 export const contentTypes = [

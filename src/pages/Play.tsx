@@ -13,6 +13,7 @@ import { VersionHistory } from "@/components/game-player/components/VersionHisto
 import { useAuth } from "@/context/AuthContext";
 import { forceTokenTracking } from "@/services/generation/tokenTrackingService";
 import { supabase } from "@/integrations/supabase/client";
+import { generateGameName } from "@/services/generation/anthropicService";
 import JSZip from 'jszip';
 import { Button } from "@/components/ui/button";
 
@@ -332,6 +333,115 @@ const Play = () => {
     }
   };
 
+  // Add a test function for name generation - FOR DEBUGGING ONLY
+  const testNameGeneration = async () => {
+    if (!game?.prompt) return;
+    
+    toast({
+      title: "Testing name generation",
+      description: "Generating a name for this game design..."
+    });
+    
+    try {
+      const name = await generateGameName(game.prompt);
+      console.log("Generated name:", name);
+      
+      if (name && gameId) {
+        // Update the game with the new name
+        // Use type assertion to bypass TypeScript type checking
+        const { error } = await supabase
+          .from('games')
+          .update({ 
+            // Use type assertion to bypass TypeScript type checking
+            name: name 
+          } as any)
+          .eq('id', gameId);
+          
+        if (error) {
+          console.error("Error updating game name:", error);
+          toast({
+            title: "Error updating name",
+            description: error.message,
+            variant: "destructive"
+          });
+        } else {
+          toast({
+            title: "Name generated",
+            description: `Generated name: "${name}"`
+          });
+          
+          // Refresh the game data
+          await fetchGame();
+        }
+      } else {
+        toast({
+          title: "Name generation failed",
+          description: "Could not generate a name",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error("Error in test name generation:", error);
+      toast({
+        title: "Error generating name",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive"
+      });
+    }
+  };
+  
+  // Add a function to run the SQL migration - FOR DEBUGGING ONLY
+  const runSqlMigration = async () => {
+    toast({
+      title: "Running SQL migration",
+      description: "Adding name column to games table..."
+    });
+    
+    try {
+      // Execute SQL directly using the SQL API
+      const response = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/rest/v1/rpc/execute_sql', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || ''}`
+        },
+        body: JSON.stringify({
+          query: `
+            -- Add name column to games table
+            ALTER TABLE games 
+            ADD COLUMN IF NOT EXISTS name TEXT;
+            
+            -- Update existing records to have a name based on the prompt
+            UPDATE games
+            SET name = SUBSTRING(prompt, 1, 50)
+            WHERE name IS NULL;
+          `
+        })
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`SQL execution failed: ${errorText}`);
+      }
+      
+      toast({
+        title: "SQL migration completed",
+        description: "Name column added to games table"
+      });
+      
+      // Refresh the game data
+      await fetchGame();
+    } catch (error) {
+      console.error("Error in SQL migration:", error);
+      toast({
+        title: "Error running SQL migration",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive"
+      });
+    }
+  };
+
   if (!gameId) {
     console.error("No game ID provided in URL params");
     return (
@@ -389,7 +499,7 @@ const Play = () => {
     <div className="flex flex-col h-screen w-full bg-white">
       <PlayNavbar
         gameId={gameId}
-        gameName={initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading...")}
+        gameName={(game as any)?.name || (initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading..."))}
         gameUserId={game?.user_id}
         visibility={game?.visibility || 'public'}
         onVisibilityChange={handleVisibilityChange}

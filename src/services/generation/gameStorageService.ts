@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { GameData } from "@/types/game";
 
@@ -11,6 +10,7 @@ interface SaveGameOptions {
   existingGameId?: string;
   instructions?: string;
   visibility?: string;
+  gameName?: string;
 }
 
 export const saveGeneratedGame = async ({
@@ -21,51 +21,109 @@ export const saveGeneratedGame = async ({
   imageUrl,
   existingGameId,
   instructions,
-  visibility = "public"
+  visibility = "public",
+  gameName
 }: SaveGameOptions): Promise<GameData | null> => {
   try {
     let gameId = existingGameId;
     let newGame = !existingGameId;
     
+    console.log("[GAME_STORAGE] saveGeneratedGame called with gameName:", gameName);
+    
     // If there's no existing game ID, we need to create a new game record
     if (!gameId) {
-      console.log("Creating new game record...");
+      console.log("[GAME_STORAGE] Creating new game record with name:", gameName || prompt.substring(0, 50));
+      
+      // Create the insert data object for better debugging
+      const insertData = {
+        prompt,
+        code: gameContent,
+        type: gameType,
+        current_version: 1,
+        model_type: modelType,
+        visibility: visibility,
+        name: gameName || prompt.substring(0, 50)
+      } as any; // Use type assertion to bypass TypeScript type checking
+      
+      console.log("[GAME_STORAGE] Insert data:", JSON.stringify({
+        ...insertData,
+        code: insertData.code.substring(0, 100) + "..." // Truncate code for logging
+      }));
+      
       const { data: gameRecord, error: gameError } = await supabase
         .from('games')
-        .insert([{
-          prompt,
-          code: gameContent,
-          type: gameType,
-          current_version: 1,
-          model_type: modelType,
-          visibility: visibility
-        }])
+        .insert([insertData])
         .select('id')
         .single();
       
       if (gameError) {
-        console.error("Error creating game record:", gameError);
+        console.error("[GAME_STORAGE] Error creating game record:", gameError);
         throw new Error(`Database error: ${gameError.message}`);
       }
       
       gameId = gameRecord.id;
-      console.log(`Created new game with ID: ${gameId}`);
+      console.log(`[GAME_STORAGE] Created new game with ID: ${gameId}`);
+      
+      // Verify the name was saved correctly
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('games')
+        .select('id, prompt, name')
+        .eq('id', gameId)
+        .single();
+        
+      if (verifyError) {
+        console.error("[GAME_STORAGE] Error verifying game record:", verifyError);
+      } else {
+        console.log(`[GAME_STORAGE] Verified game record:`, verifyData);
+      }
     } else {
       // If we're updating an existing game
-      console.log(`Updating existing game with ID: ${gameId}`);
+      console.log(`[GAME_STORAGE] Updating existing game with ID: ${gameId}, name: ${gameName}`);
+      
+      // Create the update data object for better debugging
+      const updateData = {
+        code: gameContent,
+        model_type: modelType
+      } as any; // Use type assertion to bypass TypeScript type checking
+      
+      // Only include name in the update if it's provided
+      if (gameName !== undefined) {
+        console.log(`[GAME_STORAGE] Including name in update: ${gameName}`);
+        updateData['name'] = gameName;
+      } else {
+        console.log(`[GAME_STORAGE] Name not provided, skipping name update`);
+      }
+      
+      console.log("[GAME_STORAGE] Update data:", JSON.stringify({
+        ...updateData,
+        code: updateData.code.substring(0, 100) + "..." // Truncate code for logging
+      }));
       
       // Using raw SQL for increment instead of supabase.sql
-      const { error: updateError } = await supabase
+      const { data: updateResult, error: updateError } = await supabase
         .from('games')
-        .update({
-          code: gameContent,
-          model_type: modelType
-        })
-        .eq('id', gameId);
+        .update(updateData)
+        .eq('id', gameId)
+        .select('id');
       
       if (updateError) {
-        console.error("Error updating game record:", updateError);
+        console.error("[GAME_STORAGE] Error updating game record:", updateError);
         throw new Error(`Database error: ${updateError.message}`);
+      }
+      
+      console.log(`[GAME_STORAGE] Update result:`, updateResult);
+      
+      // Verify the name was saved correctly
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('games')
+        .select('id, prompt, name')
+        .eq('id', gameId)
+        .single();
+        
+      if (verifyError) {
+        console.error("[GAME_STORAGE] Error verifying game record:", verifyError);
+      } else {
+        console.log(`[GAME_STORAGE] Verified game record:`, verifyData);
       }
       
       // Update version count separately with RPC
@@ -75,7 +133,7 @@ export const saveGeneratedGame = async ({
       );
       
       if (versionUpdateError) {
-        console.error("Error incrementing version:", versionUpdateError);
+        console.error("[GAME_STORAGE] Error incrementing version:", versionUpdateError);
         throw new Error(`Database error: ${versionUpdateError.message}`);
       }
     }
