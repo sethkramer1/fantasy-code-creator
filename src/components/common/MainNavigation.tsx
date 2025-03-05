@@ -1,11 +1,18 @@
 
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Home, Users, UserCircle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 export function MainNavigation() {
   const { user } = useAuth();
+  const location = useLocation();
+  
+  const isActive = (path: string) => {
+    return location.pathname === path;
+  };
   
   if (!user) {
     return (
@@ -16,18 +23,46 @@ export function MainNavigation() {
   }
   
   return (
-    <div className="flex items-center gap-4">
+    <div className="flex items-center gap-3">
+      {location.pathname !== '/' && (
+        <Link 
+          to="/" 
+          className={cn(
+            "flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+            isActive('/') 
+              ? "bg-black text-white" 
+              : "text-gray-700 hover:bg-gray-100"
+          )}
+        >
+          <Home size={16} />
+          <span>Home</span>
+        </Link>
+      )}
+      
       <Link 
         to="/teams" 
-        className="text-sm font-medium hover:text-primary transition-colors"
+        className={cn(
+          "flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+          isActive('/teams') 
+            ? "bg-black text-white" 
+            : "text-gray-700 hover:bg-gray-100"
+        )}
       >
-        Teams
+        <Users size={16} />
+        <span>Teams</span>
       </Link>
+      
       <Link 
         to="/account" 
-        className="text-sm font-medium hover:text-primary transition-colors"
+        className={cn(
+          "flex items-center gap-1.5 px-3 py-2 rounded-md text-sm font-medium transition-colors",
+          isActive('/account') 
+            ? "bg-black text-white" 
+            : "text-gray-700 hover:bg-gray-100"
+        )}
       >
-        Account
+        <UserCircle size={16} />
+        <span>Account</span>
       </Link>
     </div>
   );
