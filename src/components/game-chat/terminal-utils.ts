@@ -1,4 +1,3 @@
-
 export const updateTerminalOutput = (
   setTerminalOutput: React.Dispatch<React.SetStateAction<string[]>>, 
   newContent: string, 
@@ -163,7 +162,9 @@ export const processAnthropicStream = async (
   let buffer = '';
   let currentThinkingPhase = '';
   let isInitialGeneration = true; // Flag to detect first message
+  let receivedAnyData = false;
   
+  console.log("Starting Anthropic stream processing");
   updateTerminalOutputFn("> Anthropic stream connected, receiving content...", true);
   
   try {
@@ -171,30 +172,45 @@ export const processAnthropicStream = async (
       const { done, value } = await reader.read();
       
       if (done) {
-        console.log("Stream complete");
+        console.log("Stream complete, received data:", receivedAnyData);
         updateTerminalOutputFn("> Stream complete", true);
         break;
       }
       
+      if (value && value.length > 0) {
+        receivedAnyData = true;
+      } else {
+        console.log("Received empty chunk");
+        continue;
+      }
+      
       const chunk = new TextDecoder().decode(value);
+      console.log("Received chunk length:", chunk.length);
       buffer += chunk;
       
       let lineEnd;
+      let processedLines = 0;
       while ((lineEnd = buffer.indexOf('\n')) >= 0) {
         const line = buffer.slice(0, lineEnd);
         buffer = buffer.slice(lineEnd + 1);
+        processedLines++;
         
-        if (!line.startsWith('data: ')) continue;
+        if (!line.startsWith('data: ')) {
+          console.log("Skipping non-data line:", line.substring(0, 30));
+          continue;
+        }
         
         try {
           const eventData = line.slice(5).trim();
           
           if (eventData === '[DONE]') {
+            console.log("Received [DONE] event");
             updateTerminalOutputFn("> Stream complete", true);
             break;
           }
           
           const data = JSON.parse(eventData);
+          console.log("Received event type:", data.type);
           
           switch (data.type) {
             case 'message_start':
@@ -221,6 +237,7 @@ export const processAnthropicStream = async (
                 if (contentChunk && !isTokenInfo(contentChunk)) {
                   // Only add non-token content
                   content += contentChunk;
+                  console.log("Content chunk:", contentChunk.substring(0, 30) + (contentChunk.length > 30 ? "..." : ""));
                   updateTerminalOutputFn(`> ${contentChunk}`, false);
                 }
               }
@@ -257,10 +274,12 @@ export const processAnthropicStream = async (
           }
         } catch (parseError) {
           if (!line.includes('[DONE]')) {
-            console.error('Error parsing stream data:', parseError, 'Line:', line);
+            console.error('Error parsing stream data:', parseError, 'Line:', line.substring(0, 100));
           }
         }
       }
+      
+      console.log(`Processed ${processedLines} lines, remaining buffer length: ${buffer.length}`);
     }
   } catch (error) {
     console.error("Error processing stream:", error);
@@ -272,9 +291,16 @@ export const processAnthropicStream = async (
   content = removeTokenInfo(content);
   
   if (!content || content.trim().length === 0) {
+    console.error("No content received from AI");
+    if (receivedAnyData) {
+      updateTerminalOutputFn("> Error: Received data but couldn't extract content", true);
+    } else {
+      updateTerminalOutputFn("> Error: No data received from AI", true);
+    }
     throw new Error("No content received from AI. Please try again.");
   }
   
+  console.log("Final content length:", content.length);
   return content;
 };
 

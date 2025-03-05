@@ -243,28 +243,94 @@ export function useChatMessages({
           outputTokens = Math.ceil(content.length / 4);
         }
       } else {
-        const reader = apiResponse.body?.getReader();
-        if (!reader) throw new Error("Unable to read response stream");
+        // Check if we have a proper streaming response for Anthropic
+        const contentType = apiResponse.headers.get('content-type');
+        console.log("Anthropic response content type:", contentType);
         
-        content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
+        if (contentType && contentType.includes('text/event-stream')) {
+          updateTerminalOutputWrapper("> Using streaming mode for Anthropic API...", true);
+          
+          if (!apiResponse.body) {
+            console.error("No response body available for streaming");
+            updateTerminalOutputWrapper("> Error: No response body available for streaming", true);
+            throw new Error("No response body available for streaming");
+          }
+          
+          try {
+            const reader = apiResponse.body.getReader();
+            console.log("Successfully obtained stream reader");
+            updateTerminalOutputWrapper("> Stream connected, waiting for content...", true);
+            
+            // Process the Anthropic stream
+            content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
+            console.log("Stream processing complete, content length:", content.length);
+            
+            // For streaming responses, we estimate token usage based on content length
+            inputTokens = Math.ceil(currentMessage.length / 4);
+            outputTokens = Math.ceil(content.length / 4);
+            console.log(`Estimated tokens from stream: input=${inputTokens}, output=${outputTokens}`);
+          } catch (streamError) {
+            console.error("Error processing Anthropic stream:", streamError);
+            updateTerminalOutputWrapper(`> Error processing stream: ${streamError.message}`, true);
+            throw streamError;
+          }
+        } else {
+          // Handle non-streaming response from Anthropic (fallback)
+          updateTerminalOutputWrapper("> Using non-streaming mode for Anthropic API (fallback)...", true);
+          console.log("Received non-streaming response from Anthropic");
+          
+          try {
+            const responseData = await apiResponse.json();
+            console.log("Complete Anthropic response received:", responseData);
+            
+            // Extract content from the response
+            if (responseData.content && Array.isArray(responseData.content)) {
+              for (const item of responseData.content) {
+                if (item.type === 'text') {
+                  content += item.text;
+                  updateTerminalOutputWrapper(`> ${item.text}`, true);
+                }
+              }
+            } else if (typeof responseData.content === 'string') {
+              content = responseData.content;
+              updateTerminalOutputWrapper(`> ${content}`, true);
+            } else if (responseData.completion) {
+              // Handle older API format
+              content = responseData.completion;
+              updateTerminalOutputWrapper(`> ${content}`, true);
+            }
+            
+            // Extract token usage if available
+            if (responseData.usage) {
+              inputTokens = responseData.usage.input_tokens || inputTokens;
+              outputTokens = responseData.usage.output_tokens || Math.ceil(content.length / 4);
+              console.log(`Anthropic tokens used: input=${inputTokens}, output=${outputTokens}`);
+            } else {
+              outputTokens = Math.ceil(content.length / 4);
+            }
+          } catch (e) {
+            console.error("Error processing non-streaming Anthropic response:", e);
+            updateTerminalOutputWrapper(`> Error processing response: ${e.message}`, true);
+            throw new Error("Failed to process Anthropic response");
+          }
+        }
         
-        let usageInfo = null;
+        // Check for token usage information in the content
         try {
           const usageMatch = content.match(/Tokens used: (\d+) input, (\d+) output/);
           if (usageMatch) {
             inputTokens = parseInt(usageMatch[1], 10);
             outputTokens = parseInt(usageMatch[2], 10);
-          } else {
-            inputTokens = Math.ceil(currentMessage.length / 4);
-            outputTokens = Math.ceil(content.length / 4);
+            console.log(`Token usage extracted from content: input=${inputTokens}, output=${outputTokens}`);
+            
+            // Remove token information from the content
+            content = content.replace(/Tokens used: \d+ input, \d+ output/g, '').trim();
           }
         } catch (e) {
           console.error("Error extracting token usage information:", e);
-          inputTokens = Math.ceil(currentMessage.length / 4);
-          outputTokens = Math.ceil(content.length / 4);
         }
         
-        console.log(`Anthropic tokens used: input=${inputTokens}, output=${outputTokens}`);
+        console.log(`Final token usage: input=${inputTokens}, output=${outputTokens}`);
       }
       
       console.log("Content collection complete. Total length:", content.length);
@@ -322,10 +388,25 @@ export function useChatMessages({
         true
       );
       
-      addSystemMessage(
-        "Error", 
-        `❌ Error processing message: ${error instanceof Error ? error.message : "Please try again"}`
-      );
+      // Determine if this is an Anthropic API specific error
+      let errorMessage = error instanceof Error ? error.message : "Please try again";
+      let systemMessage = `❌ Error processing message: ${errorMessage}`;
+      
+      // Check for Anthropic-specific error patterns
+      if (currentModelType === "smart" && errorMessage) {
+        if (errorMessage.includes("Anthropic API") || 
+            errorMessage.includes("anthropic") || 
+            errorMessage.includes("Claude") ||
+            errorMessage.includes("token") ||
+            errorMessage.includes("rate limit") ||
+            errorMessage.includes("timeout")) {
+          
+          systemMessage = `❌ Anthropic API Error: ${errorMessage}. Please try again or switch to the "fast" model.`;
+          console.error("Anthropic API specific error detected:", errorMessage);
+        }
+      }
+      
+      addSystemMessage("Error", systemMessage);
       
       setMessages(prev => prev.filter(msg => msg.id !== tempId));
       

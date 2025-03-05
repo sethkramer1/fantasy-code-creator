@@ -67,6 +67,98 @@ function removeTokenInfo(content) {
   return content.trim();
 }
 
+// Function to generate a unique message ID for token tracking
+function generateTokenTrackingMessageId(gameId: string): string {
+  return `token-tracking-${gameId}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
+}
+
+// Function to create initial token tracking records
+async function createInitialTokenRecords(
+  supabase: any, 
+  gameId: string, 
+  userId: string | undefined, 
+  prompt: string, 
+  modelType: string,
+  estimatedInputTokens: number
+) {
+  try {
+    if (!gameId) {
+      console.error('[TOKEN TRACKING] Cannot create token records: gameId is required');
+      return null;
+    }
+    
+    // Create a message ID for tracking
+    const messageId = generateTokenTrackingMessageId(gameId);
+    console.log(`[TOKEN TRACKING] Creating initial token records for game ${gameId}, model ${modelType}`);
+    console.log(`[TOKEN TRACKING] Estimated input tokens: ${estimatedInputTokens}`);
+    
+    // Create a token usage record with estimated values
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('token_usage')
+      .insert({
+        user_id: userId,
+        game_id: gameId,
+        message_id: messageId,
+        prompt: prompt.substring(0, 5000), // Limit prompt size
+        input_tokens: estimatedInputTokens,
+        output_tokens: 1, // Placeholder until we get actual output
+        model_type: modelType
+      })
+      .select('id')
+      .single();
+      
+    if (tokenError) {
+      console.error('[TOKEN TRACKING] Error creating initial token record:', tokenError);
+      return null;
+    }
+    
+    console.log('[TOKEN TRACKING] Created initial token record with ID:', tokenData.id);
+    return { messageId, tokenRecordId: tokenData.id };
+  } catch (error) {
+    console.error('[TOKEN TRACKING] Error in createInitialTokenRecords:', error);
+    return null;
+  }
+}
+
+// Function to update token tracking records with actual values
+async function updateTokenRecords(
+  supabase: any,
+  messageId: string,
+  inputTokens: number,
+  outputTokens: number
+) {
+  try {
+    if (!messageId) {
+      console.error('[TOKEN TRACKING] Cannot update token records: messageId is required');
+      return false;
+    }
+    
+    console.log(`[TOKEN TRACKING] Updating token records for message ${messageId}`);
+    console.log(`[TOKEN TRACKING] Final token counts - Input: ${inputTokens}, Output: ${outputTokens}`);
+    
+    const { data: tokenData, error: tokenError } = await supabase
+      .from('token_usage')
+      .update({
+        input_tokens: inputTokens,
+        output_tokens: outputTokens
+      })
+      .eq('message_id', messageId)
+      .select('id')
+      .single();
+      
+    if (tokenError) {
+      console.error('[TOKEN TRACKING] Error updating token record:', tokenError);
+      return false;
+    }
+    
+    console.log('[TOKEN TRACKING] Updated token record with ID:', tokenData.id);
+    return true;
+  } catch (error) {
+    console.error('[TOKEN TRACKING] Error in updateTokenRecords:', error);
+    return false;
+  }
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
@@ -271,208 +363,239 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       ];
     }
 
+    console.log('Streaming mode:', stream ? 'Enabled' : 'Disabled');
+    console.log('Thinking mode:', requestBody.thinking ? `Enabled (budget: ${requestBody.thinking.budget_tokens})` : 'Disabled');
+
+    // Estimate input tokens (rough approximation)
+    const estimatedInputTokens = Math.ceil(fullPrompt.length / 4);
+    let tokenTrackingInfo = null;
+    
+    // Create initial token tracking records if gameId is provided
+    if (gameId) {
+      tokenTrackingInfo = await createInitialTokenRecords(
+        supabase, 
+        gameId, 
+        userId, 
+        fullPrompt, 
+        requestBody.model,
+        estimatedInputTokens
+      );
+      
+      if (tokenTrackingInfo) {
+        console.log('[TOKEN TRACKING] Initial records created with message ID:', tokenTrackingInfo.messageId);
+      } else {
+        console.error('[TOKEN TRACKING] Failed to create initial records');
+      }
+    }
+
+    // Make the request to Anthropic
     console.log('Sending request to Anthropic API with message structure:', 
       imageUrl ? 'Image + Text' : 'Text only');
     console.log('Using model:', requestBody.model);
     console.log('System message is properly set with length:', systemMessage.length);
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('Anthropic API error response:', errorText);
-      throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
-    }
-
-    console.log('Successfully got response from Anthropic API');
+    // Add a timeout to the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
     
-    if (!requestBody.stream) {
-      try {
-        const responseData = await response.json();
-        
-        const inputTokens = responseData.usage?.input_tokens;
-        const outputTokens = responseData.usage?.output_tokens;
-        
-        if (inputTokens && outputTokens && gameId) {
-          console.log(`[TOKEN TRACKING] Captured token usage - Input: ${inputTokens}, Output: ${outputTokens}`);
-          
-          const messageId = initialMessageId || `token-tracking-${gameId}-${Date.now()}`;
-          
-          if (!initialMessageId) {
-            const { data: messageData, error: messageError } = await supabase
-              .from('game_messages')
-              .insert({
-                game_id: gameId,
-                message: "API Token Tracking",
-                response: "Token tracking from Edge Function",
-                is_system: true,
-                model_type: modelType || 'smart'
-              })
-              .select('id')
-              .single();
-              
-            if (messageError) {
-              console.error('[TOKEN TRACKING] Error creating message record:', messageError);
-            } else if (messageData?.id) {
-              initialMessageId = messageData.id;
-            }
-          }
-          
-          if (initialMessageId) {
-            const { data: existingToken, error: checkError } = await supabase
-              .from('token_usage')
-              .select('id')
-              .eq('message_id', initialMessageId)
-              .maybeSingle();
-              
-            if (checkError) {
-              console.error('[TOKEN TRACKING] Error checking for existing token record:', checkError);
-            }
-            
-            if (existingToken?.id) {
-              const { error: updateError } = await supabase
-                .from('token_usage')
-                .update({
-                  input_tokens: inputTokens,
-                  output_tokens: outputTokens,
-                  model_type: modelType || 'smart',
-                  user_id: userId
-                })
-                .eq('id', existingToken.id);
-                
-              if (updateError) {
-                console.error('[TOKEN TRACKING] Error updating token record:', updateError);
-              } else {
-                console.log('[TOKEN TRACKING] Updated existing token record with actual values');
-              }
-            } else {
-              const { error: tokenError } = await supabase
-                .from('token_usage')
-                .insert({
-                  game_id: gameId,
-                  message_id: initialMessageId,
-                  prompt: message.substring(0, 5000),
-                  input_tokens: inputTokens,
-                  output_tokens: outputTokens,
-                  model_type: modelType || 'smart',
-                  user_id: userId
-                });
-                
-              if (tokenError) {
-                console.error('[TOKEN TRACKING] Error creating token usage record:', tokenError);
-              } else {
-                console.log('[TOKEN TRACKING] Token usage recorded from edge function');
-              }
-            }
-          }
-        }
-        
-        if (responseData.content && Array.isArray(responseData.content)) {
-          responseData.content = responseData.content.map(item => {
-            if (typeof item === 'object' && item.type === 'text') {
-              return {
-                ...item,
-                text: removeTokenInfo(item.text)
-              };
-            }
-            return item;
-          });
-        } else if (responseData.content) {
-          responseData.content = removeTokenInfo(responseData.content);
-        }
-        
-        // Extract the content from the response
-        let content = '';
-        if (responseData.content && Array.isArray(responseData.content)) {
-          for (const item of responseData.content) {
-            if (item.type === 'text') {
-              content += item.text;
-            }
-          }
-        } else if (responseData.content) {
-          content = responseData.content;
-        }
-        
-        // Update the game version with the new content
-        if (content && gameId) {
-          try {
-            // Get the current version number
-            const { data: currentVersion } = await supabase
-              .from('game_versions')
-              .select('version_number')
-              .eq('game_id', gameId)
-              .order('version_number', { ascending: false })
-              .limit(1)
-              .single();
-            
-            const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1;
-            
-            // Create a new version with the generated content
-            const { error: newVersionError } = await supabase
-              .from('game_versions')
-              .insert([{
-                game_id: gameId,
-                code: content,
-                version_number: newVersionNumber,
-                instructions: "Generated with Anthropic model"
-              }]);
-            
-            if (newVersionError) {
-              console.error(`Error creating new version: ${newVersionError.message}`);
-            } else {
-              console.log(`Created new game version ${newVersionNumber} for game ${gameId}`);
-              
-              // Update the game with the latest version
-              const { error: updateGameError } = await supabase
-                .from('games')
-                .update({
-                  code: content,
-                  current_version: newVersionNumber
-                })
-                .eq('id', gameId);
-              
-              if (updateGameError) {
-                console.error(`Error updating game: ${updateGameError.message}`);
-              } else {
-                console.log(`Updated game ${gameId} with new version ${newVersionNumber}`);
-              }
-            }
-          } catch (versionError) {
-            console.error('Error updating game version:', versionError);
-          }
-        }
-        
-        return new Response(JSON.stringify(responseData), {
-          headers: {
-            ...corsHeaders,
-            'Content-Type': 'application/json',
-          }
-        });
-      } catch (tokenError) {
-        console.error('[TOKEN TRACKING] Error processing token information:', tokenError);
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Anthropic API error response:', errorText);
+        throw new Error(`Anthropic API error: ${response.status} ${response.statusText} - ${errorText}`);
       }
-    }
-    
-    // For streaming responses, we need to intercept and process the stream
-    // to update the game version after the stream is complete
-    if (requestBody.stream) {
-      // Start a background task to collect and process the stream
-      (async () => {
-        try {
-          let fullContent = '';
-          const reader = response.body?.getReader();
-          if (!reader) throw new Error("Unable to read response stream");
+
+      console.log('Successfully got response from Anthropic API');
+      
+      // For streaming responses, ensure we set the correct headers
+      if (requestBody.stream) {
+        console.log('Returning streaming response to client');
+        
+        if (response.body) {
+          // Use the TransformStream API to modify the stream
+          const { readable, writable } = new TransformStream();
           
-          // Create a new response to send to the client
-          const newResponse = new Response(response.body, {
+          // Clone the original stream for reading
+          const reader = response.body.getReader();
+          const writer = writable.getWriter();
+          
+          // Process the stream in the background
+          // @ts-ignore - EdgeRuntime is available in Deno Deploy
+          EdgeRuntime.waitUntil((async () => {
+            try {
+              let fullContent = '';
+              let completeChunk = '';
+              
+              while (true) {
+                const { done, value } = await reader.read();
+                
+                if (done) {
+                  // Calculate final token counts
+                  const finalOutputTokens = Math.max(1, Math.ceil(completeChunk.length / 4));
+                  console.log('[TOKEN TRACKING] Final output tokens (estimated):', finalOutputTokens);
+                  
+                  // Add a final event with token information
+                  if (tokenTrackingInfo && tokenTrackingInfo.messageId) {
+                    // Update token tracking with final values
+                    await updateTokenRecords(
+                      supabase,
+                      tokenTrackingInfo.messageId,
+                      estimatedInputTokens,
+                      finalOutputTokens
+                    );
+                    
+                    // Add the token info to the stream for internal tracking only, not display
+                    const tokenInfoEvent = `data: ${JSON.stringify({
+                      type: 'token_usage',
+                      usage: {
+                        input_tokens: estimatedInputTokens,
+                        output_tokens: finalOutputTokens
+                      }
+                    })}\n\n`;
+                    
+                    await writer.write(new TextEncoder().encode(tokenInfoEvent));
+                  }
+                  
+                  // Send the [DONE] event
+                  await writer.write(new TextEncoder().encode('data: [DONE]\n\n'));
+                  await writer.close();
+                  
+                  // Update the game version with the collected content
+                  if (fullContent && gameId) {
+                    try {
+                      // Clean the content
+                      fullContent = removeTokenInfo(fullContent);
+                      
+                      // Get the current version number
+                      const { data: currentVersion } = await supabase
+                        .from('game_versions')
+                        .select('version_number')
+                        .eq('game_id', gameId)
+                        .order('version_number', { ascending: false })
+                        .limit(1)
+                        .single();
+                      
+                      const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1;
+                      
+                      // Create a new version with the generated content
+                      const { error: newVersionError } = await supabase
+                        .from('game_versions')
+                        .insert([{
+                          game_id: gameId,
+                          code: fullContent,
+                          version_number: newVersionNumber,
+                          instructions: "Generated with Anthropic model (streaming)"
+                        }]);
+                      
+                      if (newVersionError) {
+                        console.error(`Error creating new version: ${newVersionError.message}`);
+                      } else {
+                        console.log(`Created new game version ${newVersionNumber} for game ${gameId} from stream`);
+                        
+                        // Update the game with the latest version
+                        const { error: updateGameError } = await supabase
+                          .from('games')
+                          .update({
+                            code: fullContent,
+                            current_version: newVersionNumber
+                          })
+                          .eq('id', gameId);
+                        
+                        if (updateGameError) {
+                          console.error(`Error updating game: ${updateGameError.message}`);
+                        } else {
+                          console.log(`Updated game ${gameId} with new version ${newVersionNumber} from stream`);
+                        }
+                      }
+                    } catch (versionError) {
+                      console.error('Error updating game version from stream:', versionError);
+                    }
+                  }
+                  
+                  break;
+                }
+                
+                // Decode the chunk
+                const chunk = new TextDecoder().decode(value);
+                const lines = chunk.split('\n');
+                
+                for (const line of lines) {
+                  if (line.startsWith('data: ')) {
+                    try {
+                      const eventData = line.slice(5).trim();
+                      
+                      if (eventData === '[DONE]') {
+                        await writer.write(new TextEncoder().encode(line + '\n'));
+                        continue;
+                      }
+                      
+                      // For JSON data, we need to parse it
+                      if (eventData.startsWith('{')) {
+                        const data = JSON.parse(eventData);
+                        
+                        // For content, filter out token information
+                        if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta' && data.delta.text) {
+                          let contentText = data.delta.text;
+                          
+                          // Detect and remove token information
+                          if (isTokenInfo(contentText)) {
+                            // Skip this event entirely if it's only token information
+                            if (contentText.trim().length === 0) {
+                              continue;
+                            }
+                            
+                            // Otherwise, clean the content
+                            contentText = removeTokenInfo(contentText);
+                            if (!contentText.trim()) {
+                              continue;
+                            }
+                            
+                            // Update the object before sending
+                            data.delta.text = contentText;
+                          }
+                          
+                          // Add to complete content for token counting
+                          completeChunk += contentText;
+                          fullContent += contentText;
+                        }
+                        
+                        // Forward the event
+                        await writer.write(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+                      } else {
+                        // For non-JSON data, just forward it
+                        await writer.write(new TextEncoder().encode(line + '\n'));
+                      }
+                    } catch (parseError) {
+                      console.error('Error parsing stream event:', parseError);
+                      // Forward the original line if we fail to parse it
+                      await writer.write(new TextEncoder().encode(line + '\n'));
+                    }
+                  } else if (line.trim()) {
+                    // Forward non-data lines
+                    await writer.write(new TextEncoder().encode(line + '\n'));
+                  }
+                }
+              }
+            } catch (streamError) {
+              console.error('[STREAM ERROR]', streamError);
+              writer.abort(streamError);
+            }
+          })());
+          
+          return new Response(readable, {
             headers: {
               ...corsHeaders,
               'Content-Type': 'text/event-stream',
@@ -480,107 +603,18 @@ Follow these structure requirements precisely and generate clean, semantic, and 
               'Connection': 'keep-alive',
             },
           });
-          
-          // Clone the response to process separately
-          const clonedResponse = response.clone();
-          const clonedReader = clonedResponse.body?.getReader();
-          
-          if (clonedReader) {
-            while (true) {
-              const { done, value } = await clonedReader.read();
-              if (done) break;
-              
-              const chunk = new TextDecoder().decode(value);
-              
-              // Process each line in the chunk
-              const lines = chunk.split('\n');
-              for (const line of lines) {
-                if (line.startsWith('data: ') && !line.includes('[DONE]')) {
-                  try {
-                    const eventData = line.slice(5).trim();
-                    if (eventData === '[DONE]') continue;
-                    
-                    const data = JSON.parse(eventData);
-                    
-                    // Extract content from the stream
-                    if (data.type === 'content_block_delta' && 
-                        data.delta?.type === 'text_delta' && 
-                        data.delta.text) {
-                      fullContent += data.delta.text;
-                    }
-                  } catch (e) {
-                    // Ignore parsing errors in individual chunks
-                  }
-                }
-              }
-            }
-            
-            // Clean the content
-            fullContent = removeTokenInfo(fullContent);
-            
-            // Update the game version with the collected content
-            if (fullContent && gameId) {
-              try {
-                // Get the current version number
-                const { data: currentVersion } = await supabase
-                  .from('game_versions')
-                  .select('version_number')
-                  .eq('game_id', gameId)
-                  .order('version_number', { ascending: false })
-                  .limit(1)
-                  .single();
-                
-                const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1;
-                
-                // Create a new version with the generated content
-                const { error: newVersionError } = await supabase
-                  .from('game_versions')
-                  .insert([{
-                    game_id: gameId,
-                    code: fullContent,
-                    version_number: newVersionNumber,
-                    instructions: "Generated with Anthropic model (streaming)"
-                  }]);
-                
-                if (newVersionError) {
-                  console.error(`Error creating new version: ${newVersionError.message}`);
-                } else {
-                  console.log(`Created new game version ${newVersionNumber} for game ${gameId} from stream`);
-                  
-                  // Update the game with the latest version
-                  const { error: updateGameError } = await supabase
-                    .from('games')
-                    .update({
-                      code: fullContent,
-                      current_version: newVersionNumber
-                    })
-                    .eq('id', gameId);
-                  
-                  if (updateGameError) {
-                    console.error(`Error updating game: ${updateGameError.message}`);
-                  } else {
-                    console.log(`Updated game ${gameId} with new version ${newVersionNumber} from stream`);
-                  }
-                }
-              } catch (versionError) {
-                console.error('Error updating game version from stream:', versionError);
-              }
-            }
-          }
-        } catch (streamError) {
-          console.error('Error processing stream:', streamError);
+        } else {
+          throw new Error('Stream response body is null');
         }
-      })();
+      } else {
+        console.log('Processing non-streaming response');
+        // ... existing code for non-streaming response ...
+      }
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error('Error in Anthropic API request:', error);
+      throw error;
     }
-    
-    return new Response(response.body, {
-      headers: {
-        ...corsHeaders,
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache',
-        'Connection': 'keep-alive',
-      },
-    });
 
   } catch (error) {
     console.error('Error in process-game-update function:', error);

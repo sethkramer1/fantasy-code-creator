@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "./types";
 
@@ -240,6 +239,7 @@ export const processGameUpdate = async (
       payload.imageUrl = imageUrl;
     }
     
+    // Always enable streaming for Anthropic (smart) model
     if (modelType === "smart") {
       payload.stream = true;
       payload.thinking = {
@@ -256,22 +256,107 @@ export const processGameUpdate = async (
       updateTerminalOutput(`> Connecting to ${modelType === "fast" ? "Groq" : "Anthropic"} API...`, true);
     }
     
-    const apiResponse = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
-      },
-      body: JSON.stringify(payload)
+    console.log(`Sending request to ${modelType === "fast" ? "Groq" : "Anthropic"} API:`, {
+      url: apiUrl,
+      streaming: modelType === "smart" ? true : false,
+      messageLength: message.length,
+      hasImage: !!imageUrl
     });
     
-    if (!apiResponse.ok) {
-      const errorText = await apiResponse.text();
-      console.error("API response error:", apiResponse.status, errorText);
-      throw new Error(`API error (${apiResponse.status}): ${errorText.substring(0, 200)}`);
-    }
+    // Add a timeout to the fetch request
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      console.error("API request timed out after 60 seconds");
+      if (updateTerminalOutput) {
+        updateTerminalOutput("> Error: API request timed out after 60 seconds", true);
+      }
+    }, 60000); // 60 second timeout
     
-    return { apiResponse, modelType };
+    try {
+      const apiResponse = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
+        },
+        body: JSON.stringify(payload),
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      
+      console.log("API response status:", apiResponse.status);
+      console.log("API response headers:", Object.fromEntries(apiResponse.headers.entries()));
+      
+      if (!apiResponse.ok) {
+        const errorText = await apiResponse.text();
+        console.error("API response error:", apiResponse.status, errorText);
+        if (updateTerminalOutput) {
+          updateTerminalOutput(`> Error: API returned status ${apiResponse.status}`, true);
+          updateTerminalOutput(`> ${errorText.substring(0, 200)}`, true);
+        }
+        throw new Error(`API error (${apiResponse.status}): ${errorText.substring(0, 200)}`);
+      }
+      
+      // Ensure we're properly handling the response based on content type
+      const contentType = apiResponse.headers.get('content-type');
+      console.log("Response content type:", contentType);
+      
+      // For streaming responses, verify the content type is correct
+      if (modelType === "smart" && payload.stream) {
+        if (!contentType || !contentType.includes('text/event-stream')) {
+          console.warn("Expected streaming response but got:", contentType);
+          if (updateTerminalOutput) {
+            updateTerminalOutput("> Warning: Expected streaming response but received non-streaming response", true);
+          }
+          
+          // If we didn't get a streaming response, try to handle it as a regular JSON response
+          try {
+            const jsonData = await apiResponse.json();
+            console.log("Received non-streaming response:", jsonData);
+            
+            // Create a new Response object with the JSON data
+            const jsonResponse = new Response(JSON.stringify(jsonData), {
+              headers: {
+                'Content-Type': 'application/json'
+              }
+            });
+            
+            return { apiResponse: jsonResponse, modelType };
+          } catch (e) {
+            console.error("Failed to parse non-streaming response:", e);
+            if (updateTerminalOutput) {
+              updateTerminalOutput("> Error: Failed to parse non-streaming response", true);
+            }
+            throw new Error("Received invalid response format from API");
+          }
+        } else {
+          console.log("Received proper streaming response");
+          if (updateTerminalOutput) {
+            updateTerminalOutput("> Received streaming response, processing...", true);
+          }
+          
+          // Ensure the response body is available
+          if (!apiResponse.body) {
+            console.error("Streaming response has no body");
+            if (updateTerminalOutput) {
+              updateTerminalOutput("> Error: Streaming response has no body", true);
+            }
+            throw new Error("Streaming response has no body");
+          }
+        }
+      }
+      
+      return { apiResponse, modelType };
+    } catch (error) {
+      clearTimeout(timeoutId);
+      console.error("API request error:", error);
+      if (updateTerminalOutput) {
+        updateTerminalOutput(`> Error: ${error.message}`, true);
+      }
+      throw error;
+    }
   } catch (error) {
     console.error("API error:", error);
     throw error;

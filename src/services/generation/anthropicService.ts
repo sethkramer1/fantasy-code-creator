@@ -1,4 +1,3 @@
-
 import { StreamCallbacks } from "@/types/generation";
 import { getSystemPrompt } from "./promptService";
 import { buildPrompt } from "./promptBuilder";
@@ -40,7 +39,21 @@ export const callAnthropicApi = async (
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Generate API error:', errorText);
-      throw new Error(`API error (${response.status}): ${errorText}`);
+      
+      // Provide more specific error messages based on status code and error text
+      if (response.status === 429) {
+        throw new Error(`Anthropic API rate limit exceeded. Please try again later.`);
+      } else if (response.status === 400 && errorText.includes('token')) {
+        throw new Error(`Anthropic API token limit exceeded. Try a shorter message or remove the image.`);
+      } else if (response.status === 500 || response.status === 503) {
+        throw new Error(`Anthropic API service unavailable. Please try again later or switch to the "fast" model.`);
+      } else if (response.status === 401 || response.status === 403) {
+        throw new Error(`Anthropic API authentication error. Please contact support.`);
+      } else if (response.status === 408 || errorText.includes('timeout')) {
+        throw new Error(`Anthropic API request timed out. Please try again or switch to the "fast" model.`);
+      } else {
+        throw new Error(`API error (${response.status}): ${errorText}`);
+      }
     }
 
     // If we expect a streaming response
@@ -169,8 +182,24 @@ export const callAnthropicApi = async (
     }
   } catch (error) {
     console.error('anthropicService API call failed:', error);
-    if (onError) onError(error instanceof Error ? error : new Error(String(error)));
-    throw error;
+    
+    // Enhance error messages for common issues
+    let enhancedError = error;
+    
+    if (error instanceof Error) {
+      const errorMsg = error.message.toLowerCase();
+      
+      if (errorMsg.includes('timeout') || errorMsg.includes('timed out')) {
+        enhancedError = new Error('Anthropic API request timed out. Please try again or switch to the "fast" model.');
+      } else if (errorMsg.includes('network') || errorMsg.includes('connection')) {
+        enhancedError = new Error('Network error connecting to Anthropic API. Please check your connection and try again.');
+      } else if (errorMsg.includes('aborted')) {
+        enhancedError = new Error('Anthropic API request was aborted. Please try again or switch to the "fast" model.');
+      }
+    }
+    
+    if (onError) onError(enhancedError instanceof Error ? enhancedError : new Error(String(enhancedError)));
+    throw enhancedError;
   }
 };
 

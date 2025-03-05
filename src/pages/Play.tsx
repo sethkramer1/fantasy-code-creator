@@ -182,9 +182,24 @@ const Play = () => {
         navigate(`/play/${gameId}`, { replace: true });
       }
       
+      // Provide more specific error messages for Anthropic API issues
+      let errorTitle = "Generation Error";
+      let errorMessage = generationError || "Failed to generate content. Please try again.";
+      
+      if (generationError && (
+          generationError.includes("Anthropic API") || 
+          generationError.includes("token limit") ||
+          generationError.includes("rate limit") ||
+          generationError.includes("timed out") ||
+          generationError.includes("service unavailable")
+      )) {
+        errorTitle = "Anthropic API Error";
+        // Keep the original error message as it should be more specific now
+      }
+      
       toast({
-        title: "Generation Error",
-        description: generationError || "Failed to generate content. Please try again.",
+        title: errorTitle,
+        description: errorMessage,
         variant: "destructive"
       });
     }
