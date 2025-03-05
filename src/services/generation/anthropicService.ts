@@ -240,7 +240,7 @@ export const generateGameName = async (prompt: string): Promise<string> => {
         },
         body: JSON.stringify({ 
           prompt,
-          model: "claude-3-5-sonnet-20240307"
+          model: "claude-3-haiku-20240307"
         })
       });
       
@@ -268,7 +268,7 @@ export const generateGameName = async (prompt: string): Promise<string> => {
     const { data, error } = await supabase.functions.invoke('generate-name', {
       body: { 
         prompt,
-        model: "claude-3-5-sonnet-20240307"
+        model: "claude-3-haiku-20240307"
       }
     });
 

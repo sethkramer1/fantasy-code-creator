@@ -43,7 +43,8 @@ serve(async (req) => {
       );
     }
     
-    const { prompt, model = "claude-3-5-sonnet-20240307" } = promptData;
+    // Using claude-3-haiku-20240307 as the default model instead of claude-3-5-sonnet
+    const { prompt, model = "claude-3-haiku-20240307" } = promptData;
     
     console.log("Received request to generate name.");
     console.log("Prompt length:", prompt?.length || 0);
@@ -70,7 +71,7 @@ The name should be:
 Return ONLY the name with no explanations, quotes, or additional text.`;
 
     // Make the request to Anthropic API
-    console.log('Sending request to Anthropic API with Claude 3.5 Sonnet');
+    console.log('Sending request to Anthropic API with model:', model);
     console.log('API endpoint: https://api.anthropic.com/v1/messages');
     
     const response = await fetch('https://api.anthropic.com/v1/messages', {
