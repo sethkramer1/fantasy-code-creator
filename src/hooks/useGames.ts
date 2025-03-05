@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -36,7 +35,12 @@ export const useGames = () => {
       if (!user) {
         console.log("User not logged in - only fetching public games");
         query = query.eq('visibility', 'public');
+      } else if (!isUserAdmin) {
+        // If user is logged in but not admin, show public games and their own games
+        console.log("Regular user logged in - fetching public games and user's own games");
+        query = query.or(`visibility.eq.public,user_id.eq.${user.id}`);
       }
+      // If user is admin, they can see all games (no additional filter needed)
       
       const { data, error } = await query.order('created_at', { ascending: false });
       
@@ -55,7 +59,7 @@ export const useGames = () => {
     } finally {
       setGamesLoading(false);
     }
-  }, [toast, user, refreshAdminStatus]);
+  }, [toast, user, refreshAdminStatus, isAdmin]);
 
   useEffect(() => {
     fetchGames();

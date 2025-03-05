@@ -1,4 +1,3 @@
-
 import React from "react";
 import { Copy } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -38,7 +37,7 @@ export const CodeWithLineNumbers = ({ code, language }: CodeWithLineNumbersProps
           </div>
         ))}
       </div>
-      <pre className="flex-1 overflow-auto pl-4 pr-4 text-gray-800 bg-white whitespace-pre-wrap">
+      <pre className="flex-1 overflow-auto pl-4 pr-4 text-gray-800 bg-white whitespace-pre-wrap text-left">
         <code className={`language-${language} bg-white`}>
           {lines.map((line, i) => (
             <div key={i} className="leading-5 py-0.5">{line}</div>

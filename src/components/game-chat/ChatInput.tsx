@@ -1,4 +1,3 @@
-
 import { useRef, useEffect } from "react";
 import { Loader2, ArrowUp, Paperclip, Info } from "lucide-react";
 import { ImageUpload } from "./ImageUpload";
@@ -27,7 +26,8 @@ export const ChatInput = ({
   handleModelChange, 
   handleSubmit, 
   loading, 
-  disabled = false
+  disabled = false,
+  disabledMessage
 }: ChatInputProps) => {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
@@ -95,7 +95,7 @@ export const ChatInput = ({
                 handleSubmit(e);
               }
             }} 
-            placeholder={disabled ? "Chat will be enabled once generation is complete..." : "Request a change"} 
+            placeholder={disabled ? "Chat is currently disabled" : "Request a change"} 
             className="w-full bg-transparent text-gray-800 border-none outline-none focus:outline-none focus:ring-0 focus:border-none focus:shadow-none resize-none min-h-[24px] max-h-[200px] py-0 px-0 placeholder-gray-400 !ring-0 !ring-offset-0 rounded-none" 
             disabled={loading || disabled}
             rows={1}
@@ -186,7 +186,7 @@ export const ChatInput = ({
         
         {disabled && (
           <div className="mt-2 text-xs text-gray-500">
-            Chat will be enabled after content generation is complete
+            {disabledMessage || "Chat is currently disabled"}
           </div>
         )}
       </div>

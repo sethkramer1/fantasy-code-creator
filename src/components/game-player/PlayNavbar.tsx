@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GameActions } from "./GameActions";
 import { useAuth } from "@/context/AuthContext";
-import { Download, UserCircle, Globe, Lock, ArrowLeft, Gamepad2 } from "lucide-react";
+import { Download, UserCircle, Globe, Lock, ArrowLeft } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
@@ -111,7 +111,6 @@ export function PlayNavbar({
             </Button>
             
             <div className="flex items-center border-l pl-4 ml-2">
-              <Gamepad2 className="h-5 w-5 mr-2 text-primary" />
               <h1 className="text-lg font-medium text-gray-800 truncate max-w-[200px] sm:max-w-md">
                 {gameName || "Untitled Design"}
               </h1>
@@ -144,11 +143,11 @@ export function PlayNavbar({
             <Button 
               variant="outline" 
               size="sm" 
-              className="h-8 gap-1 text-sm border-gray-200 text-gray-700 hover:bg-gray-100" 
+              className="h-8 gap-1 text-sm border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300" 
               onClick={onDownload}
             >
               <Download size={14} />
-              Download
+              ZIP
             </Button>
             
             <GameActions

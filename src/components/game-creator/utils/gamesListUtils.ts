@@ -35,6 +35,7 @@ export const filterGames = (games, filter, userId) => {
     case 'my':
       return games.filter(game => game.user_id === userId);
     case 'public':
+      // Ensure we're only showing games with public visibility
       return games.filter(game => game.visibility === 'public');
     case 'private':
       return games.filter(game => game.visibility === 'private' && game.user_id === userId);

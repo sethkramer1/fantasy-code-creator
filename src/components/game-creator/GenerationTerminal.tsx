@@ -1,4 +1,3 @@
-
 import { Timer } from "lucide-react";
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { useEffect, useRef } from "react";
@@ -40,7 +39,7 @@ export function GenerationTerminal({
       }
     };
 
-    if (shouldAutoScroll) {
+    if (shouldAutoScroll || loading) {
       // Immediate scroll
       scrollToBottom();
       
@@ -54,7 +53,7 @@ export function GenerationTerminal({
         requestAnimationFrame(scrollToBottom);
       });
     }
-  }, [output]); // React to output changes
+  }, [output, loading, thinkingTime]); // React to output changes, loading state, and thinking time
 
   // Process output lines to better format code blocks and highlight thinking
   const processedOutput = output.map(line => {
@@ -100,7 +99,7 @@ export function GenerationTerminal({
             overflowX: 'hidden'
           }}
         >
-          <div className="whitespace-pre-wrap py-1 break-words">
+          <div className="whitespace-pre-wrap py-1 break-words text-left">
             {processedOutput.map((line, index) => {
               // Highlight thinking lines
               if (line.includes('🤔 Thinking:')) {
@@ -173,7 +172,7 @@ export function GenerationTerminal({
             ref={terminalRef}
             className="h-full w-full overflow-y-auto scrollbar-thin scrollbar-thumb-green-500/50 scrollbar-track-black/50 pr-2"
           >
-            <div className="whitespace-pre-wrap py-1 break-words">
+            <div className="whitespace-pre-wrap py-1 break-words text-left">
               {processedOutput.map((line, index) => {
                 // Highlight thinking lines
                 if (line.includes('🤔 Thinking:')) {

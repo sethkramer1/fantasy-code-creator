@@ -1,4 +1,3 @@
-
 import { contentTypes } from "@/types/game";
 import { 
   Layout, 
@@ -27,7 +26,6 @@ export function GameTypeSelector({ selectedType, onSelect }: GameTypeSelectorPro
 
   return (
     <div>
-      <p className="font-medium text-gray-700 mb-3">Choose content type</p>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {contentTypes.map((type) => {
           const IconComponent = typeIcons[type.id as keyof typeof typeIcons];

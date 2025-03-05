@@ -389,6 +389,67 @@ Follow these structure requirements precisely and generate clean, semantic, and 
           responseData.content = removeTokenInfo(responseData.content);
         }
         
+        // Extract the content from the response
+        let content = '';
+        if (responseData.content && Array.isArray(responseData.content)) {
+          for (const item of responseData.content) {
+            if (item.type === 'text') {
+              content += item.text;
+            }
+          }
+        } else if (responseData.content) {
+          content = responseData.content;
+        }
+        
+        // Update the game version with the new content
+        if (content && gameId) {
+          try {
+            // Get the current version number
+            const { data: currentVersion } = await supabase
+              .from('game_versions')
+              .select('version_number')
+              .eq('game_id', gameId)
+              .order('version_number', { ascending: false })
+              .limit(1)
+              .single();
+            
+            const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1;
+            
+            // Create a new version with the generated content
+            const { error: newVersionError } = await supabase
+              .from('game_versions')
+              .insert([{
+                game_id: gameId,
+                code: content,
+                version_number: newVersionNumber,
+                instructions: "Generated with Anthropic model"
+              }]);
+            
+            if (newVersionError) {
+              console.error(`Error creating new version: ${newVersionError.message}`);
+            } else {
+              console.log(`Created new game version ${newVersionNumber} for game ${gameId}`);
+              
+              // Update the game with the latest version
+              const { error: updateGameError } = await supabase
+                .from('games')
+                .update({
+                  code: content,
+                  current_version: newVersionNumber
+                })
+                .eq('id', gameId);
+              
+              if (updateGameError) {
+                console.error(`Error updating game: ${updateGameError.message}`);
+              } else {
+                console.log(`Updated game ${gameId} with new version ${newVersionNumber}`);
+              }
+            }
+          } catch (versionError) {
+            console.error('Error updating game version:', versionError);
+          }
+        }
+        
         return new Response(JSON.stringify(responseData), {
           headers: {
             ...corsHeaders,
@@ -398,6 +459,118 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       } catch (tokenError) {
         console.error('[TOKEN TRACKING] Error processing token information:', tokenError);
       }
+    }
+    
+    // For streaming responses, we need to intercept and process the stream
+    // to update the game version after the stream is complete
+    if (requestBody.stream) {
+      // Start a background task to collect and process the stream
+      (async () => {
+        try {
+          let fullContent = '';
+          const reader = response.body?.getReader();
+          if (!reader) throw new Error("Unable to read response stream");
+          
+          // Create a new response to send to the client
+          const newResponse = new Response(response.body, {
+            headers: {
+              ...corsHeaders,
+              'Content-Type': 'text/event-stream',
+              'Cache-Control': 'no-cache',
+              'Connection': 'keep-alive',
+            },
+          });
+          
+          // Clone the response to process separately
+          const clonedResponse = response.clone();
+          const clonedReader = clonedResponse.body?.getReader();
+          
+          if (clonedReader) {
+            while (true) {
+              const { done, value } = await clonedReader.read();
+              if (done) break;
+              
+              const chunk = new TextDecoder().decode(value);
+              
+              // Process each line in the chunk
+              const lines = chunk.split('\n');
+              for (const line of lines) {
+                if (line.startsWith('data: ') && !line.includes('[DONE]')) {
+                  try {
+                    const eventData = line.slice(5).trim();
+                    if (eventData === '[DONE]') continue;
+                    
+                    const data = JSON.parse(eventData);
+                    
+                    // Extract content from the stream
+                    if (data.type === 'content_block_delta' && 
+                        data.delta?.type === 'text_delta' && 
+                        data.delta.text) {
+                      fullContent += data.delta.text;
+                    }
+                  } catch (e) {
+                    // Ignore parsing errors in individual chunks
+                  }
+                }
+              }
+            }
+            
+            // Clean the content
+            fullContent = removeTokenInfo(fullContent);
+            
+            // Update the game version with the collected content
+            if (fullContent && gameId) {
+              try {
+                // Get the current version number
+                const { data: currentVersion } = await supabase
+                  .from('game_versions')
+                  .select('version_number')
+                  .eq('game_id', gameId)
+                  .order('version_number', { ascending: false })
+                  .limit(1)
+                  .single();
+                
+                const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1;
+                
+                // Create a new version with the generated content
+                const { error: newVersionError } = await supabase
+                  .from('game_versions')
+                  .insert([{
+                    game_id: gameId,
+                    code: fullContent,
+                    version_number: newVersionNumber,
+                    instructions: "Generated with Anthropic model (streaming)"
+                  }]);
+                
+                if (newVersionError) {
+                  console.error(`Error creating new version: ${newVersionError.message}`);
+                } else {
+                  console.log(`Created new game version ${newVersionNumber} for game ${gameId} from stream`);
+                  
+                  // Update the game with the latest version
+                  const { error: updateGameError } = await supabase
+                    .from('games')
+                    .update({
+                      code: fullContent,
+                      current_version: newVersionNumber
+                    })
+                    .eq('id', gameId);
+                  
+                  if (updateGameError) {
+                    console.error(`Error updating game: ${updateGameError.message}`);
+                  } else {
+                    console.log(`Updated game ${gameId} with new version ${newVersionNumber} from stream`);
+                  }
+                }
+              } catch (versionError) {
+                console.error('Error updating game version from stream:', versionError);
+              }
+            }
+          }
+        } catch (streamError) {
+          console.error('Error processing stream:', streamError);
+        }
+      })();
     }
     
     return new Response(response.body, {

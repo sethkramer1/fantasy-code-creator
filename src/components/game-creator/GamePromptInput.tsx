@@ -147,8 +147,6 @@ export function GamePromptInput({
     }
   };
   return <div className="relative">
-      <p className="font-medium text-gray-700 mb-3">Describe what you want to create</p>
-      
       <div className="relative flex flex-col rounded-xl bg-white border border-gray-200 focus-within:border-black focus-within:ring-2 focus-within:ring-gray-100 transition-all shadow-sm">
         {/* Text input area */}
         <div className="flex-grow px-3 pt-4 pb-2">

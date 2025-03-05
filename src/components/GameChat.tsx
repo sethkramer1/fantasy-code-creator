@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { MessageList } from "./game-chat/MessageList";
 import { ChatInput } from "./game-chat/ChatInput";
@@ -11,6 +10,7 @@ export const GameChat = ({
   onGameUpdate,
   onTerminalStatusChange,
   disabled = false,
+  disabledMessage,
   onRevertToVersion,
   gameVersions = [],
   initialMessage,
@@ -127,14 +127,21 @@ export const GameChat = ({
   }, [disabled, loadingHistory, messages.length, gameId, addSystemMessage, fetchMessages]);
 
   return (
-    <div className="flex flex-col h-full w-full max-w-[400px] mx-auto bg-white">
-      <MessageList 
-        messages={messages}
-        loadingHistory={loadingHistory}
-        onRevertToVersion={onRevertToVersion}
-        gameVersions={gameVersions}
-        ref={messagesEndRef}
-      />
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {loadingHistory ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="animate-pulse text-gray-400">Loading conversation...</div>
+          </div>
+        ) : (
+          <MessageList 
+            messages={messages} 
+            onRevertToVersion={onRevertToVersion}
+            gameVersions={gameVersions}
+          />
+        )}
+        <div ref={messagesEndRef} />
+      </div>
       
       <ChatInput 
         message={message}
@@ -146,6 +153,7 @@ export const GameChat = ({
         handleSubmit={handleSubmit}
         loading={loading}
         disabled={disabled}
+        disabledMessage={disabledMessage}
       />
     </div>
   );

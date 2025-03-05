@@ -17,14 +17,17 @@ export function DesignsGallery({ games, gamesLoading, deleteGame }: DesignsGalle
   const navigate = useNavigate();
   
   useEffect(() => {
-    const userGames = games.filter(game => game.user_id === user?.id);
-    
-    if (!user || userGames.length === 0) {
-      setActiveTab("community");
-    } else if (activeTab === "my" || userGames.length > 0) {
-      setActiveTab("my");
+    // Only set default tab on initial load, not when switching tabs
+    if (!activeTab) {
+      const userGames = games.filter(game => game.user_id === user?.id);
+      
+      if (!user || userGames.length === 0) {
+        setActiveTab("community");
+      } else if (userGames.length > 0) {
+        setActiveTab("my");
+      }
     }
-  }, [user, games, activeTab]);
+  }, [user, games]);
 
   return (
     <div className="max-w-7xl mx-auto px-6 pb-16">

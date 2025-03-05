@@ -34,27 +34,16 @@ export function Navbar() {
         <div className="flex justify-between h-16">
           <div className="flex items-center">
             {/* Logo */}
-            <Button
-              variant="ghost"
-              className="text-lg font-semibold mr-6 text-primary"
+            <div
+              className="text-lg font-bold mr-6 cursor-pointer bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500"
               onClick={() => navigate('/')}
             >
-              <Gamepad2 className="h-5 w-5 mr-2" />
-              GameDev Hub
-            </Button>
+              Vibe.new
+            </div>
 
             {/* Navigation Links */}
             {user && (
               <div className="hidden md:flex space-x-1">
-                <Button
-                  variant={isActive('/') ? "secondary" : "ghost"}
-                  className="h-10 px-4"
-                  onClick={() => navigate('/')}
-                >
-                  <Home className="h-4 w-4 mr-2" />
-                  Home
-                </Button>
-                
                 <Button
                   variant={isActive('/teams') ? "secondary" : "ghost"}
                   className="h-10 px-4"
@@ -91,16 +80,6 @@ export function Navbar() {
           <div className="flex items-center">
             {user ? (
               <>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mr-4 hidden sm:flex"
-                  onClick={() => navigate('/teams/new')}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Team
-                </Button>
-
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" className="rounded-full h-10 w-10 p-0">
@@ -125,10 +104,6 @@ export function Navbar() {
                     
                     {/* Mobile navigation items */}
                     <div className="md:hidden">
-                      <DropdownMenuItem onClick={() => navigate('/')}>
-                        <Home className="h-4 w-4 mr-2" />
-                        Home
-                      </DropdownMenuItem>
                       <DropdownMenuItem onClick={() => navigate('/teams')}>
                         <Users className="h-4 w-4 mr-2" />
                         Teams
@@ -139,10 +114,6 @@ export function Navbar() {
                           Projects
                         </DropdownMenuItem>
                       )}
-                      <DropdownMenuItem onClick={() => navigate('/teams/new')}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        New Team
-                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                     </div>
                     

@@ -45,6 +45,9 @@ const Play = () => {
     setGame
   } = usePlayGameData(gameId);
   
+  // Check if the current user is the creator of the game
+  const isCreator = user?.id && game?.user_id === user.id;
+  
   const { 
     handleGameUpdate, 
     revertToMessageVersion, 
@@ -341,7 +344,6 @@ const Play = () => {
         onShowCodeEditorChange={setShowCode}
         onExport={() => {}}
         onDownload={handleDownload}
-        onFork={() => {}}
         onShare={() => {}}
       />
 
@@ -352,8 +354,12 @@ const Play = () => {
           onGameUpdate={handleGameUpdate}
           onTerminalStatusChange={handleTerminalStatusChange}
           onRevertToMessageVersion={revertToMessageVersion}
-          gameVersions={gameVersions}
+          gameVersions={gameVersions.map(version => ({
+            ...version,
+            user_id: game?.user_id
+          }))}
           initialPrompt={initialPrompt}
+          isCreator={isCreator}
         />
         
         <div className="flex-1 h-full overflow-hidden bg-gray-50">
@@ -376,6 +382,7 @@ const Play = () => {
                   onRevertToVersion={revertToVersion}
                   onVersionSelect={setSelectedVersionId}
                   selectedVersionId={selectedVersionId}
+                  isCreator={isCreator}
                 />
               </div>
               <div className="flex-1 overflow-hidden bg-white">

@@ -29,6 +29,7 @@ export interface GameChatProps {
   onGameUpdate: (newCode: string, newInstructions: string) => void;
   onTerminalStatusChange?: (showing: boolean, output: string[], thinking: number, isLoading: boolean) => void;
   disabled?: boolean;
+  disabledMessage?: string;
   onRevertToVersion?: (message: Message) => Promise<void>;
   gameVersions?: any[];
   initialMessage?: string;
@@ -45,6 +46,7 @@ export interface ChatInputProps {
   handleSubmit: (e: React.FormEvent) => void;
   loading: boolean;
   disabled?: boolean;
+  disabledMessage?: string;
 }
 
 export interface ImageUploadProps {

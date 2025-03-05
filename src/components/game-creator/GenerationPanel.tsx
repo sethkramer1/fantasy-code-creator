@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/components/ui/use-toast";
@@ -7,6 +6,7 @@ import { Header } from "@/components/game-creator/Header";
 import { GenerationForm } from "@/components/game-creator/GenerationForm";
 import { useAuth } from "@/context/AuthContext";
 import { ModelType } from "@/types/generation";
+import { LoginModal } from "@/components/auth/LoginModal";
 
 interface GenerationPanelProps {
   loading: boolean;
@@ -25,6 +25,7 @@ export function GenerationPanel({
   const [gameType, setGameType] = useState<string>("webdesign");
   const [imageUrl, setImageUrl] = useState<string>("");
   const [visibility, setVisibility] = useState<string>("public");
+  const [showLoginModal, setShowLoginModal] = useState(false);
   const modelType: ModelType = "smart";
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -39,6 +40,12 @@ export function GenerationPanel({
   };
 
   const handleGenerate = async () => {
+    // Check if user is logged in
+    if (!user) {
+      setShowLoginModal(true);
+      return;
+    }
+
     try {
       if (!prompt.trim()) {
         toast({
@@ -170,6 +177,12 @@ export function GenerationPanel({
           setVisibility={setVisibility}
         />
       </div>
+
+      {/* Login Modal */}
+      <LoginModal 
+        isOpen={showLoginModal} 
+        onClose={() => setShowLoginModal(false)} 
+      />
     </div>
   );
 }
