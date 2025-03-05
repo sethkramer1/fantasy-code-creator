@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -20,7 +21,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Header } from "@/components/game-creator/Header";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, RefreshCw, LogIn } from "lucide-react";
+import { AlertCircle, RefreshCw, LogIn, Bug } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -33,6 +34,7 @@ export default function TeamsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  const [debugInfo, setDebugInfo] = useState<any>(null);
   
   useEffect(() => {
     if (!user && !authLoading) {
@@ -123,6 +125,51 @@ export default function TeamsPage() {
     }
   };
   
+  const runRlsDebug = async () => {
+    if (!user) return;
+    
+    try {
+      const results: any = {};
+      
+      // Check authentication
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      results.authCheck = { data: authData, error: authError };
+      
+      // Try direct read from teams table
+      const { data: teamsCheck, error: teamsError } = await supabase
+        .from('teams')
+        .select('count(*)')
+        .limit(1);
+      results.teamsRead = { data: teamsCheck, error: teamsError };
+      
+      // Try direct insert in teams table
+      const testName = `Debug Team ${new Date().toISOString()}`;
+      const { data: insertCheck, error: insertError } = await supabase
+        .from('teams')
+        .insert([{
+          name: testName,
+          created_by: user.id
+        }])
+        .select()
+        .maybeSingle();
+      results.teamsInsert = { data: insertCheck, error: insertError };
+      
+      // Try direct read from team_members table
+      const { data: membersCheck, error: membersError } = await supabase
+        .from('team_members')
+        .select('count(*)')
+        .limit(1);
+      results.membersRead = { data: membersCheck, error: membersError };
+      
+      // Display results
+      setDebugInfo(results);
+      console.log("RLS Debug Results:", results);
+    } catch (error) {
+      console.error("Debug check failed:", error);
+      setDebugInfo({ error });
+    }
+  };
+  
   const isInitialLoading = authLoading || loading;
   const hasNoTeams = !isInitialLoading && teams.length === 0;
   const hasTeams = !isInitialLoading && teams.length > 0;
@@ -136,15 +183,28 @@ export default function TeamsPage() {
       />
       
       <div className="flex justify-between mb-8 mt-6">
-        <Button 
-          variant="outline" 
-          onClick={handleManualRefresh} 
-          disabled={isInitialLoading || isCreating}
-          className="flex items-center gap-2"
-        >
-          <RefreshCw className={`h-4 w-4 ${(isInitialLoading || isCreating) ? "animate-spin" : ""}`} />
-          {isInitialLoading ? "Loading..." : isCreating ? "Creating..." : "Refresh Teams"}
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={handleManualRefresh} 
+            disabled={isInitialLoading || isCreating}
+            className="flex items-center gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${(isInitialLoading || isCreating) ? "animate-spin" : ""}`} />
+            {isInitialLoading ? "Loading..." : isCreating ? "Creating..." : "Refresh Teams"}
+          </Button>
+          
+          {import.meta.env.DEV && (
+            <Button
+              variant="outline"
+              onClick={runRlsDebug}
+              className="flex items-center gap-2 ml-2"
+            >
+              <Bug className="h-4 w-4" />
+              Debug RLS
+            </Button>
+          )}
+        </div>
         
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
           if (!isSubmitting && !isCreating) {
@@ -211,6 +271,7 @@ export default function TeamsPage() {
       
       <Separator className="mb-8" />
       
+      {/* Debug Information Panel (only in development) */}
       {import.meta.env.DEV && (
         <div className="mb-4 p-4 bg-gray-100 rounded text-xs">
           <details>
@@ -223,6 +284,15 @@ export default function TeamsPage() {
             <p className="text-gray-500">Form Submitting: {isSubmitting ? "Yes" : "No"}</p>
             <p className="text-gray-500">Auth Loading: {authLoading ? "Yes" : "No"}</p>
             {error && <p className="text-red-500">Error: {error}</p>}
+            
+            {debugInfo && (
+              <div className="mt-3 border-t pt-3">
+                <p className="font-medium mb-2">RLS Debug Results:</p>
+                <pre className="bg-gray-900 text-white p-2 rounded text-xs overflow-auto max-h-60">
+                  {JSON.stringify(debugInfo, null, 2)}
+                </pre>
+              </div>
+            )}
           </details>
         </div>
       )}

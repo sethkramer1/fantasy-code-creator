@@ -90,9 +90,28 @@ export function useTeams() {
         console.error("Authentication verification failed:", authError);
         throw new Error(`Authentication error: ${authError.message}`);
       }
+      
+      if (!authData?.user) {
+        console.error("Auth check returned no user");
+        throw new Error("Authentication failed: No user found");
+      }
+      
       console.log("Auth check successful, user:", authData?.user?.id);
       
-      // Create team directly - no need for transaction as we have a trigger
+      // TEST: Verify direct access to teams table (debugging)
+      const { data: debugRead, error: debugReadError } = await supabase
+        .from('teams')
+        .select('count(*)')
+        .limit(1);
+        
+      if (debugReadError) {
+        console.error("Debug read test failed:", debugReadError);
+        // Don't throw, just log for diagnosis
+      } else {
+        console.log("Debug read test successful:", debugRead);
+      }
+      
+      // Create team directly - using maybeSingle instead of single to avoid error if no data returned
       const { data: newTeam, error: teamError } = await supabase
         .from('teams')
         .insert([{ 
@@ -101,7 +120,7 @@ export function useTeams() {
             created_by: user.id 
         }])
         .select()
-        .single();
+        .maybeSingle();
       
       if (teamError) {
         console.error("Error creating team:", teamError);
@@ -120,8 +139,8 @@ export function useTeams() {
       }
       
       if (!newTeam || !newTeam.id) {
-        console.error("Team was created but returned data is invalid:", newTeam);
-        throw new Error("Team creation failed: Invalid response from server");
+        console.error("Team creation returned no data:", newTeam);
+        throw new Error("Team creation failed: No team data returned from server");
       }
       
       console.log("Team created successfully:", newTeam);
@@ -133,31 +152,31 @@ export function useTeams() {
         .select('*')
         .eq('team_id', newTeam.id)
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
         
       if (memberCheckError || !teamMember) {
         console.error("Team created but member creation may have failed:", memberCheckError);
         console.log("Attempting manual member creation as fallback");
         
         // Attempt manual member creation as fallback
-        const { error: manualMemberError } = await supabase
+        const { data: manualMember, error: manualMemberError } = await supabase
           .from('team_members')
           .insert([{
             team_id: newTeam.id,
             user_id: user.id,
             role: 'admin'
-          }]);
+          }])
+          .select()
+          .maybeSingle();
           
         if (manualMemberError) {
           console.error("Error adding creator as team member (manual fallback):", manualMemberError);
-          
-          // Don't delete the team, just log the error and continue
           console.warn("Team created but user may not be added as member properly");
         } else {
-          console.log("Creator added as team member manually (fallback successful)");
+          console.log("Creator added as team member manually (fallback successful):", manualMember);
         }
       } else {
-        console.log("Creator was automatically added as team member via trigger");
+        console.log("Creator was automatically added as team member via trigger:", teamMember);
       }
       
       // Verify the team exists in database
@@ -165,14 +184,17 @@ export function useTeams() {
         .from('teams')
         .select('*')
         .eq('id', newTeam.id)
-        .single();
+        .maybeSingle();
         
-      if (verifyError || !verifyTeam) {
-        console.error("Team verification failed:", verifyError || "No team returned");
+      if (verifyError) {
+        console.error("Team verification failed:", verifyError);
+        console.warn("Team creation could not be verified, but may have succeeded");
+      } else if (!verifyTeam) {
+        console.error("Team verification failed: No team returned");
         throw new Error("Team creation could not be verified");
+      } else {
+        console.log("Team creation verified:", verifyTeam);
       }
-      
-      console.log("Team creation verified:", verifyTeam);
       
       // Add to local state immediately for UI responsiveness
       setTeams(prev => [...prev, newTeam]);
