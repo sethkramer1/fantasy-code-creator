@@ -1,4 +1,3 @@
-
 import { useEffect, forwardRef, useState, useCallback, useRef, memo } from "react";
 import { parseCodeSections } from "./utils/CodeParser";
 import { CodeEditor } from "./components/CodeEditor";
@@ -42,23 +41,17 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     // Process the code only when version changes
     useEffect(() => {
       // Skip if no version is available
-      if (!currentVersion?.code) {
-        console.log("GamePreview: No code available in current version");
+      if (!currentVersion?.code || !currentVersion?.id) {
         return;
       }
       
-      console.log("GamePreview: Version changed, processing code for version:", currentVersion.id);
-      console.log("GamePreview: Code length:", currentVersion.code.length);
-      
       // Skip if this version has already been processed
       if (currentVersionIdRef.current === currentVersion.id && processedCode) {
-        console.log("GamePreview: Already processed this version:", currentVersion.id);
         return;
       }
       
       // Process the code
       if (isValidCode(currentVersion.code)) {
-        console.log("GamePreview: Code is valid HTML, setting processed code");
         setProcessedCode(currentVersion.code);
         currentVersionIdRef.current = currentVersion.id;
       } 
@@ -66,7 +59,6 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       else if (currentVersion.code.length > 0 && 
                currentVersion.code.includes('<') && 
                currentVersion.code.includes('>')) {
-        console.log("GamePreview: Code is a fragment, wrapping in HTML structure");
         const wrappedCode = `<!DOCTYPE html>
 <html>
 <head>
@@ -81,14 +73,11 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
         
         setProcessedCode(wrappedCode);
         currentVersionIdRef.current = currentVersion.id;
-      } else {
-        console.log("GamePreview: Code is invalid, not setting processed code");
       }
-    }, [currentVersion, isValidCode]);
+    }, [currentVersion, isValidCode, processedCode]);
 
     // If there's no code, show a loading state
     if (!currentVersion) {
-      console.log("GamePreview: No current version available");
       return (
         <div className="h-full flex items-center justify-center bg-gray-50 flex-col gap-3">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
@@ -97,8 +86,6 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
       );
     }
 
-    console.log("GamePreview: Rendering with processed code:", processedCode ? "Available" : "Not available");
-    
     // When we have processed code, render the appropriate view
     if (processedCode) {
       if (!showCode) {

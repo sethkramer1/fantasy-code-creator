@@ -134,9 +134,6 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
       );
     }
     
-    // Add debugging to track what's happening with the iframe content
-    console.log("IframePreview rendering with code length:", code?.length);
-    
     // Render the iframe with the code
     return (
       <iframe

@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
+// Memoized iframe component to prevent unnecessary re-renders
 const MemoizedIframe = memo(({ srcDoc, onLoad, onError, title, className }: { 
   srcDoc: string | null;
   onLoad: () => void;
@@ -62,6 +63,7 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
   const [iframeError, setIframeError] = useState(false);
   const [preparedContent, setPreparedContent] = useState<string | null>(null);
   
+  // Check admin status when the component mounts or when the user changes
   useEffect(() => {
     const updateAdminStatus = async () => {
       if (user) {
@@ -75,16 +77,20 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
     updateAdminStatus();
   }, [user, checkIsAdmin]);
   
+  // SIMPLIFIED: Admin can delete ANY game, normal users can only delete their own
   const canDelete = !!onDelete && (
     localAdminStatus || 
     (user?.id && game.user_id === user.id)
   );
   
+  // Is the current user the owner of this game?
   const isOwner = user?.id && game.user_id === user.id;
   
+  // Process the iframe content only when needed
   useEffect(() => {
     if (!gameCode) return;
     
+    // Use a web worker or requestIdleCallback if available to move this off the main thread
     const prepareContent = () => {
       try {
         if (gameCode === "Generating..." || gameCode.length < 20) {
@@ -105,9 +111,12 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
       }
     };
     
+    // Use requestIdleCallback if available to not block the main thread
     if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      // @ts-ignore - TypeScript doesn't have types for requestIdleCallback
       window.requestIdleCallback(prepareContent);
     } else {
+      // Fallback to setTimeout with a small delay
       setTimeout(prepareContent, 0);
     }
   }, [gameCode, game.id]);
@@ -135,6 +144,7 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
     setShowDeleteDialog(false);
   };
   
+  // Handle iframe load events
   const handleIframeLoad = () => {
     setIframeLoading(false);
   };
@@ -150,6 +160,7 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
         className="bg-white rounded-xl transition-all text-left group overflow-hidden cursor-pointer hover:shadow-lg"
         onClick={onClick}
       >
+        {/* Preview iframe */}
         <div className="relative w-full aspect-video bg-gray-50 overflow-hidden">
           {preparedContent ? (
             <MemoizedIframe
@@ -157,7 +168,7 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
               srcDoc={preparedContent}
               onLoad={handleIframeLoad}
               onError={handleIframeError}
-              title={`Preview of ${game.name || game.prompt || 'design'}`}
+              title={`Preview of ${game.prompt || 'design'}`}
               className="w-full h-full"
             />
           ) : (
@@ -179,7 +190,7 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
           <div className="flex items-start justify-between gap-2">
             <div>
               <h3 className="font-medium text-gray-900 line-clamp-1 mb-1">
-                {game.name || game.prompt || "Untitled Design"}
+                {game.prompt || "Untitled Design"}
               </h3>
               <div className="flex items-center gap-2">
                 <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${badgeColor}`}>
