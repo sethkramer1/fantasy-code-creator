@@ -21,9 +21,8 @@ import { useAuth } from "@/context/AuthContext";
 import { Header } from "@/components/game-creator/Header";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, RefreshCw, LogIn, Bug } from "lucide-react";
+import { AlertCircle, RefreshCw, LogIn } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { supabase } from "@/integrations/supabase/client";
 
 export default function TeamsPage() {
   const navigate = useNavigate();
@@ -31,11 +30,10 @@ export default function TeamsPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
-  const [debugInfo, setDebugInfo] = useState<any>(null);
   
+  // Redirect if not authenticated
   useEffect(() => {
     if (!user && !authLoading) {
       console.log("TeamsPage - User not authenticated, redirecting to auth");
@@ -48,19 +46,14 @@ export default function TeamsPage() {
     }
   }, [user, authLoading, navigate, toast]);
   
+  // Log state for debugging
   useEffect(() => {
     console.log("TeamsPage - Auth state:", user ? "Logged in" : "Not logged in");
-    console.log("TeamsPage - Auth loading:", authLoading);
     console.log("TeamsPage - User ID:", user?.id);
     console.log("TeamsPage - Teams loaded:", teams.length);
     console.log("TeamsPage - Teams loading state:", loading);
     console.log("TeamsPage - Teams error:", error);
-    console.log("TeamsPage - Teams creation state:", isCreating);
-    
-    if (user && !authLoading && teams.length === 0 && !loading && !isCreating) {
-      console.log("TeamsPage - User is logged in but no teams found");
-    }
-  }, [teams, user, authLoading, loading, error, isCreating]);
+  }, [teams, user, loading, error]);
   
   const handleCreateTeam = async () => {
     if (!teamName.trim()) {
@@ -83,27 +76,19 @@ export default function TeamsPage() {
     }
     
     try {
-      setIsSubmitting(true);
       console.log("Creating team with name:", teamName);
       const team = await createTeam(teamName, teamDescription);
-      console.log("Team creation result:", team);
       
       if (team) {
-        toast({
-          title: "Team Created",
-          description: `Your team "${teamName}" has been created successfully.`
-        });
-        
+        console.log("Team created successfully:", team);
         setTeamName('');
         setTeamDescription('');
         setIsDialogOpen(false);
       } else {
-        console.log("Team creation failed, keeping dialog open");
+        console.log("Team creation failed - no team returned");
       }
     } catch (error) {
-      console.error("Team creation caught error:", error);
-    } finally {
-      setIsSubmitting(false);
+      console.error("Team creation error:", error);
     }
   };
 
@@ -125,51 +110,7 @@ export default function TeamsPage() {
     }
   };
   
-  const runRlsDebug = async () => {
-    if (!user) return;
-    
-    try {
-      const results: any = {};
-      
-      // Check authentication
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      results.authCheck = { data: authData, error: authError };
-      
-      // Try direct read from teams table
-      const { data: teamsCheck, error: teamsError } = await supabase
-        .from('teams')
-        .select('count(*)')
-        .limit(1);
-      results.teamsRead = { data: teamsCheck, error: teamsError };
-      
-      // Try direct insert in teams table
-      const testName = `Debug Team ${new Date().toISOString()}`;
-      const { data: insertCheck, error: insertError } = await supabase
-        .from('teams')
-        .insert([{
-          name: testName,
-          created_by: user.id
-        }])
-        .select()
-        .maybeSingle();
-      results.teamsInsert = { data: insertCheck, error: insertError };
-      
-      // Try direct read from team_members table
-      const { data: membersCheck, error: membersError } = await supabase
-        .from('team_members')
-        .select('count(*)')
-        .limit(1);
-      results.membersRead = { data: membersCheck, error: membersError };
-      
-      // Display results
-      setDebugInfo(results);
-      console.log("RLS Debug Results:", results);
-    } catch (error) {
-      console.error("Debug check failed:", error);
-      setDebugInfo({ error });
-    }
-  };
-  
+  // Determine UI states
   const isInitialLoading = authLoading || loading;
   const hasNoTeams = !isInitialLoading && teams.length === 0;
   const hasTeams = !isInitialLoading && teams.length > 0;
@@ -183,33 +124,18 @@ export default function TeamsPage() {
       />
       
       <div className="flex justify-between mb-8 mt-6">
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={handleManualRefresh} 
-            disabled={isInitialLoading || isCreating}
-            className="flex items-center gap-2"
-          >
-            <RefreshCw className={`h-4 w-4 ${(isInitialLoading || isCreating) ? "animate-spin" : ""}`} />
-            {isInitialLoading ? "Loading..." : isCreating ? "Creating..." : "Refresh Teams"}
-          </Button>
-          
-          {import.meta.env.DEV && (
-            <Button
-              variant="outline"
-              onClick={runRlsDebug}
-              className="flex items-center gap-2 ml-2"
-            >
-              <Bug className="h-4 w-4" />
-              Debug RLS
-            </Button>
-          )}
-        </div>
+        <Button 
+          variant="outline" 
+          onClick={handleManualRefresh} 
+          disabled={isInitialLoading || isCreating}
+          className="flex items-center gap-2"
+        >
+          <RefreshCw className={`h-4 w-4 ${(isInitialLoading || isCreating) ? "animate-spin" : ""}`} />
+          {isInitialLoading ? "Loading..." : isCreating ? "Creating..." : "Refresh Teams"}
+        </Button>
         
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          if (!isSubmitting && !isCreating) {
-            setIsDialogOpen(open);
-          }
+          if (!isCreating) setIsDialogOpen(open);
         }}>
           <DialogTrigger asChild>
             <Button disabled={!user || authLoading || isCreating}>Create Team</Button>
@@ -230,7 +156,7 @@ export default function TeamsPage() {
                   value={teamName}
                   onChange={(e) => setTeamName(e.target.value)}
                   placeholder="Enter team name"
-                  disabled={isSubmitting || isCreating}
+                  disabled={isCreating}
                 />
               </div>
               
@@ -242,7 +168,7 @@ export default function TeamsPage() {
                   onChange={(e) => setTeamDescription(e.target.value)}
                   placeholder="Describe the purpose of this team"
                   rows={3}
-                  disabled={isSubmitting || isCreating}
+                  disabled={isCreating}
                 />
               </div>
             </div>
@@ -260,9 +186,9 @@ export default function TeamsPage() {
             <DialogFooter>
               <Button 
                 onClick={handleCreateTeam}
-                disabled={!teamName.trim() || isSubmitting || isCreating}
+                disabled={!teamName.trim() || isCreating}
               >
-                {isSubmitting || isCreating ? 'Creating...' : 'Create Team'}
+                {isCreating ? 'Creating...' : 'Create Team'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -271,30 +197,20 @@ export default function TeamsPage() {
       
       <Separator className="mb-8" />
       
-      {/* Debug Information Panel (only in development) */}
-      {import.meta.env.DEV && (
-        <div className="mb-4 p-4 bg-gray-100 rounded text-xs">
-          <details>
-            <summary className="cursor-pointer font-medium">Debug Information</summary>
-            <p className="mt-2 text-gray-500">Auth Status: {authLoading ? "Loading Auth" : (user ? "Logged In" : "Not Logged In")}</p>
-            <p className="text-gray-500">User ID: {user?.id || "No User"}</p>
-            <p className="text-gray-500">Teams Count: {teams.length}</p>
-            <p className="text-gray-500">Teams Loading: {loading ? "Yes" : "No"}</p>
-            <p className="text-gray-500">Teams Creating: {isCreating ? "Yes" : "No"}</p>
-            <p className="text-gray-500">Form Submitting: {isSubmitting ? "Yes" : "No"}</p>
-            <p className="text-gray-500">Auth Loading: {authLoading ? "Yes" : "No"}</p>
-            {error && <p className="text-red-500">Error: {error}</p>}
-            
-            {debugInfo && (
-              <div className="mt-3 border-t pt-3">
-                <p className="font-medium mb-2">RLS Debug Results:</p>
-                <pre className="bg-gray-900 text-white p-2 rounded text-xs overflow-auto max-h-60">
-                  {JSON.stringify(debugInfo, null, 2)}
-                </pre>
-              </div>
-            )}
-          </details>
-        </div>
+      {/* User Authentication Status */}
+      {!user && !authLoading && (
+        <Alert className="mb-6">
+          <LogIn className="h-4 w-4" />
+          <AlertTitle>Authentication Required</AlertTitle>
+          <AlertDescription>
+            You need to be logged in to view and create teams.
+            <div className="mt-2">
+              <Button onClick={() => navigate("/auth")} variant="outline" size="sm">
+                Log In
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
       )}
       
       {hasError && (
@@ -356,6 +272,24 @@ export default function TeamsPage() {
           {teams.map(team => (
             <TeamCard key={team.id} team={team} />
           ))}
+        </div>
+      )}
+      
+      {/* Auth Debug Panel (only in dev) */}
+      {import.meta.env.DEV && (
+        <div className="mt-8 p-4 border rounded bg-gray-50">
+          <details>
+            <summary className="cursor-pointer font-medium">Authentication Debug Info</summary>
+            <div className="mt-2 text-xs font-mono overflow-auto max-h-40">
+              <p>User Authenticated: {user ? "Yes" : "No"}</p>
+              <p>User ID: {user?.id || "None"}</p>
+              <p>Loading Auth: {authLoading ? "Yes" : "No"}</p>
+              <p>Loading Teams: {loading ? "Yes" : "No"}</p>
+              <p>Creating Team: {isCreating ? "Yes" : "No"}</p>
+              <p>Team Count: {teams.length}</p>
+              <p>Error: {error || "None"}</p>
+            </div>
+          </details>
         </div>
       )}
     </div>

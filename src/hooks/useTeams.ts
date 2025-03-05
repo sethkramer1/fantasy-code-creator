@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Team } from "@/types/team";
@@ -26,7 +25,8 @@ export function useTeams() {
       setError(null);
       console.log("Fetching teams for user:", user.id);
       
-      const { data: memberTeamsJoins, error: memberError } = await supabase
+      // Get all team memberships for the current user
+      const { data: memberships, error: memberError } = await supabase
         .from('team_members')
         .select('team_id')
         .eq('user_id', user.id);
@@ -36,30 +36,31 @@ export function useTeams() {
         throw memberError;
       }
       
-      console.log("Team memberships found:", memberTeamsJoins?.length || 0);
+      console.log("Team memberships found:", memberships?.length || 0);
       
-      const memberTeamIds = (memberTeamsJoins || []).map(tm => tm.team_id);
-      
-      let allTeams: Team[] = [];
-      
-      if (memberTeamIds.length > 0) {
-        const { data: memberTeams, error: teamsError } = await supabase
-          .from('teams')
-          .select('*')
-          .in('id', memberTeamIds);
-          
-        if (teamsError) {
-          console.error("Error fetching member teams details:", teamsError);
-          throw teamsError;
-        }
-        
-        allTeams = memberTeams || [];
+      // If user has no team memberships, return empty array
+      if (!memberships || memberships.length === 0) {
+        setTeams([]);
+        setLoading(false);
+        return;
       }
       
-      console.log("Final combined teams:", allTeams.length);
+      // Get all team IDs the user is a member of
+      const teamIds = memberships.map(membership => membership.team_id);
       
-      setTeams(allTeams);
-      setError(null);
+      // Fetch the actual team data for those IDs
+      const { data: teamsData, error: teamsError } = await supabase
+        .from('teams')
+        .select('*')
+        .in('id', teamIds);
+        
+      if (teamsError) {
+        console.error("Error fetching team details:", teamsError);
+        throw teamsError;
+      }
+      
+      console.log("Teams fetched:", teamsData?.length || 0);
+      setTeams(teamsData || []);
     } catch (error: any) {
       console.error("Error in fetchTeams:", error);
       setError(error.message || "Failed to load teams");
@@ -70,133 +71,73 @@ export function useTeams() {
 
   const createTeam = async (name: string, description?: string) => {
     try {
+      // Validate inputs and user auth
       if (!user || !user.id) {
-        console.error("Create team failed: No authenticated user");
-        throw new Error("You must be logged in to create a team");
+        const errorMsg = "You must be logged in to create a team";
+        console.error(errorMsg);
+        toast({
+          title: "Authentication required",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        return null;
       }
 
       if (!name.trim()) {
-        console.error("Create team failed: Empty team name");
-        throw new Error("Team name cannot be empty");
+        const errorMsg = "Team name cannot be empty";
+        console.error(errorMsg);
+        toast({
+          title: "Validation Error",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        return null;
       }
 
+      // Start creating team
       setIsCreating(true);
       setError(null);
-      console.log("Creating team with name:", name, "by user:", user.id);
+      console.log(`Creating team "${name}" for user ${user.id}`);
       
-      // Debug - Check if user is authenticated with Supabase
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError) {
-        console.error("Authentication verification failed:", authError);
-        throw new Error(`Authentication error: ${authError.message}`);
-      }
-      
-      if (!authData?.user) {
-        console.error("Auth check returned no user");
-        throw new Error("Authentication failed: No user found");
-      }
-      
-      console.log("Auth check successful, user:", authData?.user?.id);
-      
-      // TEST: Verify direct access to teams table (debugging)
-      const { data: debugRead, error: debugReadError } = await supabase
+      // Simple, direct team creation
+      const { data: newTeam, error: createError } = await supabase
         .from('teams')
-        .select('count(*)')
-        .limit(1);
-        
-      if (debugReadError) {
-        console.error("Debug read test failed:", debugReadError);
-        // Don't throw, just log for diagnosis
-      } else {
-        console.log("Debug read test successful:", debugRead);
-      }
-      
-      // Create team directly - using maybeSingle instead of single to avoid error if no data returned
-      const { data: newTeam, error: teamError } = await supabase
-        .from('teams')
-        .insert([{ 
-            name: name.trim(), 
-            description: description ? description.trim() : null, 
-            created_by: user.id 
-        }])
+        .insert({
+          name: name.trim(),
+          description: description ? description.trim() : null,
+          created_by: user.id
+        })
         .select()
-        .maybeSingle();
+        .single();
       
-      if (teamError) {
-        console.error("Error creating team:", teamError);
-        // Enhanced debugging for RLS issues
-        if (teamError.message.includes("row-level security")) {
-          console.error("RLS Policy Error Details:", {
-            userId: user.id,
-            message: teamError.message,
-            code: teamError.code,
-            details: teamError.details,
-            hint: teamError.hint
-          });
-          throw new Error(`Row-level security policy prevented team creation. Please ensure you're properly logged in. Error: ${teamError.message}`);
-        }
-        throw new Error(`Failed to create team: ${teamError.message}`);
+      if (createError) {
+        console.error("Team creation error:", createError);
+        throw new Error(`Failed to create team: ${createError.message}`);
       }
       
-      if (!newTeam || !newTeam.id) {
-        console.error("Team creation returned no data:", newTeam);
-        throw new Error("Team creation failed: No team data returned from server");
+      if (!newTeam) {
+        throw new Error("Team creation returned no data");
       }
       
       console.log("Team created successfully:", newTeam);
       
-      // The trigger should handle adding the creator as a member
-      // But let's verify that it worked properly
-      const { data: teamMember, error: memberCheckError } = await supabase
+      // Manually ensure the user is added as a team member
+      const { error: memberError } = await supabase
         .from('team_members')
-        .select('*')
-        .eq('team_id', newTeam.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
-        
-      if (memberCheckError || !teamMember) {
-        console.error("Team created but member creation may have failed:", memberCheckError);
-        console.log("Attempting manual member creation as fallback");
-        
-        // Attempt manual member creation as fallback
-        const { data: manualMember, error: manualMemberError } = await supabase
-          .from('team_members')
-          .insert([{
-            team_id: newTeam.id,
-            user_id: user.id,
-            role: 'admin'
-          }])
-          .select()
-          .maybeSingle();
-          
-        if (manualMemberError) {
-          console.error("Error adding creator as team member (manual fallback):", manualMemberError);
-          console.warn("Team created but user may not be added as member properly");
-        } else {
-          console.log("Creator added as team member manually (fallback successful):", manualMember);
-        }
+        .insert({
+          team_id: newTeam.id,
+          user_id: user.id,
+          role: 'admin'
+        });
+      
+      if (memberError) {
+        console.error("Error adding user as team member:", memberError);
+        // Continue anyway, the team was created
       } else {
-        console.log("Creator was automatically added as team member via trigger:", teamMember);
+        console.log("User added as team member");
       }
       
-      // Verify the team exists in database
-      const { data: verifyTeam, error: verifyError } = await supabase
-        .from('teams')
-        .select('*')
-        .eq('id', newTeam.id)
-        .maybeSingle();
-        
-      if (verifyError) {
-        console.error("Team verification failed:", verifyError);
-        console.warn("Team creation could not be verified, but may have succeeded");
-      } else if (!verifyTeam) {
-        console.error("Team verification failed: No team returned");
-        throw new Error("Team creation could not be verified");
-      } else {
-        console.log("Team creation verified:", verifyTeam);
-      }
-      
-      // Add to local state immediately for UI responsiveness
+      // Add to local state and show success
       setTeams(prev => [...prev, newTeam]);
       
       toast({
@@ -204,20 +145,21 @@ export function useTeams() {
         description: `Team "${name}" created successfully.`,
       });
       
+      // Refresh teams to ensure we have latest data
+      await fetchTeams();
+      
       return newTeam;
     } catch (error: any) {
       console.error("Error creating team:", error);
-      setError(error.message || "Failed to create team. Please try again.");
+      setError(error.message || "Failed to create team");
       toast({
         title: "Error",
-        description: error.message || "Failed to create team. Please try again.",
+        description: error.message || "Failed to create team",
         variant: "destructive",
       });
       return null;
     } finally {
       setIsCreating(false);
-      // Refresh teams to ensure we have the latest data
-      await fetchTeams();
     }
   };
 
