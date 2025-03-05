@@ -220,7 +220,7 @@ Do NOT include token usage information in your response.`;
     // Always enable thinking for all requests
     requestBody.thinking = {
       type: "enabled",
-      budget_tokens: 3500
+      budget_tokens: 8500
     };
 
     // Handle the message content differently based on whether there's an image

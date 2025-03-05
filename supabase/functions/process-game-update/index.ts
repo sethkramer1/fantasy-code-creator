@@ -312,7 +312,7 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       system: systemMessage,
       thinking: {
         type: "enabled",
-        budget_tokens: 10000
+        budget_tokens: 4000
       }
     };
 
