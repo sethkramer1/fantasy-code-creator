@@ -1,7 +1,8 @@
+
 import { Game } from "@/types/game";
 import { Loader2, ArrowUpRight, Trash2, Globe, Lock } from "lucide-react";
 import { getTypeInfo, prepareIframeContent } from "./utils/gamesListUtils";
-import { useEffect, useState, MouseEvent, useRef } from "react";
+import { useEffect, useState, MouseEvent, useRef, memo } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
   Dialog,
@@ -12,6 +13,36 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+
+// Memoized iframe component to prevent unnecessary re-renders
+const MemoizedIframe = memo(({ srcDoc, onLoad, onError, title }: { 
+  srcDoc: string | null;
+  onLoad: () => void;
+  onError: () => void;
+  title: string;
+}) => {
+  return (
+    <iframe 
+      srcDoc={srcDoc || undefined}
+      className="pointer-events-none"
+      style={{ 
+        width: '400%',
+        height: '800px',
+        transform: 'scale(0.25)', 
+        transformOrigin: 'top left',
+        border: 'none',
+        overflow: 'hidden'
+      }}
+      title={title}
+      loading="lazy"
+      sandbox="allow-same-origin allow-scripts"
+      onLoad={onLoad}
+      onError={onError}
+    />
+  );
+});
+
+MemoizedIframe.displayName = "MemoizedIframe";
 
 interface GameCardProps {
   game: Game;
@@ -28,9 +59,9 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
   const [isDeleting, setIsDeleting] = useState(false);
   const [localAdminStatus, setLocalAdminStatus] = useState(false);
   const { user, isAdmin, checkIsAdmin } = useAuth();
-  const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeLoading, setIframeLoading] = useState(true);
   const [iframeError, setIframeError] = useState(false);
+  const [preparedContent, setPreparedContent] = useState<string | null>(null);
   
   // Check admin status when the component mounts or when the user changes
   useEffect(() => {
@@ -55,13 +86,38 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
   // Is the current user the owner of this game?
   const isOwner = user?.id && game.user_id === user.id;
   
-  // Reset iframe when gameCode changes to force reload
+  // Process the iframe content only when needed
   useEffect(() => {
-    if (gameCode) {
-      setIframeKey(prev => prev + 1);
-      setIframeLoading(true);
-      setIframeError(false);
-      console.log(`GameCard ${game.id}: Updating iframe with new code, key=${iframeKey}`);
+    if (!gameCode) return;
+    
+    // Use a web worker or requestIdleCallback if available to move this off the main thread
+    const prepareContent = () => {
+      try {
+        if (gameCode === "Generating..." || gameCode.length < 20) {
+          setPreparedContent(`<html><body><div style="display:flex;justify-content:center;align-items:center;height:100%;color:#888;">Preview loading...</div></body></html>`);
+          return;
+        }
+        
+        const content = prepareIframeContent(gameCode);
+        setPreparedContent(content);
+        setIframeLoading(true);
+        setIframeError(false);
+        setIframeKey(prev => prev + 1);
+      } catch (error) {
+        console.error(`GameCard ${game.id}: Error preparing iframe content:`, error);
+        setPreparedContent(`<html><body><p>Error loading preview</p></body></html>`);
+        setIframeError(true);
+        setIframeLoading(false);
+      }
+    };
+    
+    // Use requestIdleCallback if available to not block the main thread
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      // @ts-ignore - TypeScript doesn't have types for requestIdleCallback
+      window.requestIdleCallback(prepareContent);
+    } else {
+      // Fallback to setTimeout with a small delay
+      setTimeout(prepareContent, 0);
     }
   }, [gameCode, game.id]);
   
@@ -91,33 +147,11 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
   // Handle iframe load events
   const handleIframeLoad = () => {
     setIframeLoading(false);
-    console.log(`GameCard ${game.id}: iframe loaded successfully`);
   };
   
   const handleIframeError = () => {
     setIframeLoading(false);
     setIframeError(true);
-    console.error(`GameCard ${game.id}: iframe failed to load`);
-  };
-  
-  // This function ensures the iframe content is properly prepared and sanitized
-  const getSafeIframeContent = () => {
-    if (!gameCode) return null;
-    
-    try {
-      // Check if the gameCode is valid
-      if (gameCode === "Generating..." || gameCode.length < 20) {
-        return `<html><body><div style="display:flex;justify-content:center;align-items:center;height:100%;color:#888;">Preview loading...</div></body></html>`;
-      }
-      
-      // Prepare the iframe content
-      const content = prepareIframeContent(gameCode);
-      console.log(`GameCard ${game.id}: Prepared iframe content of length ${content.length}`);
-      return content;
-    } catch (error) {
-      console.error(`GameCard ${game.id}: Error preparing iframe content:`, error);
-      return `<html><body><p>Error loading preview</p></body></html>`;
-    }
   };
   
   return (
@@ -128,25 +162,13 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
       >
         {/* Preview iframe */}
         <div className="relative w-full h-40 bg-gray-50 border-b border-gray-200 overflow-hidden">
-          {gameCode ? (
-            <iframe 
+          {preparedContent ? (
+            <MemoizedIframe
               key={iframeKey}
-              ref={iframeRef}
-              srcDoc={getSafeIframeContent()}
-              className="pointer-events-none"
-              style={{ 
-                width: '400%',  /* Make iframe 4x wider to match the 0.25 scale */
-                height: '800px',
-                transform: 'scale(0.25)', 
-                transformOrigin: 'top left',
-                border: 'none',
-                overflow: 'hidden'
-              }}
-              title={`Preview of ${game.prompt || 'design'}`}
-              loading="lazy"
-              sandbox="allow-same-origin allow-scripts"
+              srcDoc={preparedContent}
               onLoad={handleIframeLoad}
               onError={handleIframeError}
+              title={`Preview of ${game.prompt || 'design'}`}
             />
           ) : (
             <div className="flex items-center justify-center h-full w-full">

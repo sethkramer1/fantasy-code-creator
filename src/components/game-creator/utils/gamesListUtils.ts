@@ -7,34 +7,25 @@ export const prepareIframeContent = (code: string): string => {
   }
 
   try {
-    // Basic validation to ensure we have HTML content
+    // Simplified and optimized content preparation for faster rendering
     if (!code.includes('<html') && !code.includes('<!DOCTYPE') && !code.includes('<body')) {
-      // Wrap code in basic HTML structure if it doesn't include proper HTML tags
+      // Minimal HTML structure for faster parsing
       return `<!DOCTYPE html>
         <html>
         <head>
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <base target="_self">
-          <style>
-            html, body { height: 100%; margin: 0; overflow: auto; }
-          </style>
+          <style>html,body{height:100%;margin:0;overflow:auto}</style>
         </head>
         <body>${code}</body>
         </html>`;
     }
     
-    // If code already has HTML structure, enhance it with base target
-    if (!code.includes('<base')) {
+    // For full HTML documents, only add essential styles
+    if (!code.includes('<style')) {
       code = code.replace('<head>', 
         `<head>
-          <base target="_self">
-          <style>
-            html, body {
-              height: 100%;
-              overflow: auto;
-            }
-          </style>`);
+          <style>html,body{height:100%;overflow:auto}</style>`);
     }
     
     return code;

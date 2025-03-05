@@ -53,7 +53,7 @@ export function GamesList({
     setCurrentPage(1);
   }, [filter, selectedType, searchQuery]);
   
-  // Fetch game codes for all games in the list
+  // Fetch game codes for all games in the list - optimized to only fetch for visible games
   useEffect(() => {
     if (currentGames.length === 0) return;
     
@@ -61,34 +61,47 @@ export function GamesList({
       setLoadingCodes(true);
       
       try {
-        // Get the latest version for each game
-        const { data: versions, error } = await supabase
-          .from('game_versions')
-          .select('game_id, code')
-          .in('game_id', currentGames.map(game => game.id))
-          .order('version_number', { ascending: false });
-          
-        if (error) {
-          console.error("Error fetching game versions:", error);
-          return;
-        }
+        // Get the latest version for each visible game
+        const gameIds = currentGames.map(game => game.id);
         
-        if (!versions || versions.length === 0) {
-          console.log("No game versions found");
-          return;
-        }
-        
-        // Create a map of game_id to the most recent code
-        const codeMap: Record<string, string> = {};
-        
-        versions.forEach(version => {
-          // Only set the code if it hasn't been set yet (first one is the most recent)
-          if (!codeMap[version.game_id]) {
-            codeMap[version.game_id] = version.code;
+        // Clear codes for games that are no longer visible
+        const newCodeMap = { ...gameCodeMap };
+        Object.keys(newCodeMap).forEach(id => {
+          if (!gameIds.includes(id)) {
+            delete newCodeMap[id];
           }
         });
         
-        setGameCodeMap(codeMap);
+        // Only fetch codes for games that don't have them yet
+        const idsToFetch = gameIds.filter(id => !newCodeMap[id]);
+        
+        if (idsToFetch.length > 0) {
+          const { data: versions, error } = await supabase
+            .from('game_versions')
+            .select('game_id, code')
+            .in('game_id', idsToFetch)
+            .order('version_number', { ascending: false });
+            
+          if (error) {
+            console.error("Error fetching game versions:", error);
+            return;
+          }
+          
+          if (!versions || versions.length === 0) {
+            console.log("No game versions found");
+            return;
+          }
+          
+          // Create a map of game_id to the most recent code
+          versions.forEach(version => {
+            // Only set the code if it hasn't been set yet (first one is the most recent)
+            if (!newCodeMap[version.game_id]) {
+              newCodeMap[version.game_id] = version.code;
+            }
+          });
+        }
+        
+        setGameCodeMap(newCodeMap);
       } catch (fetchError) {
         console.error("Error in fetchGameCodes:", fetchError);
       } finally {
@@ -97,7 +110,7 @@ export function GamesList({
     };
     
     fetchGameCodes();
-  }, [currentGames]);
+  }, [currentGames, gameCodeMap]);
 
   if (isLoading) {
     return <GamesLoadingState />;
@@ -129,10 +142,7 @@ export function GamesList({
             key={game.id}
             game={game}
             gameCode={gameCodeMap[game.id] || ""}
-            onClick={() => {
-              console.log("Game clicked with ID:", game.id);
-              onGameClick(game.id);
-            }}
+            onClick={() => onGameClick(game.id)}
             onDelete={onGameDelete}
             showVisibility={true}
           />
