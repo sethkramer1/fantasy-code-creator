@@ -16,7 +16,6 @@ export const callAnthropicApi = async (
   const userId = (await user).data.user?.id;
 
   try {
-    // For streaming requests
     const response = await fetch('/api/generate-game', {
       method: 'POST',
       headers: {
@@ -27,7 +26,7 @@ export const callAnthropicApi = async (
         imageUrl,
         partialResponse,
         system: getSystemPrompt(gameType),
-        userId: userId, // Pass the user ID for token tracking
+        userId: userId,
         stream: true,
         thinking: {
           type: "enabled",
@@ -40,7 +39,6 @@ export const callAnthropicApi = async (
       const errorText = await response.text();
       console.error('Generate API error:', errorText);
       
-      // Provide more specific error messages based on status code and error text
       if (response.status === 429) {
         throw new Error(`Anthropic API rate limit exceeded. Please try again later.`);
       } else if (response.status === 400 && errorText.includes('token')) {
@@ -56,7 +54,6 @@ export const callAnthropicApi = async (
       }
     }
 
-    // If we expect a streaming response
     if (response.headers.get('content-type')?.includes('text/event-stream')) {
       if (onStreamStart) onStreamStart();
       
@@ -67,7 +64,6 @@ export const callAnthropicApi = async (
       let combinedContent = '';
       let currentThinking = '';
       
-      // Process the stream line by line
       while (true) {
         const { done, value } = await reader.read();
         
@@ -96,7 +92,6 @@ export const callAnthropicApi = async (
             
             const data = JSON.parse(eventData);
             
-            // Handle direct thinking property (used in both initial and edit generations)
             if (data.thinking && onThinking) {
               if (data.thinking !== currentThinking) {
                 currentThinking = data.thinking;
@@ -105,7 +100,6 @@ export const callAnthropicApi = async (
               continue;
             }
             
-            // Handle thinking content from content_block_delta
             if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
               const thinking = data.delta.thinking || '';
               if (thinking && thinking !== currentThinking && onThinking) {
@@ -115,11 +109,9 @@ export const callAnthropicApi = async (
               continue;
             }
             
-            // Handle text content - completely filter out token information
             if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta') {
               const content = data.delta.text || '';
               if (content && onContent && !isTokenInfo(content)) {
-                // Remove any token info before adding to combined content
                 const cleanContent = removeTokenInfo(content);
                 if (cleanContent.trim()) {
                   combinedContent += cleanContent;
@@ -129,7 +121,6 @@ export const callAnthropicApi = async (
               continue;
             }
             
-            // Handle content block start
             if (data.type === 'content_block_start' && data.content_block?.text) {
               const content = data.content_block.text || '';
               if (content && onContent && !isTokenInfo(content)) {
@@ -142,14 +133,11 @@ export const callAnthropicApi = async (
               continue;
             }
             
-            // Track token information internally but don't display it
             if ((data.type === 'message_delta' || data.type === 'token_usage') && data.usage) {
               console.log("Received token usage:", data.usage);
-              // We're intentionally not calling onContent for token info
               continue;
             }
             
-            // Handle errors
             if (data.type === 'error' && onError) {
               onError(new Error(data.error?.message || 'Unknown stream error'));
             }
@@ -160,19 +148,15 @@ export const callAnthropicApi = async (
         }
       }
       
-      // Final cleanup - ensure all token information is removed
       combinedContent = removeTokenInfo(combinedContent);
       
       return { gameContent: combinedContent };
     } else {
-      // Handle non-streaming response
       const data = await response.json();
       let gameContent = data.content || '';
       
-      // Remove token information from the actual content
       gameContent = removeTokenInfo(gameContent);
       
-      // Extract token information if available (for internal tracking only)
       const tokenInfo = data.usage ? {
         inputTokens: data.usage.input_tokens,
         outputTokens: data.usage.output_tokens
@@ -183,7 +167,6 @@ export const callAnthropicApi = async (
   } catch (error) {
     console.error('anthropicService API call failed:', error);
     
-    // Enhance error messages for common issues
     let enhancedError = error;
     
     if (error instanceof Error) {
@@ -203,74 +186,51 @@ export const callAnthropicApi = async (
   }
 };
 
-// Helper function to detect token information
 function isTokenInfo(text: string): boolean {
-  // Check for various token info patterns
   return (
     text.includes("Tokens used:") ||
     text.includes("input tokens") ||
     text.includes("output tokens") ||
     text.includes("Token usage:") ||
-    /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
-    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) || // Pattern like "264 input tokens, 1543 output tokens"
-    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) // Pattern like "input: 264, output: 1543"
+    /\d+\s*input\s*,\s*\d+\s*output/.test(text) ||
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) ||
+    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text)
   );
 }
 
-// Helper function to remove token information from content
 function removeTokenInfo(content: string): string {
   if (!content) return content;
 
-  // Remove full lines containing token information
   content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
   content = content.replace(/Token usage:.*?(input|output).*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
   content = content.replace(/.*?input:?\s*\d+\s*,?\s*output:?\s*\d+.*?\n/g, '');
-  
-  // Remove inline token information (without newlines)
+
   content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
   content = content.replace(/Token usage:.*?(input|output).*?(?=\s)/g, '');
   content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
   content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
   content = content.replace(/input:?\s*\d+\s*,?\s*output:?\s*\d+/g, '');
-  
-  // Clean up any remaining token information that might be in different formats
+
   content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
   content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
-  
-  // Additional cleanup to catch any remaining patterns
+
   content = content.replace(/\b\d+ tokens\b/g, '');
   content = content.replace(/\btokens: \d+\b/g, '');
-  
+
   return content;
 }
 
-/**
- * Generates a short, catchy name for a game design based on the initial prompt
- * using the Claude 3.5 Haiku model
- * 
- * @param prompt The initial prompt used to generate the game
- * @returns A short name for the game design
- */
 export const generateGameName = async (prompt: string): Promise<string> => {
   try {
     console.log('[NAME_GEN] Generating game name from prompt:', prompt.substring(0, 100) + '...');
     
-    // For testing purposes, return a hardcoded name to bypass API issues
-    const testName = "Test Game Name: " + new Date().toISOString().substring(0, 19);
-    console.log('[NAME_GEN] Using test name for debugging:', testName);
-    return testName;
-    
-    /* Commented out for testing
-    // Call the Supabase Edge Function directly
     console.log('[NAME_GEN] Calling Supabase Edge Function: generate-name');
     
-    // Try a direct fetch to the Edge Function URL first
     try {
       console.log('[NAME_GEN] Attempting direct fetch to Edge Function');
       
-      // Get the current session
       const { data: { session } } = await supabase.auth.getSession();
       const accessToken = session?.access_token || '';
       
@@ -302,7 +262,6 @@ export const generateGameName = async (prompt: string): Promise<string> => {
       console.error('[NAME_GEN] Direct fetch failed:', directError);
     }
     
-    // Fall back to using the supabase client
     console.log('[NAME_GEN] Falling back to supabase client');
     const { data, error } = await supabase.functions.invoke('generate-name', {
       body: { 
@@ -322,7 +281,6 @@ export const generateGameName = async (prompt: string): Promise<string> => {
     
     console.log('[NAME_GEN] Generated game name:', gameName);
     
-    // If no name was generated, use a fallback
     if (!gameName) {
       const fallbackName = prompt.split(' ').slice(0, 3).join(' ') + '...';
       console.log('[NAME_GEN] No name was generated, using fallback:', fallbackName);
@@ -330,10 +288,8 @@ export const generateGameName = async (prompt: string): Promise<string> => {
     }
     
     return gameName;
-    */
   } catch (error) {
     console.error('[NAME_GEN] Error generating game name:', error);
-    // Return a fallback name based on the prompt if generation fails
     const fallbackName = prompt.split(' ').slice(0, 3).join(' ') + '...';
     console.log('[NAME_GEN] Using fallback name due to error:', fallbackName);
     return fallbackName;

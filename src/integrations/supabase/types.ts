@@ -101,6 +101,7 @@ export type Database = {
           id: string
           instructions: string | null
           model_type: string | null
+          name: string | null
           prompt: string
           type: string | null
           user_id: string | null
@@ -114,6 +115,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           model_type?: string | null
+          name?: string | null
           prompt: string
           type?: string | null
           user_id?: string | null
@@ -127,6 +129,7 @@ export type Database = {
           id?: string
           instructions?: string | null
           model_type?: string | null
+          name?: string | null
           prompt?: string
           type?: string | null
           user_id?: string | null
