@@ -19,9 +19,10 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/context/AuthContext";
 import { Header } from "@/components/game-creator/Header";
 import { useToast } from "@/hooks/use-toast";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export default function TeamsPage() {
-  const { teams, loading, createTeam, fetchTeams } = useTeams();
+  const { teams, loading, error, createTeam, fetchTeams } = useTeams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
@@ -34,6 +35,7 @@ export default function TeamsPage() {
     console.log("TeamsPage - User ID:", user?.id);
     console.log("TeamsPage - Teams loaded:", teams.length);
     console.log("TeamsPage - Teams data:", JSON.stringify(teams));
+    console.log("TeamsPage - Loading state:", loading);
     
     // Check if user is authenticated but we have no teams
     if (user && teams.length === 0 && !loading) {
@@ -43,7 +45,14 @@ export default function TeamsPage() {
   }, [teams, user, loading, fetchTeams]);
   
   const handleCreateTeam = async () => {
-    if (!teamName.trim()) return;
+    if (!teamName.trim()) {
+      toast({
+        title: "Error",
+        description: "Team name is required",
+        variant: "destructive"
+      });
+      return;
+    }
     
     setIsCreating(true);
     try {
@@ -57,13 +66,17 @@ export default function TeamsPage() {
           description: `Your team "${teamName}" has been created successfully.`
         });
         
-        // Manually refresh teams after creation
-        await fetchTeams();
-        
         setTeamName('');
         setTeamDescription('');
         setIsDialogOpen(false);
+        
+        // Force refresh after a short delay to ensure DB updates are reflected
+        setTimeout(() => {
+          fetchTeams();
+        }, 500);
       }
+    } catch (error) {
+      console.error("Team creation caught error:", error);
     } finally {
       setIsCreating(false);
     }
@@ -158,6 +171,7 @@ export default function TeamsPage() {
           <p className="text-sm text-gray-500">Auth Status: {user ? "Logged In" : "Not Logged In"}</p>
           <p className="text-sm text-gray-500">Teams Count: {teams.length}</p>
           <p className="text-sm text-gray-500">Loading State: {loading ? "Loading" : "Not Loading"}</p>
+          {error && <p className="text-sm text-red-500">Error: {error}</p>}
         </div>
       ) : (
         <div className="mb-4 p-4 bg-yellow-100 rounded">
@@ -166,14 +180,24 @@ export default function TeamsPage() {
       )}
       
       {loading ? (
-        <div className="text-center py-8">Loading teams...</div>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="border rounded-lg p-6">
+              <Skeleton className="h-6 w-3/4 mb-4" />
+              <Skeleton className="h-4 w-full mb-2" />
+              <Skeleton className="h-4 w-2/3" />
+            </div>
+          ))}
+        </div>
       ) : teams.length === 0 ? (
         <div className="text-center py-8">
           <p className="text-gray-500 mb-4">
             {user ? "You don't have any teams yet." : "Please log in to view your teams."}
           </p>
           {user && (
-            <Button onClick={() => setIsDialogOpen(true)}>Create Your First Team</Button>
+            <Button onClick={() => setIsDialogOpen(true)} size="lg">
+              Create Your First Team
+            </Button>
           )}
         </div>
       ) : (
