@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Header } from "@/components/game-creator/Header";
@@ -12,7 +11,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sparkles } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { ModelType } from "@/types/generation";
-import { AuthDebugger } from "@/components/debug/AuthDebugger";
 
 const Index = () => {
   const [prompt, setPrompt] = useState("");
@@ -170,8 +168,6 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-white">
-      {import.meta.env.DEV && <AuthDebugger />}
-      
       <div className="max-w-4xl mx-auto px-6 py-12 md:py-16">
         <div className="space-y-10">
           <Header 
