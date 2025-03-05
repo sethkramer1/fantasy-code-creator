@@ -30,13 +30,14 @@ export default function TeamsPage() {
   const { toast } = useToast();
   
   useEffect(() => {
-    console.log("TeamsPage - User:", user?.id);
+    console.log("TeamsPage - Auth state:", user ? "Logged in" : "Not logged in");
+    console.log("TeamsPage - User ID:", user?.id);
     console.log("TeamsPage - Teams loaded:", teams.length);
     console.log("TeamsPage - Teams data:", JSON.stringify(teams));
     
-    // If the user is logged in but we have no teams, try fetching again
+    // Check if user is authenticated but we have no teams
     if (user && teams.length === 0 && !loading) {
-      console.log("TeamsPage - No teams found, retrying fetch...");
+      console.log("TeamsPage - User is logged in but no teams found, retrying fetch...");
       fetchTeams();
     }
   }, [teams, user, loading, fetchTeams]);
@@ -48,7 +49,7 @@ export default function TeamsPage() {
     try {
       console.log("Creating team with name:", teamName);
       const team = await createTeam(teamName, teamDescription);
-      console.log("Team created:", team);
+      console.log("Team creation result:", team);
       
       if (team) {
         toast({
@@ -56,12 +57,32 @@ export default function TeamsPage() {
           description: `Your team "${teamName}" has been created successfully.`
         });
         
+        // Manually refresh teams after creation
+        await fetchTeams();
+        
         setTeamName('');
         setTeamDescription('');
         setIsDialogOpen(false);
       }
     } finally {
       setIsCreating(false);
+    }
+  };
+
+  const handleManualRefresh = () => {
+    if (user) {
+      console.log("Manually refreshing teams...");
+      fetchTeams();
+      toast({
+        title: "Refreshing Teams",
+        description: "Attempting to refresh your teams list."
+      });
+    } else {
+      toast({
+        title: "Authentication Required",
+        description: "You must be logged in to view teams.",
+        variant: "destructive"
+      });
     }
   };
   
@@ -72,7 +93,15 @@ export default function TeamsPage() {
         description="Create and manage your teams to collaborate on projects."
       />
       
-      <div className="flex justify-end mb-8 mt-6">
+      <div className="flex justify-between mb-8 mt-6">
+        <Button 
+          variant="outline" 
+          onClick={handleManualRefresh} 
+          disabled={loading}
+        >
+          {loading ? "Loading..." : "Refresh Teams"}
+        </Button>
+        
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button>Create Team</Button>
@@ -122,12 +151,30 @@ export default function TeamsPage() {
       
       <Separator className="mb-8" />
       
+      {/* Debug information */}
+      {user ? (
+        <div className="mb-4 p-4 bg-gray-100 rounded">
+          <p className="text-sm text-gray-500">User ID: {user.id}</p>
+          <p className="text-sm text-gray-500">Auth Status: {user ? "Logged In" : "Not Logged In"}</p>
+          <p className="text-sm text-gray-500">Teams Count: {teams.length}</p>
+          <p className="text-sm text-gray-500">Loading State: {loading ? "Loading" : "Not Loading"}</p>
+        </div>
+      ) : (
+        <div className="mb-4 p-4 bg-yellow-100 rounded">
+          <p className="text-sm text-yellow-700">You are not logged in. Please sign in to create and view teams.</p>
+        </div>
+      )}
+      
       {loading ? (
         <div className="text-center py-8">Loading teams...</div>
       ) : teams.length === 0 ? (
         <div className="text-center py-8">
-          <p className="text-gray-500 mb-4">You don't have any teams yet.</p>
-          <Button onClick={() => setIsDialogOpen(true)}>Create Your First Team</Button>
+          <p className="text-gray-500 mb-4">
+            {user ? "You don't have any teams yet." : "Please log in to view your teams."}
+          </p>
+          {user && (
+            <Button onClick={() => setIsDialogOpen(true)}>Create Your First Team</Button>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
