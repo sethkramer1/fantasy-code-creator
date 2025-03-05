@@ -77,7 +77,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
         
         <div className="flex flex-col items-center justify-center p-10 pt-16 pb-16">
           <p className="text-2xl text-center text-white mb-12 font-normal">
-            Create an account or sign in to start generating
+            Create a free account or sign in to start generating
           </p>
           
           <div className="w-full space-y-5">
