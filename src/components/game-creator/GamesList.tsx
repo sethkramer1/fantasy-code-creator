@@ -122,7 +122,7 @@ export function GamesList({
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <GamesFilter
         games={filteredGames}
         selectedType={selectedType}
@@ -131,7 +131,7 @@ export function GamesList({
         setSearchQuery={setSearchQuery}
       />
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {currentGames.map((game) => (
           <GameCard
             key={game.id}
@@ -145,12 +145,13 @@ export function GamesList({
       </div>
       
       {totalPages > 1 && (
-        <div className="flex justify-center items-center mt-6 space-x-2">
+        <div className="flex justify-center items-center mt-8 space-x-2">
           <Button 
             variant="outline" 
             size="sm"
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
             disabled={currentPage === 1}
+            className="h-8 w-8 p-0"
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
@@ -164,6 +165,7 @@ export function GamesList({
             size="sm"
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
             disabled={currentPage === totalPages}
+            className="h-8 w-8 p-0"
           >
             <ChevronRight className="h-4 w-4" />
           </Button>

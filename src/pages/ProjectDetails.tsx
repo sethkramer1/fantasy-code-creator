@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -12,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { Navbar } from "@/components/layout/Navbar";
 
 export default function ProjectDetailsPage() {
   const { teamId, projectId } = useParams<{ teamId: string, projectId: string }>();
@@ -78,110 +78,118 @@ export default function ProjectDetailsPage() {
   };
   
   if (loading || !project) {
-    return <div className="container mx-auto py-8 px-4 text-center">Loading project details...</div>;
+    return (
+      <div>
+        <Navbar />
+        <div className="container mx-auto py-8 px-4 text-center">Loading project details...</div>
+      </div>
+    );
   }
   
   return (
-    <div className="container mx-auto py-8 px-4">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center gap-4">
-          <Button 
-            variant="outline" 
-            onClick={() => navigate(`/teams/${teamId}/projects`)}
-          >
-            Back to Projects
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => navigate(`/teams/${teamId}`)}
-          >
-            Manage Team
-          </Button>
+    <div>
+      <Navbar />
+      <div className="container mx-auto py-8 px-4">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(`/teams/${teamId}/projects`)}
+            >
+              Back to Projects
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => navigate(`/teams/${teamId}`)}
+            >
+              Manage Team
+            </Button>
+          </div>
         </div>
+        
+        <Card className="mb-8">
+          <CardHeader>
+            <CardTitle>Project Details</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isEditing ? (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="edit-name">Project Name</Label>
+                  <Input 
+                    id="edit-name"
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="edit-description">Description (Optional)</Label>
+                  <Textarea 
+                    id="edit-description"
+                    value={editDescription}
+                    onChange={(e) => setEditDescription(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+                
+                <div className="flex gap-2 justify-end">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setIsEditing(false);
+                      setEditName(project.name);
+                      setEditDescription(project.description || '');
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button 
+                    onClick={handleSaveProject}
+                    disabled={!editName.trim() || isSaving}
+                  >
+                    {isSaving ? 'Saving...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <h2 className="text-2xl font-bold mb-2">{project.name}</h2>
+                {project.description && (
+                  <p className="text-gray-600 mb-4">{project.description}</p>
+                )}
+                <p className="text-sm text-gray-500 mb-4">
+                  Created on {new Date(project.created_at).toLocaleDateString()}
+                </p>
+                
+                <div className="flex gap-2">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setIsEditing(true)}
+                  >
+                    Edit Project
+                  </Button>
+                  <Button 
+                    variant="destructive" 
+                    onClick={handleDeleteProject}
+                    disabled={isDeleting}
+                  >
+                    {isDeleting ? 'Deleting...' : 'Delete Project'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        <Separator className="my-8" />
+        
+        <ProjectGamesList projectId={projectId} />
+        
+        <Separator className="my-8" />
+        
+        <AddGameToProject projectId={projectId} />
       </div>
-      
-      <Card className="mb-8">
-        <CardHeader>
-          <CardTitle>Project Details</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isEditing ? (
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="edit-name">Project Name</Label>
-                <Input 
-                  id="edit-name"
-                  value={editName}
-                  onChange={(e) => setEditName(e.target.value)}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="edit-description">Description (Optional)</Label>
-                <Textarea 
-                  id="edit-description"
-                  value={editDescription}
-                  onChange={(e) => setEditDescription(e.target.value)}
-                  rows={3}
-                />
-              </div>
-              
-              <div className="flex gap-2 justify-end">
-                <Button 
-                  variant="outline" 
-                  onClick={() => {
-                    setIsEditing(false);
-                    setEditName(project.name);
-                    setEditDescription(project.description || '');
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleSaveProject}
-                  disabled={!editName.trim() || isSaving}
-                >
-                  {isSaving ? 'Saving...' : 'Save Changes'}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <div>
-              <h2 className="text-2xl font-bold mb-2">{project.name}</h2>
-              {project.description && (
-                <p className="text-gray-600 mb-4">{project.description}</p>
-              )}
-              <p className="text-sm text-gray-500 mb-4">
-                Created on {new Date(project.created_at).toLocaleDateString()}
-              </p>
-              
-              <div className="flex gap-2">
-                <Button 
-                  variant="outline" 
-                  onClick={() => setIsEditing(true)}
-                >
-                  Edit Project
-                </Button>
-                <Button 
-                  variant="destructive" 
-                  onClick={handleDeleteProject}
-                  disabled={isDeleting}
-                >
-                  {isDeleting ? 'Deleting...' : 'Delete Project'}
-                </Button>
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-      
-      <Separator className="my-8" />
-      
-      <ProjectGamesList projectId={projectId} />
-      
-      <Separator className="my-8" />
-      
-      <AddGameToProject projectId={projectId} />
     </div>
   );
 }

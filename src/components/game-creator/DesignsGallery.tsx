@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sparkles } from "lucide-react";
@@ -29,63 +28,55 @@ export function DesignsGallery({ games, gamesLoading, deleteGame }: DesignsGalle
 
   return (
     <div className="max-w-7xl mx-auto px-6 pb-16">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-8">
         <div className="flex items-center gap-2">
           <Sparkles size={18} className="text-gray-700" />
-          <h2 className="text-xl font-medium text-black">Designs Gallery</h2>
+          <h2 className="text-xl font-medium text-black">From the Community</h2>
         </div>
       </div>
 
-      <div className="flex flex-col md:flex-row gap-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <div className="flex flex-col md:flex-row gap-6">
-            <div className="md:w-48 flex-shrink-0">
-              <TabsList className="bg-gray-100 w-full h-auto flex md:flex-col">
-                <TabsTrigger 
-                  value="community" 
-                  className="flex-1 md:w-full data-[state=active]:bg-white"
-                >
-                  Community Designs
-                </TabsTrigger>
-                {user && (
-                  <TabsTrigger 
-                    value="my" 
-                    className="flex-1 md:w-full data-[state=active]:bg-white"
-                  >
-                    My Designs
-                  </TabsTrigger>
-                )}
-              </TabsList>
-            </div>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="w-full flex justify-start mb-8 bg-transparent border-b border-gray-200 p-0 h-auto">
+          <TabsTrigger 
+            value="community" 
+            className="px-6 py-3 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-black rounded-none"
+          >
+            Community
+          </TabsTrigger>
+          {user && (
+            <TabsTrigger 
+              value="my" 
+              className="px-6 py-3 data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-black rounded-none"
+            >
+              Your Designs
+            </TabsTrigger>
+          )}
+        </TabsList>
             
-            <div className="flex-1">
-              <TabsContent value="community" className="m-0 mt-0">
-                <GamesList
-                  games={games}
-                  isLoading={gamesLoading}
-                  onGameClick={(id) => navigate(`/play/${id}`)}
-                  onGameDelete={deleteGame}
-                  filter="public"
-                  itemsPerPage={9}
-                />
-              </TabsContent>
-              
-              {user && (
-                <TabsContent value="my" className="m-0 mt-0">
-                  <GamesList
-                    games={games}
-                    isLoading={gamesLoading}
-                    onGameClick={(id) => navigate(`/play/${id}`)}
-                    onGameDelete={deleteGame}
-                    filter="my"
-                    itemsPerPage={9}
-                  />
-                </TabsContent>
-              )}
-            </div>
-          </div>
-        </Tabs>
-      </div>
+        <TabsContent value="community" className="mt-0">
+          <GamesList
+            games={games}
+            isLoading={gamesLoading}
+            onGameClick={(id) => navigate(`/play/${id}`)}
+            onGameDelete={deleteGame}
+            filter="public"
+            itemsPerPage={9}
+          />
+        </TabsContent>
+            
+        {user && (
+          <TabsContent value="my" className="mt-0">
+            <GamesList
+              games={games}
+              isLoading={gamesLoading}
+              onGameClick={(id) => navigate(`/play/${id}`)}
+              onGameDelete={deleteGame}
+              filter="my"
+              itemsPerPage={9}
+            />
+          </TabsContent>
+        )}
+      </Tabs>
     </div>
   );
 }

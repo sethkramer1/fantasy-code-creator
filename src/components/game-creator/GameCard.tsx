@@ -1,4 +1,3 @@
-
 import { Game } from "@/types/game";
 import { Loader2, ArrowUpRight, Trash2, Globe, Lock } from "lucide-react";
 import { getTypeInfo, prepareIframeContent } from "./utils/gamesListUtils";
@@ -15,16 +14,17 @@ import {
 import { Button } from "@/components/ui/button";
 
 // Memoized iframe component to prevent unnecessary re-renders
-const MemoizedIframe = memo(({ srcDoc, onLoad, onError, title }: { 
+const MemoizedIframe = memo(({ srcDoc, onLoad, onError, title, className }: { 
   srcDoc: string | null;
   onLoad: () => void;
   onError: () => void;
   title: string;
+  className: string;
 }) => {
   return (
     <iframe 
       srcDoc={srcDoc || undefined}
-      className="pointer-events-none"
+      className={`pointer-events-none ${className}`}
       style={{ 
         width: '400%',
         height: '800px',
@@ -157,11 +157,11 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
   return (
     <>
       <div 
-        className="bg-white border border-gray-200 transition-all text-left group overflow-hidden cursor-pointer hover-scale card-shadow relative"
+        className="bg-white rounded-xl transition-all text-left group overflow-hidden cursor-pointer hover:shadow-lg"
         onClick={onClick}
       >
         {/* Preview iframe */}
-        <div className="relative w-full h-40 bg-gray-50 border-b border-gray-200 overflow-hidden">
+        <div className="relative w-full aspect-video bg-gray-50 overflow-hidden">
           {preparedContent ? (
             <MemoizedIframe
               key={iframeKey}
@@ -169,6 +169,7 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
               onLoad={handleIframeLoad}
               onError={handleIframeError}
               title={`Preview of ${game.prompt || 'design'}`}
+              className="w-full h-full"
             />
           ) : (
             <div className="flex items-center justify-center h-full w-full">
@@ -182,50 +183,30 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
             </div>
           )}
           
-          <div className="absolute inset-0 z-10" aria-hidden="true"></div>
+          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-5 transition-all duration-200" aria-hidden="true"></div>
         </div>
-        
+
         <div className="p-4">
-          <div className="flex justify-between items-start gap-2">
-            <div className="space-y-2 flex-1">
-              <p className="font-medium text-gray-900 group-hover:text-black transition-colors line-clamp-2">
-                {game.prompt}
-              </p>
-              
-              <div className="flex items-center gap-2 flex-wrap">
-                {game.type && (
-                  <span className={`text-xs px-2.5 py-1 ${badgeColor} whitespace-nowrap flex-shrink-0 font-medium`}>
-                    {label.split(' ')[0]}
-                  </span>
-                )}
-                
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <h3 className="font-medium text-gray-900 line-clamp-1 mb-1">
+                {game.prompt || "Untitled Design"}
+              </h3>
+              <div className="flex items-center gap-2">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${badgeColor}`}>
+                  {label}
+                </span>
                 {showVisibility && (
-                  <span className={`text-xs px-2.5 py-1 flex items-center gap-1 whitespace-nowrap flex-shrink-0 font-medium ${
-                    game.visibility === 'public' 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {game.visibility === 'public' 
-                      ? <><Globe size={12} /> Public</> 
-                      : <><Lock size={12} /> Private</>}
-                  </span>
-                )}
-                
-                {localAdminStatus && !game.user_id && (
-                  <span className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 whitespace-nowrap flex-shrink-0 font-medium">
-                    Anonymous
-                  </span>
-                )}
-                {localAdminStatus && game.user_id && game.user_id !== user?.id && (
-                  <span className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 whitespace-nowrap flex-shrink-0 font-medium">
-                    Other User
+                  <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                    {game.visibility === 'public' ? (
+                      <Globe size={12} />
+                    ) : (
+                      <Lock size={12} />
+                    )}
+                    {game.visibility === 'public' ? 'Public' : 'Private'}
                   </span>
                 )}
               </div>
-            </div>
-            
-            <div className="p-1.5 bg-gray-50 group-hover:bg-gray-100 transition-colors">
-              <ArrowUpRight size={18} className="text-gray-400 group-hover:text-gray-600 transition-colors" />
             </div>
           </div>
         </div>

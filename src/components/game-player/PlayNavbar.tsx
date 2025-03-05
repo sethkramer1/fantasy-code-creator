@@ -1,14 +1,22 @@
-
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GameActions } from "./GameActions";
 import { useAuth } from "@/context/AuthContext";
-import { Download, UserCircle, Globe, Lock } from "lucide-react";
+import { Download, UserCircle, Globe, Lock, ArrowLeft, Gamepad2 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { useState } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface PlayNavbarProps {
   gameId: string;
@@ -88,88 +96,115 @@ export function PlayNavbar({
   };
 
   return (
-    <header className="bg-white border-b border-gray-200 py-2 px-4 flex items-center justify-between shadow-sm">
-      <div className="flex items-center">
-        <Button
-          onClick={handleBackClick}
-          variant="ghost"
-          size="sm"
-          className="mr-4 text-gray-700 hover:bg-gray-100"
-        >
-          ← Back
-        </Button>
-        <h1 className="text-lg font-medium text-gray-800 truncate max-w-[200px] sm:max-w-md">
-          {gameName || "Untitled Design"}
-        </h1>
-      </div>
-
-      <div className="flex items-center space-x-2">
-        {/* Visibility toggle for owners only */}
-        {isOwner && (
-          <div className="flex items-center mr-3 space-x-2 border-r border-gray-200 pr-3">
-            <div className="flex items-center gap-2">
-              {isPublic ? (
-                <Globe size={16} className="text-green-600" />
-              ) : (
-                <Lock size={16} className="text-gray-600" />
-              )}
-              <Label htmlFor="visibility-toggle" className="text-sm">
-                {isPublic ? "Public" : "Private"}
-              </Label>
+    <nav className="border-b bg-white shadow-sm sticky top-0 z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16">
+          <div className="flex items-center">
+            {/* Logo and back button */}
+            <Button
+              variant="ghost"
+              className="mr-2"
+              onClick={handleBackClick}
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            
+            <div className="flex items-center border-l pl-4 ml-2">
+              <Gamepad2 className="h-5 w-5 mr-2 text-primary" />
+              <h1 className="text-lg font-medium text-gray-800 truncate max-w-[200px] sm:max-w-md">
+                {gameName || "Untitled Design"}
+              </h1>
             </div>
-            <Switch
-              id="visibility-toggle"
-              checked={isPublic}
-              onCheckedChange={handleVisibilityChange}
-              disabled={changingVisibility || !isOwner}
-            />
           </div>
-        )}
-        
-        <Button 
-          variant="outline" 
-          size="sm" 
-          className="h-8 gap-1 text-sm border-gray-200 text-gray-700 hover:bg-gray-100" 
-          onClick={onDownload}
-        >
-          <Download size={14} />
-          Download Zip
-        </Button>
-        
-        <GameActions
-          currentVersion={undefined}
-          showGenerating={false}
-          isLatestVersion={true}
-          onRevertToVersion={() => Promise.resolve()}
-          onExport={onExport}
-          onDownload={onDownload}
-          onFork={onFork}
-          onShare={onShare}
-          showCodeEditor={showCodeEditor}
-          onShowCodeEditorChange={onShowCodeEditorChange}
-        />
-        
-        {user ? (
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex items-center gap-2 ml-2 border-gray-200 text-gray-700 hover:bg-gray-100"
-            onClick={handleAccountClick}
-          >
-            <UserCircle size={16} />
-            <span className="hidden sm:inline">Account</span>
-          </Button>
-        ) : (
-          <Button 
-            onClick={handleLoginClick}
-            size="sm" 
-            variant="outline"
-            className="ml-2 border-gray-200 text-gray-700 hover:bg-gray-100"
-          >
-            Sign in
-          </Button>
-        )}
+
+          <div className="flex items-center space-x-2">
+            {/* Visibility toggle for owners only */}
+            {isOwner && (
+              <div className="flex items-center mr-3 space-x-2 border-r border-gray-200 pr-3">
+                <div className="flex items-center gap-2">
+                  {isPublic ? (
+                    <Globe size={16} className="text-green-600" />
+                  ) : (
+                    <Lock size={16} className="text-gray-600" />
+                  )}
+                  <Label htmlFor="visibility-toggle" className="text-sm">
+                    {isPublic ? "Public" : "Private"}
+                  </Label>
+                </div>
+                <Switch
+                  id="visibility-toggle"
+                  checked={isPublic}
+                  onCheckedChange={handleVisibilityChange}
+                  disabled={changingVisibility || !isOwner}
+                />
+              </div>
+            )}
+            
+            <Button 
+              variant="outline" 
+              size="sm" 
+              className="h-8 gap-1 text-sm border-gray-200 text-gray-700 hover:bg-gray-100" 
+              onClick={onDownload}
+            >
+              <Download size={14} />
+              Download
+            </Button>
+            
+            <GameActions
+              currentVersion={undefined}
+              showGenerating={false}
+              isLatestVersion={true}
+              onRevertToVersion={() => Promise.resolve()}
+              onExport={onExport}
+              onDownload={onDownload}
+              onFork={onFork}
+              onShare={onShare}
+              showCodeEditor={showCodeEditor}
+              onShowCodeEditorChange={onShowCodeEditorChange}
+            />
+            
+            {user ? (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" className="rounded-full h-10 w-10 p-0">
+                    <Avatar className="h-8 w-8">
+                      <AvatarImage src={user?.user_metadata?.avatar_url} alt={user?.email || "User"} />
+                      <AvatarFallback>
+                        {user?.email?.charAt(0).toUpperCase() || "U"}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel className="font-normal">
+                    <div className="flex flex-col space-y-1">
+                      <p className="text-sm font-medium leading-none">{user?.email}</p>
+                      <p className="text-xs leading-none text-muted-foreground">
+                        {user?.user_metadata?.full_name || "User"}
+                      </p>
+                    </div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={handleAccountClick}>
+                    <UserCircle size={16} className="mr-2" />
+                    Account
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            ) : (
+              <Button 
+                onClick={handleLoginClick}
+                size="sm" 
+                variant="default"
+                className="h-9"
+              >
+                Sign in
+              </Button>
+            )}
+          </div>
+        </div>
       </div>
-    </header>
+    </nav>
   );
 }
