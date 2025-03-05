@@ -226,10 +226,8 @@ export const generateGameName = async (prompt: string): Promise<string> => {
   try {
     console.log('[NAME_GEN] Generating game name from prompt:', prompt.substring(0, 100) + '...');
     
-    console.log('[NAME_GEN] Calling Supabase Edge Function: generate-name');
-    
     try {
-      console.log('[NAME_GEN] Attempting direct fetch to Edge Function');
+      console.log('[NAME_GEN] Calling Supabase Edge Function via direct fetch');
       
       const { data: { session } } = await supabase.auth.getSession();
       const accessToken = session?.access_token || '';
@@ -242,17 +240,21 @@ export const generateGameName = async (prompt: string): Promise<string> => {
         },
         body: JSON.stringify({ 
           prompt,
-          model: "claude-3-5-haiku-20241022"
+          model: "claude-3-5-sonnet-20240307"
         })
       });
       
       console.log('[NAME_GEN] Direct fetch response status:', directResponse.status);
+      
       if (directResponse.ok) {
         const directData = await directResponse.json();
         console.log('[NAME_GEN] Direct fetch response data:', directData);
-        if (directData?.name) {
+        
+        if (directData?.name && directData.name.trim() !== '') {
           console.log('[NAME_GEN] Successfully generated name via direct fetch:', directData.name);
           return directData.name;
+        } else {
+          console.log('[NAME_GEN] Empty name returned from Edge Function via direct fetch');
         }
       } else {
         const errorText = await directResponse.text();
@@ -262,11 +264,11 @@ export const generateGameName = async (prompt: string): Promise<string> => {
       console.error('[NAME_GEN] Direct fetch failed:', directError);
     }
     
-    console.log('[NAME_GEN] Falling back to supabase client');
+    console.log('[NAME_GEN] Falling back to supabase.functions.invoke');
     const { data, error } = await supabase.functions.invoke('generate-name', {
       body: { 
         prompt,
-        model: "claude-3-5-haiku-20241022"
+        model: "claude-3-5-sonnet-20240307"
       }
     });
 
@@ -281,7 +283,7 @@ export const generateGameName = async (prompt: string): Promise<string> => {
     
     console.log('[NAME_GEN] Generated game name:', gameName);
     
-    if (!gameName) {
+    if (!gameName || gameName.trim() === '') {
       const fallbackName = prompt.split(' ').slice(0, 3).join(' ') + '...';
       console.log('[NAME_GEN] No name was generated, using fallback:', fallbackName);
       return fallbackName;

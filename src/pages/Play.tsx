@@ -48,17 +48,14 @@ const Play = () => {
     setGame
   } = usePlayGameData(gameId);
   
-  // Check if the current user is the creator of the game
   const isCreator = user?.id && game?.user_id === user.id;
   
-  // Check if the user owns this game based on local storage
   const checkLocalOwnership = () => {
     if (!gameId) return false;
     const ownedGames = JSON.parse(localStorage.getItem('ownedGames') || '{}');
     return !!ownedGames[gameId];
   };
   
-  // Combined check for creator status
   const isOwner = isCreator || checkLocalOwnership();
   
   const { 
@@ -183,7 +180,6 @@ const Play = () => {
         navigate(`/play/${gameId}`, { replace: true });
       }
       
-      // Provide more specific error messages for Anthropic API issues
       let errorTitle = "Generation Error";
       let errorMessage = generationError || "Failed to generate content. Please try again.";
       
@@ -195,7 +191,6 @@ const Play = () => {
           generationError.includes("service unavailable")
       )) {
         errorTitle = "Anthropic API Error";
-        // Keep the original error message as it should be more specific now
       }
       
       toast({
@@ -286,7 +281,6 @@ const Play = () => {
     if (!gameId || !user) return;
     
     try {
-      // Check if user is the owner of the game
       if (game?.user_id !== user.id) {
         toast({
           title: "Permission denied",
@@ -296,7 +290,6 @@ const Play = () => {
         return;
       }
       
-      // Validate visibility value
       if (!['public', 'private', 'unlisted'].includes(newVisibility)) {
         toast({
           title: "Invalid visibility setting",
@@ -306,7 +299,6 @@ const Play = () => {
         return;
       }
       
-      // Update visibility in database
       const { error } = await supabase
         .from('games')
         .update({ visibility: newVisibility })
@@ -315,14 +307,12 @@ const Play = () => {
       
       if (error) throw error;
       
-      // Update local game state
       if (game) {
         setGame({
           ...game,
           visibility: newVisibility
         });
       }
-      
     } catch (error) {
       console.error("Error changing visibility:", error);
       toast({
@@ -333,7 +323,6 @@ const Play = () => {
     }
   };
 
-  // Add a test function for name generation - FOR DEBUGGING ONLY
   const testNameGeneration = async () => {
     if (!game?.prompt) return;
     
@@ -347,12 +336,9 @@ const Play = () => {
       console.log("Generated name:", name);
       
       if (name && gameId) {
-        // Update the game with the new name
-        // Use type assertion to bypass TypeScript type checking
         const { error } = await supabase
           .from('games')
           .update({ 
-            // Use type assertion to bypass TypeScript type checking
             name: name 
           } as any)
           .eq('id', gameId);
@@ -370,7 +356,6 @@ const Play = () => {
             description: `Generated name: "${name}"`
           });
           
-          // Refresh the game data
           await fetchGame();
         }
       } else {
@@ -389,8 +374,7 @@ const Play = () => {
       });
     }
   };
-  
-  // Add a function to run the SQL migration - FOR DEBUGGING ONLY
+
   const runSqlMigration = async () => {
     toast({
       title: "Running SQL migration",
@@ -398,7 +382,6 @@ const Play = () => {
     });
     
     try {
-      // Execute SQL directly using the SQL API
       const response = await fetch('https://nvutcgbgthjeetclfibd.supabase.co/rest/v1/rpc/execute_sql', {
         method: 'POST',
         headers: {
@@ -408,11 +391,9 @@ const Play = () => {
         },
         body: JSON.stringify({
           query: `
-            -- Add name column to games table
             ALTER TABLE games 
             ADD COLUMN IF NOT EXISTS name TEXT;
             
-            -- Update existing records to have a name based on the prompt
             UPDATE games
             SET name = SUBSTRING(prompt, 1, 50)
             WHERE name IS NULL;
@@ -430,7 +411,6 @@ const Play = () => {
         description: "Name column added to games table"
       });
       
-      // Refresh the game data
       await fetchGame();
     } catch (error) {
       console.error("Error in SQL migration:", error);

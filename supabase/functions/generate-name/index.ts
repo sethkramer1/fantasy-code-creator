@@ -24,7 +24,7 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, model = "claude-3-5-haiku-20241022" } = await req.json();
+    const { prompt, model = "claude-3-5-sonnet-20240307" } = await req.json();
     
     console.log("Received request to generate name for prompt:", prompt?.substring(0, 50) + "...");
     
@@ -48,7 +48,7 @@ The name should be:
 Return ONLY the name with no explanations, quotes, or additional text.`;
 
     // Make the request to Anthropic API
-    console.log('Sending request to Anthropic API with Claude 3.5 Haiku');
+    console.log('Sending request to Anthropic API with Claude 3.5 Sonnet');
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {

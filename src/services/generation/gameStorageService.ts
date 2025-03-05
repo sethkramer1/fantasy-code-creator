@@ -34,7 +34,7 @@ export const saveGeneratedGame = async ({
     if (!gameId) {
       console.log("[GAME_STORAGE] Creating new game record with name:", gameName || prompt.substring(0, 50));
       
-      // Create the insert data object for better debugging
+      // Create the insert data object
       const insertData = {
         prompt,
         code: gameContent,
@@ -43,7 +43,7 @@ export const saveGeneratedGame = async ({
         model_type: modelType,
         visibility: visibility,
         name: gameName || prompt.substring(0, 50)
-      } as any; // Use type assertion to bypass TypeScript type checking
+      };
       
       console.log("[GAME_STORAGE] Insert data:", JSON.stringify({
         ...insertData,
@@ -53,7 +53,7 @@ export const saveGeneratedGame = async ({
       const { data: gameRecord, error: gameError } = await supabase
         .from('games')
         .insert([insertData])
-        .select('id')
+        .select('id, name')
         .single();
       
       if (gameError) {
@@ -62,7 +62,7 @@ export const saveGeneratedGame = async ({
       }
       
       gameId = gameRecord.id;
-      console.log(`[GAME_STORAGE] Created new game with ID: ${gameId}`);
+      console.log(`[GAME_STORAGE] Created new game with ID: ${gameId}, name: ${gameRecord.name}`);
       
       // Verify the name was saved correctly
       const { data: verifyData, error: verifyError } = await supabase
@@ -80,16 +80,16 @@ export const saveGeneratedGame = async ({
       // If we're updating an existing game
       console.log(`[GAME_STORAGE] Updating existing game with ID: ${gameId}, name: ${gameName}`);
       
-      // Create the update data object for better debugging
-      const updateData = {
+      // Create the update data object
+      const updateData: Record<string, any> = {
         code: gameContent,
         model_type: modelType
-      } as any; // Use type assertion to bypass TypeScript type checking
+      };
       
       // Only include name in the update if it's provided
       if (gameName !== undefined) {
         console.log(`[GAME_STORAGE] Including name in update: ${gameName}`);
-        updateData['name'] = gameName;
+        updateData.name = gameName;
       } else {
         console.log(`[GAME_STORAGE] Name not provided, skipping name update`);
       }
@@ -99,12 +99,11 @@ export const saveGeneratedGame = async ({
         code: updateData.code.substring(0, 100) + "..." // Truncate code for logging
       }));
       
-      // Using raw SQL for increment instead of supabase.sql
       const { data: updateResult, error: updateError } = await supabase
         .from('games')
         .update(updateData)
         .eq('id', gameId)
-        .select('id');
+        .select('id, name');
       
       if (updateError) {
         console.error("[GAME_STORAGE] Error updating game record:", updateError);

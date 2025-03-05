@@ -193,7 +193,7 @@ export const useGameGeneration = () => {
       
       setTerminalOutput(prev => [...prev, "> Saving to database..."]);
 
-      // Generate a name for the game using Claude 3.5 Haiku
+      // Generate a name for the game using Claude
       let gameName = undefined;
       if (!existingGameId) {
         setTerminalOutput(prev => [...prev, "> Generating a name for your design..."]);
@@ -230,7 +230,7 @@ export const useGameGeneration = () => {
       // Log the saved game data to verify if the name was saved
       console.log("[GAME_GEN] Game saved, returned data:", JSON.stringify({
         id: gameData?.id,
-        name: (gameData as any)?.name,
+        name: gameData?.name,
         prompt: gameData?.prompt?.substring(0, 50) + "..."
       }));
       
