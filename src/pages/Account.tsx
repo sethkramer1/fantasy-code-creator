@@ -8,19 +8,18 @@ import { Navbar } from "@/components/layout/Navbar";
 import { TokenUsageHistory } from "@/components/account/TokenUsageHistory";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-
 export default function AccountPage() {
-  const { user, signOut } = useAuth();
+  const {
+    user,
+    signOut
+  } = useAuth();
   const navigate = useNavigate();
-
   const handleSignOut = async () => {
     await signOut();
     navigate('/');
   };
-
   if (!user) {
-    return (
-      <div>
+    return <div>
         <Navbar />
         <div className="container mx-auto py-8 px-4">
           <div className="text-center">
@@ -28,16 +27,13 @@ export default function AccountPage() {
             <Button onClick={() => navigate('/auth')}>Log In</Button>
           </div>
         </div>
-      </div>
-    );
+      </div>;
   }
-
-  return (
-    <div className="min-h-screen bg-gray-50/50">
+  return <div className="min-h-screen bg-gray-50/50">
       <Navbar />
       <div className="container max-w-6xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold tracking-tight text-gray-900">Account Settings</h1>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">My Account</h1>
           <p className="mt-2 text-sm text-gray-500">Manage your account preferences and information.</p>
         </div>
         
@@ -66,11 +62,7 @@ export default function AccountPage() {
               
               <Separator className="my-4" />
               
-              <Button 
-                variant="outline" 
-                className="w-full mt-2 border-gray-200 text-gray-700 hover:bg-gray-100/80 hover:text-gray-900"
-                onClick={handleSignOut}
-              >
+              <Button variant="outline" className="w-full mt-2 border-gray-200 text-gray-700 hover:bg-gray-100/80 hover:text-gray-900" onClick={handleSignOut}>
                 Sign Out
               </Button>
             </CardContent>
@@ -89,16 +81,10 @@ export default function AccountPage() {
                 </div>
                 
                 <div className="flex flex-col sm:flex-row gap-4 w-full justify-center">
-                  <Button 
-                    variant="outline" 
-                    className="px-8 py-6 h-auto border-gray-200 text-gray-700 hover:bg-gray-100/80 hover:text-gray-900 rounded-full"
-                  >
+                  <Button variant="outline" className="px-8 py-6 h-auto border-gray-200 text-gray-700 hover:bg-gray-100/80 hover:text-gray-900 rounded-full">
                     Change Password
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    className="px-8 py-6 h-auto border-gray-200 text-gray-700 hover:bg-gray-100/80 hover:text-gray-900 rounded-full"
-                  >
+                  <Button variant="outline" className="px-8 py-6 h-auto border-gray-200 text-gray-700 hover:bg-gray-100/80 hover:text-gray-900 rounded-full">
                     Update Email
                   </Button>
                 </div>
@@ -119,6 +105,5 @@ export default function AccountPage() {
           </Card>
         </div>
       </div>
-    </div>
-  );
+    </div>;
 }
