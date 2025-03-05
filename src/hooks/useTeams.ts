@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 export function useTeams() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
@@ -114,10 +115,10 @@ export function useTeams() {
         throw new Error("You must be logged in to create a team");
       }
 
-      setLoading(true);
+      setIsCreating(true);
       console.log("Creating team with name:", name, "by user:", user.id);
       
-      const { data, error } = await supabase
+      const { data: newTeam, error: teamError } = await supabase
         .from('teams')
         .insert([{ 
             name, 
@@ -127,39 +128,41 @@ export function useTeams() {
         .select()
         .single();
         
-      if (error) {
-        console.error("Error creating team:", error);
-        throw error;
+      if (teamError) {
+        console.error("Error creating team:", teamError);
+        throw teamError;
       }
       
-      if (!data) {
+      if (!newTeam) {
         throw new Error("Team was created but no data was returned");
       }
       
-      console.log("Team created successfully:", data);
+      console.log("Team created successfully:", newTeam);
       
       const { error: memberError } = await supabase
         .from('team_members')
         .insert([{
-          team_id: data.id,
+          team_id: newTeam.id,
           user_id: user.id,
           role: 'admin'
         }]);
         
       if (memberError) {
         console.error("Error adding creator as team member:", memberError);
+        await supabase.from('teams').delete().eq('id', newTeam.id);
+        throw memberError;
       }
       
       console.log("Creator added as team member with admin role");
       
-      setTeams(prev => [...prev, data]);
+      setTeams(prev => [...prev, newTeam]);
       
       toast({
         title: "Success",
         description: "Team created successfully.",
       });
       
-      return data;
+      return newTeam;
     } catch (error: any) {
       console.error("Error creating team:", error);
       toast({
@@ -169,8 +172,8 @@ export function useTeams() {
       });
       return null;
     } finally {
+      setIsCreating(false);
       await fetchTeams();
-      setLoading(false);
     }
   };
 
@@ -255,6 +258,7 @@ export function useTeams() {
     teams,
     loading,
     error,
+    isCreating,
     fetchTeams,
     createTeam,
     updateTeam,

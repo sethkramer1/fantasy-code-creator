@@ -21,14 +21,15 @@ import { useAuth } from "@/context/AuthContext";
 import { Header } from "@/components/game-creator/Header";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
+import { AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function TeamsPage() {
   const navigate = useNavigate();
-  const { teams, loading, error, createTeam, fetchTeams } = useTeams();
+  const { teams, loading, error, isCreating, createTeam, fetchTeams } = useTeams();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [teamName, setTeamName] = useState('');
   const [teamDescription, setTeamDescription] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
@@ -56,7 +57,7 @@ export default function TeamsPage() {
     
     // Check if user is authenticated but we have no teams
     if (user && !authLoading && teams.length === 0 && !loading) {
-      console.log("TeamsPage - User is logged in but no teams found, will wait for fetchTeams to complete");
+      console.log("TeamsPage - User is logged in but no teams found");
     }
   }, [teams, user, authLoading, loading, error]);
   
@@ -80,7 +81,6 @@ export default function TeamsPage() {
       return;
     }
     
-    setIsCreating(true);
     try {
       console.log("Creating team with name:", teamName);
       const team = await createTeam(teamName, teamDescription);
@@ -92,19 +92,14 @@ export default function TeamsPage() {
           description: `Your team "${teamName}" has been created successfully.`
         });
         
+        // Reset form
         setTeamName('');
         setTeamDescription('');
+        // Close dialog
         setIsDialogOpen(false);
-        
-        // Force refresh after a short delay to ensure DB updates are reflected
-        setTimeout(() => {
-          fetchTeams();
-        }, 1000);
       }
     } catch (error) {
       console.error("Team creation caught error:", error);
-    } finally {
-      setIsCreating(false);
     }
   };
 
@@ -197,15 +192,36 @@ export default function TeamsPage() {
       
       <Separator className="mb-8" />
       
-      {/* Debug information */}
-      <div className="mb-4 p-4 bg-gray-100 rounded">
-        <p className="text-sm text-gray-500">Auth Status: {authLoading ? "Loading Auth" : (user ? "Logged In" : "Not Logged In")}</p>
-        <p className="text-sm text-gray-500">User ID: {user?.id || "No User"}</p>
-        <p className="text-sm text-gray-500">Teams Count: {teams.length}</p>
-        <p className="text-sm text-gray-500">Teams Loading: {loading ? "Yes" : "No"}</p>
-        <p className="text-sm text-gray-500">Auth Loading: {authLoading ? "Yes" : "No"}</p>
-        {error && <p className="text-sm text-red-500">Error: {error}</p>}
-      </div>
+      {/* Auth status debugging */}
+      {import.meta.env.DEV && (
+        <div className="mb-4 p-4 bg-gray-100 rounded text-xs">
+          <details>
+            <summary className="cursor-pointer font-medium">Debug Information</summary>
+            <p className="mt-2 text-gray-500">Auth Status: {authLoading ? "Loading Auth" : (user ? "Logged In" : "Not Logged In")}</p>
+            <p className="text-gray-500">User ID: {user?.id || "No User"}</p>
+            <p className="text-gray-500">Teams Count: {teams.length}</p>
+            <p className="text-gray-500">Teams Loading: {loading ? "Yes" : "No"}</p>
+            <p className="text-gray-500">Auth Loading: {authLoading ? "Yes" : "No"}</p>
+            {error && <p className="text-red-500">Error: {error}</p>}
+          </details>
+        </div>
+      )}
+      
+      {/* Error display */}
+      {hasError && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>
+            {error}
+            <div className="mt-2">
+              <Button onClick={handleManualRefresh} variant="outline" size="sm">
+                Try Again
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
       
       {/* Loading state */}
       {isInitialLoading && (
@@ -215,24 +231,18 @@ export default function TeamsPage() {
               <Skeleton className="h-6 w-3/4 mb-4" />
               <Skeleton className="h-4 w-full mb-2" />
               <Skeleton className="h-4 w-2/3" />
+              <div className="flex justify-end gap-2 mt-4">
+                <Skeleton className="h-9 w-24" />
+                <Skeleton className="h-9 w-24" />
+              </div>
             </div>
           ))}
         </div>
       )}
       
-      {/* Error state */}
-      {hasError && (
-        <div className="text-center py-8 bg-red-50 rounded-lg border border-red-200">
-          <p className="text-red-600 mb-4">{error}</p>
-          <Button onClick={handleManualRefresh} variant="outline" size="sm">
-            Try Again
-          </Button>
-        </div>
-      )}
-      
       {/* Empty state */}
       {hasNoTeams && !hasError && (
-        <div className="text-center py-8">
+        <div className="text-center py-8 border rounded-lg bg-gray-50">
           <p className="text-gray-500 mb-4">
             {user ? "You don't have any teams yet." : "Please log in to view your teams."}
           </p>
