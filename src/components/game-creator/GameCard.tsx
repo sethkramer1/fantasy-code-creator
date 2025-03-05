@@ -1,5 +1,5 @@
 import { Game } from "@/types/game";
-import { Loader2, ArrowUpRight, Trash2, Globe, Lock } from "lucide-react";
+import { Loader2, ArrowUpRight, Trash2, Globe, Lock, Link2 } from "lucide-react";
 import { getTypeInfo, prepareIframeContent } from "./utils/gamesListUtils";
 import { useEffect, useState, MouseEvent, useRef, memo } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -200,10 +200,16 @@ export function GameCard({ game, gameCode, onClick, onDelete, showVisibility = f
                   <span className="inline-flex items-center gap-1 text-xs text-gray-500">
                     {game.visibility === 'public' ? (
                       <Globe size={12} />
+                    ) : game.visibility === 'unlisted' ? (
+                      <Link2 size={12} />
                     ) : (
                       <Lock size={12} />
                     )}
-                    {game.visibility === 'public' ? 'Public' : 'Private'}
+                    {game.visibility === 'public' 
+                      ? 'Public' 
+                      : game.visibility === 'unlisted'
+                      ? 'Unlisted'
+                      : 'Private'}
                   </span>
                 )}
               </div>

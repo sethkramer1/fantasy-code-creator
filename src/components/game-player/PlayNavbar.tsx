@@ -2,10 +2,8 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GameActions } from "./GameActions";
 import { useAuth } from "@/context/AuthContext";
-import { Download, UserCircle, Globe, Lock, ArrowLeft } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
-import { useState } from "react";
+import { Download, UserCircle, ArrowLeft, Globe, Lock, Link2 } from "lucide-react";
+import { ShareButton } from "./ShareButton";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -17,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 
 interface PlayNavbarProps {
   gameId: string;
@@ -48,8 +47,6 @@ export function PlayNavbar({
   const navigate = useNavigate();
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isPublic, setIsPublic] = useState(visibility === 'public');
-  const [changingVisibility, setChangingVisibility] = useState(false);
   
   // Check if current user is the owner of the game
   const isOwner = user?.id && gameUserId === user.id;
@@ -66,34 +63,32 @@ export function PlayNavbar({
     navigate("/account");
   };
   
-  const handleVisibilityChange = async (checked: boolean) => {
-    if (!isOwner || !gameId || !onVisibilityChange) return;
-    
-    setChangingVisibility(true);
-    const newVisibility = checked ? 'public' : 'private';
-    
-    try {
-      // Update visibility in database
-      await onVisibilityChange(newVisibility);
-      setIsPublic(checked);
-      
-      toast({
-        title: `Design is now ${checked ? 'public' : 'private'}`,
-        description: checked 
-          ? "Your design is visible to everyone" 
-          : "Your design is only visible to you",
-      });
-    } catch (error) {
-      console.error("Error changing visibility:", error);
-      toast({
-        title: "Error changing visibility",
-        description: "Please try again later",
-        variant: "destructive"
-      });
-    } finally {
-      setChangingVisibility(false);
+  // Get visibility badge info
+  const getVisibilityBadge = () => {
+    switch (visibility) {
+      case 'public':
+        return {
+          label: 'Public',
+          icon: <Globe size={12} className="mr-1" />,
+          variant: 'success' as const
+        };
+      case 'unlisted':
+        return {
+          label: 'Unlisted',
+          icon: <Link2 size={12} className="mr-1" />,
+          variant: 'secondary' as const
+        };
+      case 'private':
+      default:
+        return {
+          label: 'Private',
+          icon: <Lock size={12} className="mr-1" />,
+          variant: 'outline' as const
+        };
     }
   };
+  
+  const visibilityBadge = getVisibilityBadge();
 
   return (
     <nav className="border-b bg-white shadow-sm sticky top-0 z-50">
@@ -114,30 +109,27 @@ export function PlayNavbar({
               <h1 className="text-lg font-medium text-gray-800 truncate max-w-[200px] sm:max-w-md">
                 {gameName || "Untitled Design"}
               </h1>
+              
+              {/* Visibility badge */}
+              <Badge 
+                variant={visibilityBadge.variant} 
+                className="ml-2 flex items-center text-xs font-normal"
+              >
+                {visibilityBadge.icon}
+                {visibilityBadge.label}
+              </Badge>
             </div>
           </div>
 
           <div className="flex items-center space-x-2">
-            {/* Visibility toggle for owners only */}
-            {isOwner && (
-              <div className="flex items-center mr-3 space-x-2 border-r border-gray-200 pr-3">
-                <div className="flex items-center gap-2">
-                  {isPublic ? (
-                    <Globe size={16} className="text-green-600" />
-                  ) : (
-                    <Lock size={16} className="text-gray-600" />
-                  )}
-                  <Label htmlFor="visibility-toggle" className="text-sm">
-                    {isPublic ? "Public" : "Private"}
-                  </Label>
-                </div>
-                <Switch
-                  id="visibility-toggle"
-                  checked={isPublic}
-                  onCheckedChange={handleVisibilityChange}
-                  disabled={changingVisibility || !isOwner}
-                />
-              </div>
+            {/* Share button for owners only */}
+            {isOwner && onVisibilityChange && (
+              <ShareButton 
+                visibility={visibility}
+                onVisibilityChange={onVisibilityChange}
+                gameId={gameId}
+                isOwner={isOwner}
+              />
             )}
             
             <Button 

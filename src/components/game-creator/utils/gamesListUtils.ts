@@ -39,6 +39,9 @@ export const filterGames = (games, filter, userId) => {
       return games.filter(game => game.visibility === 'public');
     case 'private':
       return games.filter(game => game.visibility === 'private' && game.user_id === userId);
+    case 'unlisted':
+      // Only show unlisted games owned by the user
+      return games.filter(game => game.visibility === 'unlisted' && game.user_id === userId);
     case 'all':
     default:
       return games;
@@ -57,5 +60,29 @@ export const getTypeInfo = (type) => {
       return { label: 'Landing', badgeColor: 'bg-yellow-100 text-yellow-800' };
     default:
       return { label: 'Design', badgeColor: 'bg-gray-100 text-gray-800' };
+  }
+};
+
+export const getVisibilityInfo = (visibility: string) => {
+  switch (visibility) {
+    case 'public':
+      return {
+        label: 'Public',
+        icon: 'Globe',
+        description: 'Anyone can view'
+      };
+    case 'unlisted':
+      return {
+        label: 'Unlisted',
+        icon: 'Link2',
+        description: 'Anyone with the link can view'
+      };
+    case 'private':
+    default:
+      return {
+        label: 'Private',
+        icon: 'Lock',
+        description: 'Only you can view'
+      };
   }
 };

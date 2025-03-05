@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { forceTokenTracking } from "@/services/generation/tokenTrackingService";
 import { supabase } from "@/integrations/supabase/client";
 import JSZip from 'jszip';
+import { Button } from "@/components/ui/button";
 
 const Play = () => {
   const { id: gameId } = useParams();
@@ -42,11 +43,22 @@ const Play = () => {
     gameVersions, 
     fetchGame,
     isLoading: gameDataLoading,
+    accessDenied,
     setGame
   } = usePlayGameData(gameId);
   
   // Check if the current user is the creator of the game
   const isCreator = user?.id && game?.user_id === user.id;
+  
+  // Check if the user owns this game based on local storage
+  const checkLocalOwnership = () => {
+    if (!gameId) return false;
+    const ownedGames = JSON.parse(localStorage.getItem('ownedGames') || '{}');
+    return !!ownedGames[gameId];
+  };
+  
+  // Combined check for creator status
+  const isOwner = isCreator || checkLocalOwnership();
   
   const { 
     handleGameUpdate, 
@@ -268,6 +280,16 @@ const Play = () => {
         return;
       }
       
+      // Validate visibility value
+      if (!['public', 'private', 'unlisted'].includes(newVisibility)) {
+        toast({
+          title: "Invalid visibility setting",
+          description: "Visibility must be public, private, or unlisted",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       // Update visibility in database
       const { error } = await supabase
         .from('games')
@@ -332,19 +354,33 @@ const Play = () => {
     );
   }
 
+  if (accessDenied) {
+    return (
+      <div className="h-screen flex flex-col items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <h2 className="text-2xl font-bold text-red-600 mb-2">Access Denied</h2>
+          <p className="text-gray-600 mb-6">
+            This content is private and can only be viewed by its creator.
+          </p>
+          <Button onClick={() => navigate("/")} variant="default">
+            Return to Home
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-screen w-full bg-white">
       <PlayNavbar
         gameId={gameId}
         gameName={initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading...")}
         gameUserId={game?.user_id}
-        visibility={game?.visibility}
+        visibility={game?.visibility || 'public'}
         onVisibilityChange={handleVisibilityChange}
+        onDownload={handleDownload}
         showCodeEditor={showCode}
         onShowCodeEditorChange={setShowCode}
-        onExport={() => {}}
-        onDownload={handleDownload}
-        onShare={() => {}}
       />
 
       <div className="flex flex-grow w-full overflow-hidden">
@@ -359,7 +395,7 @@ const Play = () => {
             user_id: game?.user_id
           }))}
           initialPrompt={initialPrompt}
-          isCreator={isCreator}
+          isCreator={isOwner}
         />
         
         <div className="flex-1 h-full overflow-hidden bg-gray-50">
@@ -382,7 +418,7 @@ const Play = () => {
                   onRevertToVersion={revertToVersion}
                   onVersionSelect={setSelectedVersionId}
                   selectedVersionId={selectedVersionId}
-                  isCreator={isCreator}
+                  isCreator={isOwner}
                 />
               </div>
               <div className="flex-1 overflow-hidden bg-white">

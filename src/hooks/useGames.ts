@@ -37,6 +37,7 @@ export const useGames = () => {
         query = query.eq('visibility', 'public');
       } else if (!isUserAdmin) {
         // If user is logged in but not admin, show public games and their own games
+        // Note: Unlisted games should only be accessible via direct link, not listed in the games list
         console.log("Regular user logged in - fetching public games and user's own games");
         query = query.or(`visibility.eq.public,user_id.eq.${user.id}`);
       }

@@ -1,8 +1,8 @@
-
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
 import { ModelType } from "@/types/generation";
+import { useAuth } from "@/context/AuthContext";
 
 export interface GameData {
   id: string;
@@ -30,8 +30,12 @@ export function usePlayGameData(gameId: string | undefined) {
   const [currentVersion, setCurrentVersion] = useState<GameVersion | undefined>(undefined);
   const [gameVersions, setGameVersions] = useState<GameVersion[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [accessDenied, setAccessDenied] = useState<boolean>(false);
   const fetchAttemptsRef = useRef(0);
   const maxFetchAttempts = 3;
+  const authRetryAttemptsRef = useRef(0);
+  const maxAuthRetryAttempts = 5;
+  const { user, loading: isAuthLoading } = useAuth();
 
   const addSystemMessage = async (message: string, response: string, modelType: string = "smart") => {
     if (!gameId) return;
@@ -51,8 +55,41 @@ export function usePlayGameData(gameId: string | undefined) {
     }
   };
 
+  // Function to check if the user is the owner of the game
+  const checkIsOwner = (gameUserId: string | null | undefined) => {
+    if (!gameUserId) return false;
+    
+    // Check if current user matches game user_id
+    if (user?.id === gameUserId) return true;
+    
+    // Check local storage as fallback for ownership
+    const ownedGames = JSON.parse(localStorage.getItem('ownedGames') || '{}');
+    return !!ownedGames[gameId || ''];
+  };
+  
+  // Function to remember game ownership
+  const rememberGameOwnership = (gameUserId: string | null | undefined) => {
+    if (!gameId || !user || !gameUserId) return;
+    
+    // If the current user is the owner, store this information
+    if (user.id === gameUserId) {
+      const ownedGames = JSON.parse(localStorage.getItem('ownedGames') || '{}');
+      ownedGames[gameId] = true;
+      localStorage.setItem('ownedGames', JSON.stringify(ownedGames));
+      console.log("Stored game ownership in local storage:", gameId);
+    }
+  };
+
   const fetchGame = async () => {
     if (!gameId) return;
+
+    // If auth is still loading and we haven't exceeded max retries, delay and retry
+    if (isAuthLoading && authRetryAttemptsRef.current < maxAuthRetryAttempts) {
+      console.log(`Auth still loading, retrying in 500ms (attempt ${authRetryAttemptsRef.current + 1}/${maxAuthRetryAttempts})`);
+      authRetryAttemptsRef.current += 1;
+      setTimeout(fetchGame, 500);
+      return;
+    }
 
     setIsLoading(true);
     fetchAttemptsRef.current += 1;
@@ -101,8 +138,51 @@ export function usePlayGameData(gameId: string | undefined) {
         return;
       }
 
+      // Remember game ownership for future visits
+      rememberGameOwnership(gameData.user_id);
+
+      // Check visibility permissions
+      const isOwner = checkIsOwner(gameData.user_id);
+      const isPublic = gameData.visibility === 'public';
+      const isUnlisted = gameData.visibility === 'unlisted';
+      
+      console.log("Access check:", { 
+        isOwner, 
+        isPublic, 
+        isUnlisted, 
+        userId: user?.id, 
+        gameUserId: gameData.user_id,
+        visibility: gameData.visibility,
+        authLoading: isAuthLoading
+      });
+      
+      // If auth is still loading and this is the owner's content, don't deny access yet
+      if (isAuthLoading && gameData.visibility === 'private') {
+        console.log("Auth still loading and content is private, delaying access check");
+        authRetryAttemptsRef.current += 1;
+        if (authRetryAttemptsRef.current < maxAuthRetryAttempts) {
+          setTimeout(fetchGame, 500);
+          return;
+        }
+      }
+      
+      if (!isPublic && !isUnlisted && !isOwner) {
+        console.log("Access denied: Game is private and user is not the owner");
+        setAccessDenied(true);
+        setIsLoading(false);
+        addSystemMessage(
+          "Access denied", 
+          "❌ This content is private and can only be viewed by its creator."
+        );
+        return;
+      } else {
+        // Reset access denied if it was previously set
+        setAccessDenied(false);
+      }
+
       console.log("Game data fetched successfully:", gameData.id, "Visibility:", gameData.visibility);
       fetchAttemptsRef.current = 0;
+      authRetryAttemptsRef.current = 0;
       setGame(gameData);
 
       console.log("Fetching versions for game:", gameId);
@@ -176,6 +256,7 @@ export function usePlayGameData(gameId: string | undefined) {
     fetchGame,
     setGame,
     isLoading,
+    accessDenied,
     modelType: game?.model_type as ModelType || "smart"
   };
 }
