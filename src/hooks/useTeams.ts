@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Team } from "@/types/team";
@@ -71,12 +72,23 @@ export function useTeams() {
 
   const createTeam = async (name: string, description?: string) => {
     try {
-      // Validate inputs and user auth
-      if (!user || !user.id) {
+      // Enhanced validation and debugging
+      if (!user) {
+        console.error("Create team attempt without user object:", user);
         const errorMsg = "You must be logged in to create a team";
-        console.error(errorMsg);
         toast({
           title: "Authentication required",
+          description: errorMsg,
+          variant: "destructive",
+        });
+        return null;
+      }
+      
+      if (!user.id) {
+        console.error("Create team attempt with invalid user.id:", user);
+        const errorMsg = "Invalid user session. Please re-login";
+        toast({
+          title: "Authentication error",
           description: errorMsg,
           variant: "destructive",
         });
@@ -97,9 +109,24 @@ export function useTeams() {
       // Start creating team
       setIsCreating(true);
       setError(null);
-      console.log(`Creating team "${name}" for user ${user.id}`);
       
-      // Simple, direct team creation
+      // Enhanced logging
+      console.log("==========================================");
+      console.log("TEAM CREATION ATTEMPT");
+      console.log("User ID:", user.id);
+      console.log("Team name:", name);
+      console.log("Auth status:", !!user);
+      console.log("==========================================");
+      
+      // Verify current session before proceeding
+      const { data: sessionData } = await supabase.auth.getSession();
+      console.log("Current session:", sessionData?.session ? "Active" : "None");
+      
+      if (!sessionData?.session) {
+        throw new Error("No active session found. Please re-login");
+      }
+      
+      // Try creating the team with explicit auth context
       const { data: newTeam, error: createError } = await supabase
         .from('teams')
         .insert({
@@ -112,6 +139,7 @@ export function useTeams() {
       
       if (createError) {
         console.error("Team creation error:", createError);
+        console.error("Error details:", createError.code, createError.details, createError.hint);
         throw new Error(`Failed to create team: ${createError.message}`);
       }
       
