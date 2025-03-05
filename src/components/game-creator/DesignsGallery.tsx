@@ -40,52 +40,53 @@ export function DesignsGallery({ games, gamesLoading, deleteGame }: DesignsGalle
         <Tabs 
           value={activeTab} 
           onValueChange={setActiveTab}
-          className="w-full md:w-48 flex-shrink-0"
-          orientation="vertical"
+          className="flex flex-col w-full"
         >
-          <TabsList className="bg-gray-100 w-full h-auto flex md:flex-col">
-            <TabsTrigger 
-              value="community" 
-              className="flex-1 md:w-full data-[state=active]:bg-white"
-            >
-              Community Designs
-            </TabsTrigger>
-            {user && (
+          <div className="flex flex-col md:flex-row gap-6">
+            <TabsList className="bg-gray-100 w-full md:w-48 h-auto flex md:flex-col flex-shrink-0">
               <TabsTrigger 
-                value="my" 
+                value="community" 
                 className="flex-1 md:w-full data-[state=active]:bg-white"
               >
-                My Designs
+                Community Designs
               </TabsTrigger>
-            )}
-          </TabsList>
+              {user && (
+                <TabsTrigger 
+                  value="my" 
+                  className="flex-1 md:w-full data-[state=active]:bg-white"
+                >
+                  My Designs
+                </TabsTrigger>
+              )}
+            </TabsList>
+            
+            <div className="flex-1">
+              <TabsContent value="community" className="m-0">
+                <GamesList
+                  games={games}
+                  isLoading={gamesLoading}
+                  onGameClick={(id) => navigate(`/play/${id}`)}
+                  onGameDelete={deleteGame}
+                  filter="public"
+                  itemsPerPage={9}
+                />
+              </TabsContent>
+              
+              {user && (
+                <TabsContent value="my" className="m-0">
+                  <GamesList
+                    games={games}
+                    isLoading={gamesLoading}
+                    onGameClick={(id) => navigate(`/play/${id}`)}
+                    onGameDelete={deleteGame}
+                    filter="my"
+                    itemsPerPage={9}
+                  />
+                </TabsContent>
+              )}
+            </div>
+          </div>
         </Tabs>
-        
-        <div className="flex-1">
-          <TabsContent value="community" className="m-0">
-            <GamesList
-              games={games}
-              isLoading={gamesLoading}
-              onGameClick={(id) => navigate(`/play/${id}`)}
-              onGameDelete={deleteGame}
-              filter="public"
-              itemsPerPage={9}
-            />
-          </TabsContent>
-          
-          {user && (
-            <TabsContent value="my" className="m-0">
-              <GamesList
-                games={games}
-                isLoading={gamesLoading}
-                onGameClick={(id) => navigate(`/play/${id}`)}
-                onGameDelete={deleteGame}
-                filter="my"
-                itemsPerPage={9}
-              />
-            </TabsContent>
-          )}
-        </div>
       </div>
     </div>
   );
