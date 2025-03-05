@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
@@ -21,8 +20,9 @@ import { useAuth } from "@/context/AuthContext";
 import { Header } from "@/components/game-creator/Header";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
-import { AlertCircle, RefreshCw } from "lucide-react";
+import { AlertCircle, RefreshCw, LogIn } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { supabase } from "@/integrations/supabase/client";
 
 export default function TeamsPage() {
   const navigate = useNavigate();
@@ -34,7 +34,6 @@ export default function TeamsPage() {
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
   
-  // Redirect to login if not authenticated after auth loading completes
   useEffect(() => {
     if (!user && !authLoading) {
       console.log("TeamsPage - User not authenticated, redirecting to auth");
@@ -47,7 +46,6 @@ export default function TeamsPage() {
     }
   }, [user, authLoading, navigate, toast]);
   
-  // Debug logging
   useEffect(() => {
     console.log("TeamsPage - Auth state:", user ? "Logged in" : "Not logged in");
     console.log("TeamsPage - Auth loading:", authLoading);
@@ -57,7 +55,6 @@ export default function TeamsPage() {
     console.log("TeamsPage - Teams error:", error);
     console.log("TeamsPage - Teams creation state:", isCreating);
     
-    // Check if user is authenticated but we have no teams
     if (user && !authLoading && teams.length === 0 && !loading && !isCreating) {
       console.log("TeamsPage - User is logged in but no teams found");
     }
@@ -95,13 +92,10 @@ export default function TeamsPage() {
           description: `Your team "${teamName}" has been created successfully.`
         });
         
-        // Reset form
         setTeamName('');
         setTeamDescription('');
-        // Close dialog
         setIsDialogOpen(false);
       } else {
-        // If team is null, there was an error (which should already be displayed via toast)
         console.log("Team creation failed, keeping dialog open");
       }
     } catch (error) {
@@ -129,7 +123,6 @@ export default function TeamsPage() {
     }
   };
   
-  // Determine the actual content state
   const isInitialLoading = authLoading || loading;
   const hasNoTeams = !isInitialLoading && teams.length === 0;
   const hasTeams = !isInitialLoading && teams.length > 0;
@@ -154,7 +147,6 @@ export default function TeamsPage() {
         </Button>
         
         <Dialog open={isDialogOpen} onOpenChange={(open) => {
-          // Only allow closing if we're not in the middle of creating a team
           if (!isSubmitting && !isCreating) {
             setIsDialogOpen(open);
           }
@@ -219,7 +211,6 @@ export default function TeamsPage() {
       
       <Separator className="mb-8" />
       
-      {/* Auth status debugging */}
       {import.meta.env.DEV && (
         <div className="mb-4 p-4 bg-gray-100 rounded text-xs">
           <details>
@@ -236,7 +227,6 @@ export default function TeamsPage() {
         </div>
       )}
       
-      {/* Error display */}
       {hasError && (
         <Alert variant="destructive" className="mb-6">
           <AlertCircle className="h-4 w-4" />
@@ -252,7 +242,6 @@ export default function TeamsPage() {
         </Alert>
       )}
       
-      {/* Loading state */}
       {isInitialLoading && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {[1, 2, 3].map((i) => (
@@ -269,7 +258,6 @@ export default function TeamsPage() {
         </div>
       )}
       
-      {/* Creating state */}
       {isCreating && !isInitialLoading && (
         <Alert className="mb-6">
           <RefreshCw className="h-4 w-4 animate-spin" />
@@ -280,7 +268,6 @@ export default function TeamsPage() {
         </Alert>
       )}
       
-      {/* Empty state */}
       {hasNoTeams && !hasError && !isCreating && (
         <div className="text-center py-8 border rounded-lg bg-gray-50">
           <p className="text-gray-500 mb-4">
@@ -294,7 +281,6 @@ export default function TeamsPage() {
         </div>
       )}
       
-      {/* Teams display */}
       {hasTeams && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {teams.map(team => (

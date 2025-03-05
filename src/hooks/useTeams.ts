@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Team } from "@/types/team";
@@ -70,25 +71,51 @@ export function useTeams() {
   const createTeam = async (name: string, description?: string) => {
     try {
       if (!user || !user.id) {
+        console.error("Create team failed: No authenticated user");
         throw new Error("You must be logged in to create a team");
+      }
+
+      if (!name.trim()) {
+        console.error("Create team failed: Empty team name");
+        throw new Error("Team name cannot be empty");
       }
 
       setIsCreating(true);
       setError(null);
       console.log("Creating team with name:", name, "by user:", user.id);
       
+      // Debug - Check if user is authenticated with Supabase
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError) {
+        console.error("Authentication verification failed:", authError);
+        throw new Error(`Authentication error: ${authError.message}`);
+      }
+      console.log("Auth check successful, user:", authData?.user?.id);
+      
+      // Create team directly - no need for transaction as we have a trigger
       const { data: newTeam, error: teamError } = await supabase
         .from('teams')
         .insert([{ 
-            name, 
-            description, 
+            name: name.trim(), 
+            description: description ? description.trim() : null, 
             created_by: user.id 
         }])
         .select()
         .single();
-        
+      
       if (teamError) {
         console.error("Error creating team:", teamError);
+        // Enhanced debugging for RLS issues
+        if (teamError.message.includes("row-level security")) {
+          console.error("RLS Policy Error Details:", {
+            userId: user.id,
+            message: teamError.message,
+            code: teamError.code,
+            details: teamError.details,
+            hint: teamError.hint
+          });
+          throw new Error(`Row-level security policy prevented team creation. Please ensure you're properly logged in. Error: ${teamError.message}`);
+        }
         throw new Error(`Failed to create team: ${teamError.message}`);
       }
       
@@ -99,32 +126,41 @@ export function useTeams() {
       
       console.log("Team created successfully:", newTeam);
       
-      const { error: memberError } = await supabase
+      // The trigger should handle adding the creator as a member
+      // But let's verify that it worked properly
+      const { data: teamMember, error: memberCheckError } = await supabase
         .from('team_members')
-        .insert([{
-          team_id: newTeam.id,
-          user_id: user.id,
-          role: 'admin'
-        }]);
+        .select('*')
+        .eq('team_id', newTeam.id)
+        .eq('user_id', user.id)
+        .single();
         
-      if (memberError) {
-        console.error("Error adding creator as team member:", memberError);
+      if (memberCheckError || !teamMember) {
+        console.error("Team created but member creation may have failed:", memberCheckError);
+        console.log("Attempting manual member creation as fallback");
         
-        console.log("Attempting to delete team due to membership error");
-        const { error: deleteError } = await supabase
-          .from('teams')
-          .delete()
-          .eq('id', newTeam.id);
+        // Attempt manual member creation as fallback
+        const { error: manualMemberError } = await supabase
+          .from('team_members')
+          .insert([{
+            team_id: newTeam.id,
+            user_id: user.id,
+            role: 'admin'
+          }]);
           
-        if (deleteError) {
-          console.error("Error cleaning up team after membership error:", deleteError);
+        if (manualMemberError) {
+          console.error("Error adding creator as team member (manual fallback):", manualMemberError);
+          
+          // Don't delete the team, just log the error and continue
+          console.warn("Team created but user may not be added as member properly");
+        } else {
+          console.log("Creator added as team member manually (fallback successful)");
         }
-        
-        throw new Error(`Failed to add you as team admin: ${memberError.message}`);
+      } else {
+        console.log("Creator was automatically added as team member via trigger");
       }
       
-      console.log("Creator added as team member with admin role");
-      
+      // Verify the team exists in database
       const { data: verifyTeam, error: verifyError } = await supabase
         .from('teams')
         .select('*')
@@ -138,6 +174,7 @@ export function useTeams() {
       
       console.log("Team creation verified:", verifyTeam);
       
+      // Add to local state immediately for UI responsiveness
       setTeams(prev => [...prev, newTeam]);
       
       toast({
@@ -157,6 +194,7 @@ export function useTeams() {
       return null;
     } finally {
       setIsCreating(false);
+      // Refresh teams to ensure we have the latest data
       await fetchTeams();
     }
   };
