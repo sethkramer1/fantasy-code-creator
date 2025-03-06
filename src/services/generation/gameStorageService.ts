@@ -11,6 +11,7 @@ interface SaveGameOptions {
   instructions?: string;
   visibility?: string;
   gameName?: string;
+  userId?: string;
 }
 
 export const saveGeneratedGame = async ({
@@ -22,7 +23,8 @@ export const saveGeneratedGame = async ({
   existingGameId,
   instructions,
   visibility = "public",
-  gameName
+  gameName,
+  userId
 }: SaveGameOptions): Promise<GameData | null> => {
   try {
     let gameId = existingGameId;
@@ -42,7 +44,8 @@ export const saveGeneratedGame = async ({
         current_version: 1,
         model_type: modelType,
         visibility: visibility,
-        name: gameName || prompt.substring(0, 50)
+        name: gameName || prompt.substring(0, 50),
+        user_id: userId // Set the user_id for ownership
       };
       
       console.log("[GAME_STORAGE] Insert data:", JSON.stringify({

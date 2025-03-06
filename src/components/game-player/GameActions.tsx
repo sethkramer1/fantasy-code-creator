@@ -1,9 +1,9 @@
-
-import { Download, Upload } from "lucide-react";
+import { Download, Upload, GitFork } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import JSZip from 'jszip';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { useAuth } from "@/context/AuthContext";
 
 interface GameVersion {
   id: string;
@@ -24,6 +24,8 @@ interface GameActionsProps {
   onShare?: () => void;
   showCodeEditor?: boolean;
   onShowCodeEditorChange?: (show: boolean) => void;
+  gameUserId?: string | null;
+  isForkingInProgress?: boolean;
 }
 
 export function GameActions({
@@ -36,11 +38,15 @@ export function GameActions({
   onFork,
   onShare,
   showCodeEditor,
-  onShowCodeEditorChange
+  onShowCodeEditorChange,
+  gameUserId,
+  isForkingInProgress = false
 }: GameActionsProps) {
-  const {
-    toast
-  } = useToast();
+  const { toast } = useToast();
+  const { user } = useAuth();
+  
+  // Check if current user is the owner of the game
+  const isOwner = user?.id && gameUserId === user?.id;
   
   const handleDownload = async () => {
     if (!currentVersion) return;
@@ -99,6 +105,27 @@ export function GameActions({
   }
   
   return <div className="flex items-center gap-2">
+      {onFork && user && (
+        <Button 
+          variant="secondary" 
+          size="sm" 
+          className="h-8 gap-1 text-sm bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 hover:border-blue-300" 
+          onClick={onFork}
+          disabled={isForkingInProgress}
+        >
+          {isForkingInProgress ? (
+            <>
+              <span className="animate-spin h-4 w-4 border-2 border-blue-700 border-t-transparent rounded-full mr-1"></span>
+              Forking...
+            </>
+          ) : (
+            <>
+              <GitFork size={14} />
+              Fork
+            </>
+          )}
+        </Button>
+      )}
       <Dialog>
         <DialogTrigger asChild>
           <Button variant="default" size="sm" className="h-8 gap-1 text-sm bg-green-500 hover:bg-green-600">

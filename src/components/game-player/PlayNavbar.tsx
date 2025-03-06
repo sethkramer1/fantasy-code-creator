@@ -2,7 +2,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { GameActions } from "./GameActions";
 import { useAuth } from "@/context/AuthContext";
-import { Download, UserCircle, ArrowLeft, Globe, Lock, Link2, Pencil, Check, X } from "lucide-react";
+import { Download, UserCircle, ArrowLeft, Globe, Lock, Link2, Pencil, Check, X, GitFork } from "lucide-react";
 import { ShareButton } from "./ShareButton";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -30,6 +30,7 @@ interface PlayNavbarProps {
   onDownload?: () => void;
   onFork?: () => void;
   onShare?: () => void;
+  isForkingInProgress?: boolean;
   showCodeEditor: boolean;
   onShowCodeEditorChange: (show: boolean) => void;
 }
@@ -45,6 +46,7 @@ export function PlayNavbar({
   onDownload,
   onFork,
   onShare,
+  isForkingInProgress = false,
   showCodeEditor,
   onShowCodeEditorChange,
 }: PlayNavbarProps) {
@@ -218,6 +220,29 @@ export function PlayNavbar({
               />
             )}
             
+            {/* Fork button for all logged-in users */}
+            {user && onFork && (
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                className="h-8 gap-1 text-sm bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 hover:border-blue-300" 
+                onClick={onFork}
+                disabled={isForkingInProgress}
+              >
+                {isForkingInProgress ? (
+                  <>
+                    <span className="animate-spin h-4 w-4 border-2 border-blue-700 border-t-transparent rounded-full mr-1"></span>
+                    Forking...
+                  </>
+                ) : (
+                  <>
+                    <GitFork size={14} />
+                    Fork
+                  </>
+                )}
+              </Button>
+            )}
+            
             <Button 
               variant="outline" 
               size="sm" 
@@ -239,6 +264,8 @@ export function PlayNavbar({
               onShare={onShare}
               showCodeEditor={showCodeEditor}
               onShowCodeEditorChange={onShowCodeEditorChange}
+              gameUserId={gameUserId}
+              isForkingInProgress={isForkingInProgress}
             />
             
             {user ? (

@@ -16,6 +16,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { generateGameName } from "@/services/generation/anthropicService";
 import JSZip from 'jszip';
 import { Button } from "@/components/ui/button";
+import { saveGeneratedGame } from "@/services/generation/gameStorageService";
+import { GameData } from "@/types/game";
 
 const Play = () => {
   const { id: gameId } = useParams();
@@ -512,6 +514,170 @@ const Play = () => {
     }
   };
 
+  const [isForkingInProgress, setIsForkingInProgress] = useState(false);
+  
+  const handleFork = async () => {
+    if (!game) {
+      return;
+    }
+    
+    // If user is not logged in, redirect to auth page
+    if (!user) {
+      toast({
+        title: "Login Required",
+        description: "You need to be logged in to fork this design.",
+        variant: "destructive"
+      });
+      navigate("/auth");
+      return;
+    }
+
+    // Declare forkedGame outside the try block so it's accessible in the finally block
+    let forkedGame: GameData | null = null;
+    
+    try {
+      // Set forking in progress
+      setIsForkingInProgress(true);
+      
+      // Get the currently displayed version
+      const currentDisplayedVersion = displayedVersion();
+      
+      // If no valid version is available, show an error
+      if (!currentDisplayedVersion || !currentDisplayedVersion.code) {
+        throw new Error("No valid code found to fork");
+      }
+      
+      // Determine if this is a self-fork (user forking their own game)
+      const isSelfFork = user.id === game.user_id;
+      const namePrefix = isSelfFork ? "Copy of " : "Fork of ";
+      
+      // Create a new game with the code from the current displayed version
+      forkedGame = await saveGeneratedGame({
+        gameContent: currentDisplayedVersion.code,
+        prompt: game.prompt,
+        gameType: initialType,
+        modelType: game.model_type || initialModelType,
+        instructions: `Forked from game ID: ${gameId} (version ${currentDisplayedVersion.version_number})`,
+        visibility: "public",
+        gameName: `${namePrefix}${game.name || "Untitled Design"}`,
+        userId: user.id
+      });
+
+      if (forkedGame) {
+        // Verify ownership
+        if (forkedGame.user_id !== user.id) {
+          console.warn("Ownership verification failed - user_id mismatch", {
+            expected: user.id,
+            actual: forkedGame.user_id
+          });
+          
+          // Try to update the ownership
+          try {
+            const { error } = await supabase
+              .from('games')
+              .update({ user_id: user.id })
+              .eq('id', forkedGame.id);
+              
+            if (error) {
+              console.error("Failed to update game ownership:", error);
+            } else {
+              console.log("Successfully updated game ownership");
+            }
+          } catch (ownershipError) {
+            console.error("Error updating ownership:", ownershipError);
+          }
+        } else {
+          console.log("Ownership verification successful");
+        }
+        
+        // Update local storage to track ownership
+        try {
+          const ownedGames = JSON.parse(localStorage.getItem('ownedGames') || '{}');
+          ownedGames[forkedGame.id] = true;
+          localStorage.setItem('ownedGames', JSON.stringify(ownedGames));
+          console.log("Updated local storage with new game ownership");
+        } catch (storageError) {
+          console.error("Error updating local storage:", storageError);
+        }
+        
+        toast({
+          title: "Design Forked Successfully",
+          description: "You now have your own copy of this design that you can modify."
+        });
+        
+        // Create a clickable element for manual navigation
+        const manualNavigationLink = document.createElement('a');
+        manualNavigationLink.href = `/play/${forkedGame.id}`;
+        manualNavigationLink.textContent = 'Click here to view your forked design';
+        manualNavigationLink.className = 'underline text-blue-600 cursor-pointer fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white px-4 py-2 rounded-md shadow-md z-50';
+        manualNavigationLink.onclick = (e) => {
+          e.preventDefault();
+          navigate(`/play/${forkedGame.id}`);
+        };
+        
+        // Add the link to the DOM temporarily
+        document.body.appendChild(manualNavigationLink);
+        
+        // Show a second toast with manual navigation instructions
+        toast({
+          title: "Manual Navigation",
+          description: "If not redirected automatically, use the link at the bottom of the page."
+        });
+        
+        // Clean up the manual navigation link after 10 seconds
+        setTimeout(() => {
+          if (document.body.contains(manualNavigationLink)) {
+            document.body.removeChild(manualNavigationLink);
+          }
+        }, 10000);
+        
+        // Log navigation attempt
+        console.log(`Navigating to forked game: /play/${forkedGame.id}`);
+        
+        // Ensure we have a valid ID before navigating
+        if (!forkedGame.id) {
+          console.error("Invalid forked game ID, cannot navigate");
+          throw new Error("Invalid forked game ID");
+        }
+        
+        // Use setTimeout to ensure navigation happens after the current execution context
+        setTimeout(() => {
+          // Navigate to the new game
+          navigate(`/play/${forkedGame.id}`);
+          console.log(`Navigation to /play/${forkedGame.id} completed`);
+        }, 100);
+        
+        // Add a fallback navigation after a longer delay
+        setTimeout(() => {
+          // Check if we're still on the same page
+          if (window.location.pathname.includes(`/play/${gameId}`)) {
+            console.log("Fallback navigation triggered - still on original page");
+            // Try direct window location change as a fallback
+            window.location.href = `/play/${forkedGame.id}`;
+          }
+        }, 1000);
+      } else {
+        throw new Error("Failed to create forked game");
+      }
+    } catch (error) {
+      console.error("Error forking game:", error);
+      toast({
+        title: "Error Forking Design",
+        description: error instanceof Error ? error.message : "An unknown error occurred",
+        variant: "destructive"
+      });
+      
+      // Reset forking state immediately on error
+      setIsForkingInProgress(false);
+    } finally {
+      // For successful forks, the forking state will be reset after navigation
+      // We don't reset it here to avoid UI flicker during navigation
+      if (!forkedGame) {
+        setIsForkingInProgress(false);
+      }
+    }
+  };
+
   if (!gameId) {
     console.error("No game ID provided in URL params");
     return (
@@ -575,6 +741,8 @@ const Play = () => {
         onVisibilityChange={handleVisibilityChange}
         onNameChange={handleNameChange}
         onDownload={handleDownload}
+        onFork={handleFork}
+        isForkingInProgress={isForkingInProgress}
         showCodeEditor={showCode}
         onShowCodeEditorChange={setShowCode}
       />
