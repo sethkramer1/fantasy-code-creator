@@ -21,6 +21,7 @@ export const GameChat = ({
   const [previousDisabledState, setPreviousDisabledState] = useState<boolean>(disabled);
   const [generationComplete, setGenerationComplete] = useState<boolean>(false);
   const generationHandledRef = useRef<boolean>(false);
+  const initialMessageCompletedRef = useRef<boolean>(false);
   
   const {
     message,
@@ -78,31 +79,44 @@ export const GameChat = ({
         console.log("Adding confirmation message after generation");
         
         try {
-          // Update the initial generation message to show completion
-          const { data: updatedMessage, error: updateError } = await supabase
+          // Use transaction to ensure atomicity
+          const initialGenerationMessageUpdated = await supabase.rpc('update_initial_generation_message', {
+            game_id_param: gameId
+          });
+
+          console.log("Initial generation message update result:", initialGenerationMessageUpdated);
+          
+          // Check if we've already added a completion message to avoid duplicates
+          const { data: existingMessages, error: checkError } = await supabase
             .from('game_messages')
-            .update({ response: "Generation complete" })
+            .select('id, response')
             .eq('game_id', gameId)
-            .eq('response', "Initial generation in progress...")
-            .select('*')
-            .single();
+            .eq('is_system', true)
+            .eq('message', 'Initial generation complete')
+            .limit(1);
             
-          if (updateError) {
-            console.error("Error updating initial generation message:", updateError);
-          } else if (updatedMessage) {
+          if (checkError) {
+            console.error("Error checking for existing completion message:", checkError);
+          } else if (existingMessages && existingMessages.length > 0) {
+            console.log("Completion message already exists, skipping:", existingMessages[0]);
             // Update the message in the local state
             setMessages(prevMessages => 
               prevMessages.map(msg => 
-                msg.response === "Initial generation in progress..." ? { ...msg, response: "Generation complete" } : msg
+                msg.id === existingMessages[0].id ? { ...msg, response: existingMessages[0].response } : msg
               )
             );
+            initialMessageCompletedRef.current = true;
+            return;
           }
           
-          // Explicitly create a completion system message
-          await addSystemMessage(
-            "Initial generation complete",
-            "✅ Content generated successfully! You can now ask me to modify the content or add new features."
-          );
+          // Only create the completion message if it doesn't exist yet
+          if (!initialMessageCompletedRef.current) {
+            await addSystemMessage(
+              "Initial generation complete",
+              "✅ Content generated successfully! You can now ask me to modify the content or add new features."
+            );
+            initialMessageCompletedRef.current = true;
+          }
           
           // Reset the flag
           setGenerationComplete(false);
@@ -123,6 +137,7 @@ export const GameChat = ({
     return () => {
       if (gameId !== undefined) {
         generationHandledRef.current = false;
+        initialMessageCompletedRef.current = false;
       }
     };
   }, [generationComplete, gameId, addSystemMessage, fetchMessages, setMessages]);
@@ -134,6 +149,22 @@ export const GameChat = ({
       if (!disabled && !loadingHistory && messages.length === 0 && gameId) {
         console.log("No messages found after load, adding welcome message");
         try {
+          // Check if we've already added a welcome message to avoid duplicates
+          const { data: existingMessages, error: checkError } = await supabase
+            .from('game_messages')
+            .select('id')
+            .eq('game_id', gameId)
+            .eq('is_system', true)
+            .eq('message', 'Welcome')
+            .limit(1);
+            
+          if (checkError) {
+            console.error("Error checking for existing welcome message:", checkError);
+          } else if (existingMessages && existingMessages.length > 0) {
+            console.log("Welcome message already exists, skipping");
+            return;
+          }
+          
           await addSystemMessage(
             "Welcome",
             "✅ Your content is ready! You can now ask me to modify it or add new features."

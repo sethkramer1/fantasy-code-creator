@@ -49,6 +49,7 @@ export function usePlayTerminal(
   const tokenTrackingAttemptsRef = useRef(0);
   const maxTokenTrackingAttempts = 3;
   const forceTokenTrackingExecutedRef = useRef(false);
+  const versionCreationInProgressRef = useRef(false);
 
   const setShowTerminal = (show: boolean) => {
     setState(prev => ({ ...prev, showTerminal: show }));
@@ -578,34 +579,65 @@ export function usePlayTerminal(
         gameName = initialPrompt.split(' ').slice(0, 3).join(' ') + '...';
       }
       
-      const { error: gameUpdateError } = await supabase
-        .from('games')
-        .update({
-          code: content,
-          instructions: "Initial content generated successfully",
-          model_type: modelTypeForSave,
-          prompt: initialPrompt,
-          name: gameName || initialPrompt.substring(0, 50)
-        })
-        .eq('id', gameId);
-        
-      if (gameUpdateError) {
-        console.error("Error updating game:", gameUpdateError);
-        throw new Error(`Database error: ${gameUpdateError.message}`);
-      }
-      
-      const { error: versionUpdateError } = await supabase
-        .from('game_versions')
-        .update({
-          code: content,
-          instructions: "Initial content generated successfully"
-        })
-        .eq('game_id', gameId)
-        .eq('version_number', 1);
-        
-      if (versionUpdateError) {
-        console.error("Error updating game version:", versionUpdateError);
-        throw new Error(`Database error: ${versionUpdateError.message}`);
+      // Set the flag to prevent race conditions in version creation
+      versionCreationInProgressRef.current = true;
+
+      try {
+        // First, check if there's any existing version higher than 1
+        const { data: existingVersions, error: versionCheckError } = await supabase
+          .from('game_versions')
+          .select('version_number')
+          .eq('game_id', gameId)
+          .order('version_number', { ascending: false })
+          .limit(1);
+
+        if (versionCheckError) {
+          console.error("Error checking existing versions:", versionCheckError);
+          // Continue anyway, just log the error
+        }
+
+        const hasExistingVersions = existingVersions && existingVersions.length > 0 && existingVersions[0].version_number > 1;
+
+        // If there are already versions beyond the initial one, don't create another one
+        if (!hasExistingVersions) {
+          console.log("Updating initial version with generated content");
+
+          const { error: gameUpdateError } = await supabase
+            .from('games')
+            .update({
+              code: content,
+              instructions: "Initial content generated successfully",
+              model_type: modelTypeForSave,
+              prompt: initialPrompt,
+              name: gameName || initialPrompt.substring(0, 50)
+            })
+            .eq('id', gameId);
+            
+          if (gameUpdateError) {
+            console.error("Error updating game:", gameUpdateError);
+            throw new Error(`Database error: ${gameUpdateError.message}`);
+          }
+          
+          // Only update version 1, don't create a new one
+          const { error: versionUpdateError } = await supabase
+            .from('game_versions')
+            .update({
+              code: content,
+              instructions: "Initial content generated successfully"
+            })
+            .eq('game_id', gameId)
+            .eq('version_number', 1);
+            
+          if (versionUpdateError) {
+            console.error("Error updating game version:", versionUpdateError);
+            throw new Error(`Database error: ${versionUpdateError.message}`);
+          }
+        } else {
+          console.log("Skipping version update as non-initial versions already exist");
+        }
+      } finally {
+        // Reset the flag
+        versionCreationInProgressRef.current = false;
       }
       
       try {
@@ -719,25 +751,29 @@ export function usePlayTerminal(
           generationComplete: true
         }));
         
+        // Keep terminal visible a bit longer so users can see the completion
         setTimeout(() => {
           setState(prev => ({ ...prev, showTerminal: false }));
           
-          Promise.resolve(
-            supabase
-              .from('game_messages')
-              .insert({
-                game_id: gameId,
-                message: "Generation Complete",
-                response: "✅ Content has been generated successfully. You can now ask me to modify it!",
-                is_system: true
+          // Only send this message if we're not already in the process of version creation
+          if (!versionCreationInProgressRef.current) {
+            Promise.resolve(
+              supabase
+                .from('game_messages')
+                .insert({
+                  game_id: gameId,
+                  message: "Generation Complete",
+                  response: "✅ Content has been generated successfully. You can now ask me to modify it!",
+                  is_system: true
+                })
+            )
+              .then(() => {
+                console.log("Added system message about successful generation (terminal effect)");
               })
-          )
-            .then(() => {
-              console.log("Added system message about successful generation (terminal effect)");
-            })
-            .catch(error => {
-              console.error("Error adding system message:", error);
-            });
+              .catch(error => {
+                console.error("Error adding system message:", error);
+              });
+          }
         }, 3000);
         
       } catch (error) {
@@ -830,4 +866,3 @@ function removeTokenInfo(content: string): string {
   
   return content.trim();
 }
-
