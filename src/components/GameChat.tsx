@@ -79,9 +79,12 @@ export const GameChat = ({
         console.log("Adding confirmation message after generation");
         
         try {
-          // Correct way to call an RPC function
+          // Correct way to call an RPC function - using explicit type assertion to avoid deep type instantiation
           const { data: updateResult, error: rpcError } = await supabase
-            .rpc('update_initial_generation_message', { game_id_param: gameId });
+            .rpc('update_initial_generation_message', { game_id_param: gameId }) as {
+              data: any;
+              error: any;
+            };
             
           if (rpcError) {
             console.error("Error calling update_initial_generation_message:", rpcError);
