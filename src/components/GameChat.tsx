@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import { MessageList } from "./game-chat/MessageList";
 import { ChatInput } from "./game-chat/ChatInput";
@@ -42,7 +43,7 @@ export const GameChat = ({
     onGameUpdate,
     onTerminalStatusChange,
     initialMessage,
-    modelType // Pass the modelType prop to useChatMessages
+    modelType
   });
 
   // Scroll to bottom when messages change
@@ -105,6 +106,9 @@ export const GameChat = ({
           
           // Reset the flag
           setGenerationComplete(false);
+          
+          // Force a message fetch to ensure we have the latest messages
+          await fetchMessages();
         } catch (error) {
           console.error("Error adding confirmation message:", error);
           // Reset the ref so we can try again

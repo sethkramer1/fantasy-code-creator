@@ -250,7 +250,8 @@ export function usePlayTerminal(
       
       return {
         ...prev,
-        terminalOutput: updatedOutput
+        terminalOutput: updatedOutput,
+        showTerminal: true
       };
     });
   };
@@ -293,6 +294,11 @@ export function usePlayTerminal(
         throw new Error("Invalid prompt: The prompt is empty or still showing 'Loading...'");
       }
       
+      setState(prev => ({ ...prev, showTerminal: true }));
+      
+      updateTerminalOutputWrapper("> Connecting to AI service...", true);
+      updateTerminalOutputWrapper(`> Using prompt: "${initialPrompt}"`, true);
+      
       const payload = {
         gameId,
         prompt: initialPrompt,
@@ -307,8 +313,6 @@ export function usePlayTerminal(
         } : undefined
       };
       
-      const apiUrl = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/generate-game';
-      
       console.log("Calling generate-game function with payload:", {
         gameIdLength: gameId?.length,
         promptLength: initialPrompt.length,
@@ -319,18 +323,34 @@ export function usePlayTerminal(
         hasUserId: !!user?.id
       });
       
-      updateTerminalOutputWrapper("> Connecting to AI service...", true);
-      updateTerminalOutputWrapper(`> Using prompt: "${initialPrompt}"`, true);
+      updateTerminalOutputWrapper("> Preparing to send request to AI service...", true);
       
       gameContentRef.current = '';
+      
+      const apiUrl = 'https://nvutcgbgthjeetclfibd.supabase.co/functions/v1/process-game-update';
+      
+      const { data: { session } } = await supabase.auth.getSession();
+      const accessToken = session?.access_token || '';
       
       const response = await fetch(apiUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im52dXRjZ2JndGhqZWV0Y2xmaWJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDA1ODAxMDQsImV4cCI6MjA1NjE1NjEwNH0.GO7jtRYY-PMzowCkFCc7wg9Z6UhrNUmJnV0t32RtqRo`
+          'Authorization': `Bearer ${accessToken}`
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          gameId,
+          message: initialPrompt,
+          gameType,
+          modelType: modelType,
+          imageUrl: imageUrl || undefined,
+          stream: true,
+          userId: user?.id,
+          thinking: {
+            type: "enabled",
+            budget_tokens: 3500
+          }
+        }),
         signal: AbortSignal.timeout(180000)
       });
       
@@ -649,7 +669,7 @@ export function usePlayTerminal(
         }, 2000);
       }
       
-      updateTerminalOutputWrapper("> Initial generation complete", true);
+      updateTerminalOutputWrapper("> Generation complete! Updating display...", true);
       
       console.log("Generation completed successfully");
       
@@ -718,7 +738,7 @@ export function usePlayTerminal(
             .catch(error => {
               console.error("Error adding system message:", error);
             });
-        }, 1500);
+        }, 3000);
         
       } catch (error) {
         console.error("Error in generateInitialContent:", error);
@@ -810,3 +830,4 @@ function removeTokenInfo(content: string): string {
   
   return content.trim();
 }
+

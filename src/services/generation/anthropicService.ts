@@ -16,6 +16,23 @@ export const callAnthropicApi = async (
   const userId = (await user).data.user?.id;
 
   try {
+    // Fetch any existing game content if we're updating rather than generating from scratch
+    let existingCode = '';
+    if (prompt.includes('modify') || prompt.includes('update') || prompt.includes('change')) {
+      console.log('Detected a modification request, fetching existing code...');
+      try {
+        // This is just a placeholder - the actual code will be fetched by the edge function
+        // We're just setting a flag here for debugging
+        existingCode = 'MODIFICATION_REQUEST';
+      } catch (codeError) {
+        console.error('Error fetching existing code:', codeError);
+      }
+    }
+
+    console.log('Sending request to generate-game endpoint with prompt length:', prompt.length);
+    console.log('Request includes image:', !!imageUrl);
+    console.log('Request is for modification:', !!existingCode);
+
     const response = await fetch('/api/generate-game', {
       method: 'POST',
       headers: {

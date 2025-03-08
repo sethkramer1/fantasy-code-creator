@@ -247,6 +247,7 @@ serve(async (req) => {
       }
     }
 
+    // Fetch the game data
     const { data: gameData, error: gameError } = await supabase
       .from('games')
       .select('*')
@@ -282,6 +283,17 @@ serve(async (req) => {
       console.error('Error fetching latest game version:', versionError);
     }
 
+    // Log version information for debugging
+    if (latestVersion) {
+      console.log('Found latest version:', {
+        version_number: latestVersion.version_number,
+        has_code: !!latestVersion.code,
+        code_length: latestVersion.code?.length || 0
+      });
+    } else {
+      console.log('No versions found for this game, will use game code directly');
+    }
+
     const { data: messagesData, error: messagesError } = await supabase
       .from('game_messages')
       .select('*')
@@ -296,6 +308,14 @@ serve(async (req) => {
     // Build the system message with the current code
     // Use the latest version's code if available, otherwise fall back to gameData.code
     const currentCode = (latestVersion && latestVersion.code) ? latestVersion.code : (gameData.code || '');
+
+    // Log code information for debugging
+    console.log('Current code available:', !!currentCode);
+    console.log('Current code length:', currentCode.length || 0);
+    
+    if (!currentCode || currentCode.length < 10) {
+      console.warn('WARNING: Current code is very short or empty. This may cause issues with the AI response.');
+    }
 
     const systemMessage = `You are an expert developer specializing in web technologies. You will be modifying the following code base:
 
@@ -425,22 +445,19 @@ Follow these structure requirements precisely and generate clean, semantic, and 
     console.log('Streaming mode:', stream ? 'Enabled' : 'Disabled');
     console.log('Thinking mode:', requestBody.thinking ? `Enabled (budget: ${requestBody.thinking.budget_tokens})` : 'Disabled');
 
-    // Log the complete request body for debugging
+    // Enhanced debug logging
     console.log('=== DEBUG: COMPLETE REQUEST BODY ===');
     console.log('System message length:', systemMessage.length);
-    console.log('System message first 500 chars:', systemMessage.substring(0, 500));
-    console.log('System message last 500 chars:', systemMessage.substring(Math.max(0, systemMessage.length - 500)));
-    console.log('Number of messages:', messages.length);
-    console.log('First message:', JSON.stringify(messages[0]).substring(0, 500));
-    console.log('Last message:', JSON.stringify(messages[messages.length - 1]).substring(0, 500));
-    
-    // If currentCode is available, log its length and samples
-    if (currentCode) {
-      console.log('Current code length:', currentCode.length);
-      console.log('Current code first 500 chars:', currentCode.substring(0, 500));
-      console.log('Current code last 500 chars:', currentCode.substring(Math.max(0, currentCode.length - 500)));
+    if (systemMessage.length > 1000) {
+      console.log('System message first 500 chars:', systemMessage.substring(0, 500));
+      console.log('Current code preview (first 500 chars):', currentCode.substring(0, 500));
+      console.log('Current code preview (last 500 chars):', currentCode.substring(Math.max(0, currentCode.length - 500)));
     } else {
-      console.log('WARNING: Current code is empty or undefined');
+      console.log('WARNING: System message is suspiciously short:', systemMessage);
+    }
+    console.log('Number of messages:', messages.length);
+    if (messages.length > 0) {
+      console.log('Last message content:', messages[messages.length - 1].content);
     }
     console.log('=== END DEBUG ===');
 
