@@ -79,12 +79,18 @@ export const GameChat = ({
         console.log("Adding confirmation message after generation");
         
         try {
-          // Use transaction to ensure atomicity
-          const initialGenerationMessageUpdated = await supabase.rpc('update_initial_generation_message', {
-            game_id_param: gameId
-          });
-
-          console.log("Initial generation message update result:", initialGenerationMessageUpdated);
+          // Use direct query for RPC function instead of .rpc()
+          const { data: initialGenerationMessageUpdated, error: rpcError } = await supabase
+            .from('rpc')
+            .select('*')
+            .eq('name', 'update_initial_generation_message')
+            .eq('args', { game_id_param: gameId });
+            
+          if (rpcError) {
+            console.error("Error calling update_initial_generation_message:", rpcError);
+          } else {
+            console.log("Initial generation message update result:", initialGenerationMessageUpdated);
+          }
           
           // Check if we've already added a completion message to avoid duplicates
           const { data: existingMessages, error: checkError } = await supabase
