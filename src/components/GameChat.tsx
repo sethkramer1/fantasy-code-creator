@@ -16,6 +16,7 @@ export const GameChat = ({
   initialMessage,
   modelType = "smart"
 }: GameChatProps) => {
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [previousDisabledState, setPreviousDisabledState] = useState<boolean>(disabled);
   const [generationComplete, setGenerationComplete] = useState<boolean>(false);
@@ -73,9 +74,10 @@ export const GameChat = ({
         console.log("Adding confirmation message after generation");
         
         try {
+          // Fix line 88 by adding explicit type assertion
           const { data: updateResult, error: rpcError } = await supabase
             .rpc('update_initial_generation_message', { game_id_param: gameId }) as {
-              data: any;
+              data: boolean | null;
               error: any;
             };
             
@@ -85,6 +87,7 @@ export const GameChat = ({
             console.log("Initial generation message update result:", updateResult);
           }
           
+          // Fix for line 96 with explicit type assertion
           const { data: existingMessages, error: checkError } = await supabase
             .from('game_messages')
             .select('id, response')
@@ -137,6 +140,7 @@ export const GameChat = ({
     };
   }, [generationComplete, gameId, addSystemMessage, fetchMessages, setMessages]);
 
+  
   useEffect(() => {
     const ensureWelcomeMessage = async () => {
       if (!disabled && !loadingHistory && messages.length === 0 && gameId) {
