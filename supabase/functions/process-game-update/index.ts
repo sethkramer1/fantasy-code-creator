@@ -580,56 +580,22 @@ Follow these structure requirements precisely and generate clean, semantic, and 
                   await writer.write(new TextEncoder().encode('data: [DONE]\n\n'));
                   await writer.close();
                   
-                  // Update the game version with the collected content
-                  if (fullContent && gameId) {
-                    try {
-                      // Clean the content
-                      fullContent = removeTokenInfo(fullContent);
-                      
-                      // Get the current version number
-                      const { data: currentVersion } = await supabase
-                        .from('game_versions')
-                        .select('version_number')
-                        .eq('game_id', gameId)
-                        .order('version_number', { ascending: false })
-                        .limit(1)
-                        .single();
-                      
-                      const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1;
-                      
-                      // Create a new version with the generated content
-                      const { error: newVersionError } = await supabase
-                        .from('game_versions')
-                        .insert([{
-                          game_id: gameId,
-                          code: fullContent,
-                          version_number: newVersionNumber,
-                          instructions: "Generated with Anthropic model (streaming)"
-                        }]);
-                      
-                      if (newVersionError) {
-                        console.error(`Error creating new version: ${newVersionError.message}`);
-                      } else {
-                        console.log(`Created new game version ${newVersionNumber} for game ${gameId} from stream`);
-                        
-                        // Update the game with the latest version
-                        const { error: updateGameError } = await supabase
-                          .from('games')
-                          .update({
-                            code: fullContent,
-                            current_version: newVersionNumber
-                          })
-                          .eq('id', gameId);
-                        
-                        if (updateGameError) {
-                          console.error(`Error updating game: ${updateGameError.message}`);
-                        } else {
-                          console.log(`Updated game ${gameId} with new version ${newVersionNumber} from stream`);
-                        }
-                      }
-                    } catch (versionError) {
-                      console.error('Error updating game version from stream:', versionError);
-                    }
+                  // Clean the content
+                  fullContent = removeTokenInfo(fullContent);
+                  
+                  // Update the game with the content directly without creating a new version
+                  // This allows the client-side code to handle version creation
+                  const { error: updateGameError } = await supabase
+                    .from('games')
+                    .update({
+                      code: fullContent
+                    })
+                    .eq('id', gameId);
+                  
+                  if (updateGameError) {
+                    console.error(`Error updating game: ${updateGameError.message}`);
+                  } else {
+                    console.log(`Updated game ${gameId} with new content from stream (version creation handled by client)`);
                   }
                   
                   break;
