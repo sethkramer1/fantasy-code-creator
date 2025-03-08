@@ -35,7 +35,8 @@ export const GameChat = ({
     initialMessageId,
     setInitialMessageId,
     addSystemMessage,
-    fetchMessages
+    fetchMessages,
+    setMessages
   } = useChatMessages({
     gameId,
     onGameUpdate,
@@ -76,14 +77,31 @@ export const GameChat = ({
         console.log("Adding confirmation message after generation");
         
         try {
+          // Update the initial generation message to show completion
+          const { data: updatedMessage, error: updateError } = await supabase
+            .from('game_messages')
+            .update({ response: "Generation complete" })
+            .eq('game_id', gameId)
+            .eq('response', "Initial generation in progress...")
+            .select('*')
+            .single();
+            
+          if (updateError) {
+            console.error("Error updating initial generation message:", updateError);
+          } else if (updatedMessage) {
+            // Update the message in the local state
+            setMessages(prevMessages => 
+              prevMessages.map(msg => 
+                msg.response === "Initial generation in progress..." ? { ...msg, response: "Generation complete" } : msg
+              )
+            );
+          }
+          
           // Explicitly create a completion system message
           await addSystemMessage(
             "Initial generation complete",
             "✅ Content generated successfully! You can now ask me to modify the content or add new features."
           );
-          
-          // Force refresh messages to ensure new message is displayed
-          await fetchMessages();
           
           // Reset the flag
           setGenerationComplete(false);
@@ -103,7 +121,7 @@ export const GameChat = ({
         generationHandledRef.current = false;
       }
     };
-  }, [generationComplete, gameId, addSystemMessage, fetchMessages]);
+  }, [generationComplete, gameId, addSystemMessage, fetchMessages, setMessages]);
 
   // Additional check to add a welcome message if none exists and generation is complete
   useEffect(() => {

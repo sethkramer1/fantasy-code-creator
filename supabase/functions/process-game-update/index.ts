@@ -269,6 +269,19 @@ serve(async (req) => {
       );
     }
 
+    // Fetch the latest game version to get the most current code
+    const { data: latestVersion, error: versionError } = await supabase
+      .from('game_versions')
+      .select('*')
+      .eq('game_id', gameId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (versionError) {
+      console.error('Error fetching latest game version:', versionError);
+    }
+
     const { data: messagesData, error: messagesError } = await supabase
       .from('game_messages')
       .select('*')
@@ -280,42 +293,80 @@ serve(async (req) => {
       console.error('Error fetching messages:', messagesError);
     }
 
-    const conversationContext = messagesData 
-      ? messagesData.map(msg => `User: ${msg.message}\n${msg.response ? `AI: ${msg.response}` : ''}`).join('\n\n')
-      : '';
+    // Build the system message with the current code
+    // Use the latest version's code if available, otherwise fall back to gameData.code
+    const currentCode = (latestVersion && latestVersion.code) ? latestVersion.code : (gameData.code || '');
 
-    const fullPrompt = `
-You're helping modify this code. Please update it according to this request: "${message}"
+    const systemMessage = `You are an expert developer specializing in web technologies. You will be modifying the following code base:
+
+Current code:
+${currentCode}
 
 Game info:
 - Original prompt: ${gameData.prompt}
 - Type: ${gameData.type || 'Not specified'}
 
-${conversationContext ? `\nPrevious conversation context:\n${conversationContext}` : ''}
-
-Please make the changes requested while preserving the overall structure and functionality.
-Return only the full new HTML code with all needed CSS and JavaScript embedded. Do not include any markdown formatting, explanation, or code blocks - ONLY return the raw HTML.
-`;
-
-    const systemMessage = `You are an expert developer specializing in web technologies. 
-            
 Important: Only return the raw HTML/CSS/JS code without any markdown code block syntax (no \`\`\`html or \`\`\` wrapping). Return ONLY the complete code that should be rendered in the iframe, nothing else.
 
 DO NOT include any token information in your response. Do not add comments about token usage or any metrics.
 
 Follow these structure requirements precisely and generate clean, semantic, and accessible code.`;
 
-    let requestBody: any = {
-      model: "claude-3-7-sonnet-20250219",
-      max_tokens: 30000,
-      stream: stream,
-      system: systemMessage,
-      thinking: {
-        type: "enabled",
-        budget_tokens: 4000
+    // Build the messages array with proper conversation history
+    let messages: any[] = [];
+    
+    // Add conversation history as separate messages
+    if (messagesData && messagesData.length > 0) {
+      for (const msg of messagesData) {
+        // Add user message
+        if (msg.imageUrl && msg.imageUrl.startsWith('data:image/')) {
+          try {
+            const base64Image = extractBase64FromDataUrl(msg.imageUrl);
+            const mediaType = msg.imageUrl.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
+            
+            messages.push({
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: mediaType,
+                    data: base64Image
+                  }
+                },
+                {
+                  type: "text",
+                  text: msg.message
+                }
+              ]
+            });
+          } catch (imageError) {
+            console.error('Error processing historical image:', imageError);
+            // Fall back to text-only message
+            messages.push({
+              role: "user",
+              content: msg.message
+            });
+          }
+        } else {
+          messages.push({
+            role: "user",
+            content: msg.message
+          });
+        }
+        
+        // Add assistant response if it exists
+        if (msg.response) {
+          messages.push({
+            role: "assistant",
+            content: msg.response
+          });
+        }
       }
-    };
-
+    }
+    
+    // Add the current message
     if (imageUrl && imageUrl.startsWith('data:image/')) {
       console.log('Processing data URL image...');
       try {
@@ -325,25 +376,23 @@ Follow these structure requirements precisely and generate clean, semantic, and 
         const mediaType = imageUrl.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
         console.log('Detected media type:', mediaType);
         
-        requestBody.messages = [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: fullPrompt
-              },
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: mediaType,
-                  data: base64Image
-                }
+        messages.push({
+          role: "user",
+          content: [
+            {
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mediaType,
+                data: base64Image
               }
-            ]
-          }
-        ];
+            },
+            {
+              type: "text",
+              text: message
+            }
+          ]
+        });
       } catch (imageError) {
         console.error('Error processing image data URL:', imageError);
         return new Response(
@@ -355,19 +404,48 @@ Follow these structure requirements precisely and generate clean, semantic, and 
         );
       }
     } else {
-      requestBody.messages = [
-        {
-          role: "user",
-          content: fullPrompt
-        }
-      ];
+      messages.push({
+        role: "user",
+        content: message
+      });
     }
+
+    let requestBody: any = {
+      model: "claude-3-7-sonnet-20250219",
+      max_tokens: 30000,
+      stream: stream,
+      system: systemMessage,
+      messages: messages,
+      thinking: {
+        type: "enabled",
+        budget_tokens: 4000
+      }
+    };
 
     console.log('Streaming mode:', stream ? 'Enabled' : 'Disabled');
     console.log('Thinking mode:', requestBody.thinking ? `Enabled (budget: ${requestBody.thinking.budget_tokens})` : 'Disabled');
 
+    // Log the complete request body for debugging
+    console.log('=== DEBUG: COMPLETE REQUEST BODY ===');
+    console.log('System message length:', systemMessage.length);
+    console.log('System message first 500 chars:', systemMessage.substring(0, 500));
+    console.log('System message last 500 chars:', systemMessage.substring(Math.max(0, systemMessage.length - 500)));
+    console.log('Number of messages:', messages.length);
+    console.log('First message:', JSON.stringify(messages[0]).substring(0, 500));
+    console.log('Last message:', JSON.stringify(messages[messages.length - 1]).substring(0, 500));
+    
+    // If currentCode is available, log its length and samples
+    if (currentCode) {
+      console.log('Current code length:', currentCode.length);
+      console.log('Current code first 500 chars:', currentCode.substring(0, 500));
+      console.log('Current code last 500 chars:', currentCode.substring(Math.max(0, currentCode.length - 500)));
+    } else {
+      console.log('WARNING: Current code is empty or undefined');
+    }
+    console.log('=== END DEBUG ===');
+
     // Estimate input tokens (rough approximation)
-    const estimatedInputTokens = Math.ceil(fullPrompt.length / 4);
+    const estimatedInputTokens = Math.ceil((systemMessage.length + JSON.stringify(messages).length) / 4);
     let tokenTrackingInfo = null;
     
     // Create initial token tracking records if gameId is provided
@@ -376,7 +454,7 @@ Follow these structure requirements precisely and generate clean, semantic, and 
         supabase, 
         gameId, 
         userId, 
-        fullPrompt, 
+        systemMessage + JSON.stringify(messages),
         requestBody.model,
         estimatedInputTokens
       );
@@ -387,6 +465,18 @@ Follow these structure requirements precisely and generate clean, semantic, and 
         console.error('[TOKEN TRACKING] Failed to create initial records');
       }
     }
+
+    // Log the exact request body being sent to Anthropic
+    console.log('=== ANTHROPIC API REQUEST BODY ===');
+    const requestBodyString = JSON.stringify(requestBody);
+    console.log('Request body length:', requestBodyString.length);
+    // Log the request body in chunks to avoid truncation
+    const chunkSize = 5000;
+    for (let i = 0; i < requestBodyString.length; i += chunkSize) {
+      console.log(`Request body chunk ${Math.floor(i/chunkSize) + 1}:`, 
+        requestBodyString.substring(i, i + chunkSize));
+    }
+    console.log('=== END ANTHROPIC API REQUEST BODY ===');
 
     // Make the request to Anthropic
     console.log('Sending request to Anthropic API with message structure:', 

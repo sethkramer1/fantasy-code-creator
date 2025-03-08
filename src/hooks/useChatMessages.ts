@@ -428,6 +428,7 @@ export function useChatMessages({
     message,
     setMessage,
     messages,
+    setMessages,
     loading,
     loadingHistory,
     imageUrl,

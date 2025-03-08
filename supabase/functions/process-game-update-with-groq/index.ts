@@ -1,4 +1,3 @@
-
 // This Edge Function integrates with Groq's API to generate web content based on a game update request
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
@@ -47,7 +46,7 @@ Deno.serve(async (req) => {
       throw new Error("Missing required parameters: gameId and message are required");
     }
 
-    // Fetch game details to understand context
+    // Fetch the game data
     const { data: gameData, error: gameError } = await supabaseAdmin
       .from('games')
       .select('*')
@@ -55,7 +54,20 @@ Deno.serve(async (req) => {
       .single();
 
     if (gameError) {
-      throw new Error(`Error fetching game data: ${gameError.message}`);
+      throw new Error(`Error fetching game: ${gameError.message}`);
+    }
+
+    // Fetch the latest game version to get the most current code
+    const { data: latestVersion, error: versionError } = await supabaseAdmin
+      .from('game_versions')
+      .select('*')
+      .eq('game_id', gameId)
+      .order('version_number', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (versionError) {
+      console.error('Error fetching latest game version:', versionError);
     }
 
     // Fetch previous messages for context
@@ -63,67 +75,104 @@ Deno.serve(async (req) => {
       .from('game_messages')
       .select('*')
       .eq('game_id', gameId)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: true })
+      .limit(10);
 
     if (messagesError) {
-      throw new Error(`Error fetching messages: ${messagesError.message}`);
+      console.error('Error fetching messages:', messagesError);
     }
 
-    // Create messages history format for the AI context
-    const messagesHistory = messagesData.map(msg => ({
+    // Use the latest version's code if available, otherwise fall back to gameData.code
+    const currentCode = (latestVersion && latestVersion.code) ? latestVersion.code : (gameData.code || '');
+
+    // Build the messages array with proper conversation history
+    let messagesHistory: any[] = [];
+    
+    // Add conversation history as separate messages
+    if (messagesData && messagesData.length > 0) {
+      for (const msg of messagesData) {
+        // Add user message
+        if (msg.imageUrl) {
+          messagesHistory.push({
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: msg.message
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: msg.imageUrl
+                }
+              }
+            ]
+          });
+        } else {
+          messagesHistory.push({
+            role: "user",
+            content: msg.message
+          });
+        }
+        
+        // Add assistant response if it exists
+        if (msg.response) {
+          messagesHistory.push({
+            role: "assistant",
+            content: msg.response
+          });
+        }
+      }
+    }
+
+    // Prepare the current message
+    let currentUserMessage: any = {
       role: "user",
-      content: msg.message
-    }));
+      content: message
+    };
 
-    // Get game code - the current state of the project
-    const { data: gameVersions, error: versionsError } = await supabaseAdmin
-      .from('game_versions')
-      .select('*')
-      .eq('game_id', gameId)
-      .order('version_number', { ascending: false })
-      .limit(1);
-
-    if (versionsError) {
-      throw new Error(`Error fetching game versions: ${versionsError.message}`);
+    // Add image to current message if provided
+    if (imageUrl) {
+      currentUserMessage = {
+        role: "user",
+        content: [
+          {
+            type: "text",
+            text: message
+          },
+          {
+            type: "image_url",
+            image_url: {
+              url: imageUrl
+            }
+          }
+        ]
+      };
     }
 
-    if (!gameVersions || gameVersions.length === 0) {
-      throw new Error("No game versions found");
-    }
+    const messages = [
+      {
+        role: "system",
+        content: `You are a code modification assistant. You will be modifying the following code base:
 
-    const currentCode = gameVersions[0].code;
+Current code:
+${currentCode}
 
-    // Build the prompt for Groq
-    const systemPrompt = `You are an advanced AI code assistant that specializes in improving and modifying HTML, CSS, and JavaScript code based on user requests. You are given an existing HTML document and need to modify it according to the user's instructions.
+Original game info:
+- Prompt: ${gameData.prompt}
+- Type: ${gameData.type || 'Not specified'}
 
-The following is an HTML document that includes HTML, CSS (in style tags), and JavaScript (in script tags). Your job is to:
-
-1. Understand the current structure and functionality of the code
-2. Apply the requested changes from the user
-3. Return the COMPLETE, MODIFIED HTML document with all changes incorporated
-4. Make sure to preserve all existing functionality unless directly asked to change it. Other than the specific requests, keep the rest of the code the exact same.
-
-IMPORTANT GUIDELINES:
-- Return ONLY the modified code, without explanations or markdown formatting
-- Include DOCTYPE, html, head, and body tags in your response
-- Make your changes minimal and focused on what the user requested
-- Other than the specific requests, keep the rest of the code the exact same. `;
+Please make the requested changes while preserving the overall structure and functionality.
+Return only the full new HTML code with all needed CSS and JavaScript embedded. Do not include any markdown formatting, explanation, or code blocks - ONLY return the raw HTML.`
+      },
+      ...messagesHistory,
+      currentUserMessage
+    ];
 
     // Add any external file or image references if provided
     const imageContext = imageUrl 
       ? `\n\nThe user has also uploaded an image that you should incorporate in your modifications. The image is available at: ${imageUrl}` 
       : '';
-
-    // Build the complete prompt
-    const userPrompt = `Here is the current HTML document:
-
-\`\`\`html
-${currentCode}
-\`\`\`
-
-User's request: ${message}${imageContext}
-
-Please modify the document according to the user's request and return the complete, updated HTML document.`;
 
     console.log("Connecting to Groq API...");
     
@@ -136,10 +185,7 @@ Please modify the document according to the user's request and return the comple
       },
       body: JSON.stringify({
         model: "qwen-2.5-coder-32b",
-        messages: [
-          { role: "system", content: systemPrompt },
-          { role: "user", content: userPrompt }
-        ],
+        messages: messages,
         temperature: 0.7,
         max_tokens: 32000
       })
@@ -166,79 +212,4 @@ Please modify the document according to the user's request and return the comple
         if (htmlMatch && htmlMatch[1]) {
           content = htmlMatch[1].trim();
         }
-      } else if (content.includes("```")) {
-        const codeMatch = content.match(/```\s*([\s\S]*?)```/);
-        if (codeMatch && codeMatch[1]) {
-          content = codeMatch[1].trim();
-        }
-      }
-      
-      console.log("Final content length:", content.length);
-    } else {
-      throw new Error("No valid content in Groq response");
-    }
-
-    // Store the generated content as a new version
-    const { data: currentVersion } = await supabaseAdmin
-      .from('game_versions')
-      .select('version_number')
-      .eq('game_id', gameId)
-      .order('version_number', { ascending: false })
-      .limit(1)
-      .single();
-
-    const newVersionNumber = currentVersion ? currentVersion.version_number + 1 : 1;
-
-    // Create a new version with the generated content
-    const { error: newVersionError } = await supabaseAdmin
-      .from('game_versions')
-      .insert([{
-        game_id: gameId,
-        code: content,
-        version_number: newVersionNumber,
-        instructions: "Generated with Groq model"
-      }]);
-
-    if (newVersionError) {
-      throw new Error(`Error creating new version: ${newVersionError.message}`);
-    }
-
-    // Update the game with the latest version
-    const { error: updateGameError } = await supabaseAdmin
-      .from('games')
-      .update({
-        code: content,
-        current_version: newVersionNumber
-      })
-      .eq('id', gameId);
-
-    if (updateGameError) {
-      throw new Error(`Error updating game: ${updateGameError.message}`);
-    }
-
-    // Return the generated content
-    return new Response(
-      JSON.stringify({ 
-        content,
-        status: 'success'
-      }),
-      { 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
-
-  } catch (error) {
-    console.error("Error in process-game-update-with-groq:", error);
-    
-    return new Response(
-      JSON.stringify({ 
-        error: error instanceof Error ? error.message : 'Unknown error', 
-        status: 'error'
-      }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-      }
-    );
-  }
-});
+      } else if (content.includes("```
