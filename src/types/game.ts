@@ -26,39 +26,39 @@ export interface GameData {
 
 export const contentTypes = [
   { 
-    id: 'webdesign', 
-    label: 'Web Design Prototype', 
-    example: 'Create responsive webpage layouts and UI components',
-    promptPrefix: 'Create a web design prototype with the following requirements. Include responsive design:'
+    id: 'webapp', 
+    label: 'Web App', 
+    example: 'Create interactive web applications with user interfaces',
+    promptPrefix: 'Create a visual mockup of a web application with the following features. Focus on the UI design, layout, and visual elements rather than full functionality:'
   },
   { 
-    id: 'game', 
-    label: 'Interactive Game', 
-    example: 'Create an interactive browser game with engaging gameplay mechanics',
-    promptPrefix: 'Create an interactive game with the following requirements:'
+    id: 'mobileapp', 
+    label: 'Mobile App', 
+    example: 'Create mobile application interfaces and interactions',
+    promptPrefix: 'Design a visual mockup of a mobile app interface with the following specifications. Focus on the UI design, screens, and visual elements rather than backend functionality:'
   },
   { 
-    id: 'svg', 
-    label: 'SVG Graphic', 
-    example: 'Create vector graphics, logos, or illustrations',
-    promptPrefix: 'Create an SVG graphic with the following requirements. Return ONLY the SVG code:'
-  },
-  { 
-    id: 'dataviz', 
-    label: 'Data Visualization', 
-    example: 'Create charts, graphs, and interactive data visualizations',
-    promptPrefix: 'Create a data visualization with the following requirements. Use D3.js or Chart.js:'
-  },
-  { 
-    id: 'diagram', 
-    label: 'Diagram', 
-    example: 'Create flowcharts, sequence diagrams, or architecture diagrams',
-    promptPrefix: 'Create a diagram with the following requirements. Use SVG or HTML/CSS:'
+    id: 'website', 
+    label: 'Website', 
+    example: 'Create complete websites with multiple pages and sections',
+    promptPrefix: 'Design a visual mockup of a website with the following requirements. Focus on the layout, styling, and visual elements rather than backend functionality:'
   },
   { 
     id: 'infographic', 
     label: 'Infographic', 
     example: 'Create visual representations of information and data',
-    promptPrefix: 'Create an infographic with the following requirements. Use HTML and CSS:'
+    promptPrefix: 'Create a static infographic that visually presents the following information. Use clear visual hierarchy, graphics, and explanatory text:'
+  },
+  { 
+    id: 'game', 
+    label: 'Interactive Game', 
+    example: 'Create an interactive browser game with engaging gameplay mechanics',
+    promptPrefix: 'Create a fully functional interactive browser game with the following gameplay elements. Include working game mechanics, user controls, and scoring system using HTML, CSS, and JavaScript:'
+  },
+  { 
+    id: 'wireframe', 
+    label: 'Wireframe', 
+    example: 'Create low-fidelity mockups and wireframes',
+    promptPrefix: 'Create a low-fidelity wireframe layout for the following concept. Use minimal styling, focus on layout structure, and include placeholder elements:'
   }
 ] as const;

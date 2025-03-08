@@ -62,18 +62,18 @@ export function GamePromptInput({
     const type = contentTypes.find(t => t.id === selectedType);
     switch (selectedType) {
       case 'svg':
-        return `Describe the SVG graphic you want to create...`;
+        return `Describe what you'd like to create`;
       case 'webdesign':
-        return `Describe the web design you want to create...`;
+        return `Describe what you'd like to create`;
       case 'dataviz':
-        return `Describe the data visualization you want to create...`;
+        return `Describe what you'd like to create`;
       case 'diagram':
-        return `Describe the diagram you want to create...`;
+        return `Describe what you'd like to create`;
       case 'infographic':
-        return `Describe the infographic you want to create...`;
+        return `Describe what you'd like to create`;
       case 'game':
       default:
-        return `Describe the game you want to create...`;
+        return `Describe what you'd like to create`;
     }
   };
   const handleImageFile = (file: File) => {

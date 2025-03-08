@@ -322,7 +322,7 @@ serve(async (req) => {
 Current code:
 ${currentCode}
 
-Game info:
+Code info:
 - Original prompt: ${gameData.prompt}
 - Type: ${gameData.type || 'Not specified'}
 

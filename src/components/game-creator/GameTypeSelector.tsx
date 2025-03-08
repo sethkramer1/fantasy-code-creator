@@ -2,10 +2,10 @@ import { contentTypes } from "@/types/game";
 import { 
   Layout, 
   Gamepad, 
-  PenTool, 
-  BarChart, 
-  Network, 
-  PieChart
+  Globe,
+  Smartphone,
+  PieChart,
+  PenSquare
 } from "lucide-react";
 
 interface GameTypeSelectorProps {
@@ -16,12 +16,12 @@ interface GameTypeSelectorProps {
 export function GameTypeSelector({ selectedType, onSelect }: GameTypeSelectorProps) {
   // Map of icons for each content type
   const typeIcons = {
-    'webdesign': Layout,
+    'webapp': Layout,
+    'mobileapp': Smartphone,
+    'website': Globe,
+    'infographic': PieChart,
     'game': Gamepad,
-    'svg': PenTool,
-    'dataviz': BarChart,
-    'diagram': Network,
-    'infographic': PieChart
+    'wireframe': PenSquare
   };
 
   return (

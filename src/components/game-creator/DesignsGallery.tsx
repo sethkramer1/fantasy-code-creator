@@ -63,7 +63,7 @@ export function DesignsGallery({ games, gamesLoading, deleteGame }: DesignsGalle
             onGameClick={(id) => navigate(`/play/${id}`)}
             onGameDelete={deleteGame}
             filter="public"
-            itemsPerPage={9}
+            itemsPerPage={8}
           />
         </TabsContent>
             
@@ -75,7 +75,7 @@ export function DesignsGallery({ games, gamesLoading, deleteGame }: DesignsGalle
               onGameClick={(id) => navigate(`/play/${id}`)}
               onGameDelete={deleteGame}
               filter="my"
-              itemsPerPage={9}
+              itemsPerPage={8}
             />
           </TabsContent>
         )}
