@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { GameData } from "@/types/game";
 
@@ -13,7 +12,6 @@ interface SaveGameOptions {
   visibility?: string;
   gameName?: string;
   userId?: string;
-  preventDuplicateVersions?: boolean;
 }
 
 export const saveGeneratedGame = async ({
@@ -26,16 +24,13 @@ export const saveGeneratedGame = async ({
   instructions,
   visibility = "public",
   gameName,
-  userId,
-  preventDuplicateVersions = false
+  userId
 }: SaveGameOptions): Promise<GameData | null> => {
   try {
     let gameId = existingGameId;
     let newGame = !existingGameId;
-    let currentVersionNumber = 1;
     
     console.log("[GAME_STORAGE] saveGeneratedGame called with gameName:", gameName);
-    console.log("[GAME_STORAGE] preventDuplicateVersions flag:", preventDuplicateVersions);
     
     // If there's no existing game ID, we need to create a new game record
     if (!gameId) {
@@ -85,20 +80,6 @@ export const saveGeneratedGame = async ({
         console.log(`[GAME_STORAGE] Verified game record:`, verifyData);
       }
     } else {
-      // We're updating an existing game - check for current version
-      const { data: versionData, error: versionError } = await supabase
-        .from('games')
-        .select('current_version')
-        .eq('id', gameId)
-        .single();
-        
-      if (versionError) {
-        console.error("[GAME_STORAGE] Error fetching current version:", versionError);
-      } else if (versionData) {
-        currentVersionNumber = versionData.current_version || 1;
-        console.log(`[GAME_STORAGE] Current version for game ${gameId} is ${currentVersionNumber}`);
-      }
-      
       // If we're updating an existing game
       console.log(`[GAME_STORAGE] Updating existing game with ID: ${gameId}, name: ${gameName}`);
       
@@ -147,73 +128,46 @@ export const saveGeneratedGame = async ({
         console.log(`[GAME_STORAGE] Verified game record:`, verifyData);
       }
       
-      // Only increment version if not preventing duplicates
-      if (!preventDuplicateVersions) {
-        // Update version count separately with RPC
-        const { error: versionUpdateError } = await supabase.rpc(
-          'increment_version',
-          { game_id_param: gameId }
-        );
-        
-        if (versionUpdateError) {
-          console.error("[GAME_STORAGE] Error incrementing version:", versionUpdateError);
-          throw new Error(`Database error: ${versionUpdateError.message}`);
-        }
-        
-        // Update the current version number for version record creation
-        currentVersionNumber += 1;
-        console.log(`[GAME_STORAGE] Incremented version to ${currentVersionNumber}`);
-      } else {
-        console.log(`[GAME_STORAGE] Skipping version increment due to preventDuplicateVersions flag`);
+      // Update version count separately with RPC
+      const { error: versionUpdateError } = await supabase.rpc(
+        'increment_version',
+        { game_id_param: gameId }
+      );
+      
+      if (versionUpdateError) {
+        console.error("[GAME_STORAGE] Error incrementing version:", versionUpdateError);
+        throw new Error(`Database error: ${versionUpdateError.message}`);
       }
     }
     
-    // Check if we need to create a new version record
-    if (newGame || !preventDuplicateVersions) {
-      // Create a new version record
-      console.log(`Creating version ${currentVersionNumber} for game ${gameId}`);
-      const { error: versionError } = await supabase
-        .from('game_versions')
-        .insert([{
-          game_id: gameId,
-          code: gameContent,
-          version_number: currentVersionNumber,
-          instructions: instructions || (newGame ? 'Initial generation' : 'Updated content')
-        }]);
-      
-      if (versionError) {
-        console.error("Error creating version record:", versionError);
-        throw new Error(`Database error: ${versionError.message}`);
-      }
-    } else {
-      console.log(`[GAME_STORAGE] Skipping version creation due to preventDuplicateVersions flag`);
-      
-      // Check if version 1 already exists, and update it if it does
-      const { data: existingVersions, error: checkError } = await supabase
-        .from('game_versions')
-        .select('id')
-        .eq('game_id', gameId)
-        .eq('version_number', 1)
-        .limit(1);
-        
-      if (checkError) {
-        console.error("[GAME_STORAGE] Error checking existing versions:", checkError);
-      } else if (existingVersions && existingVersions.length > 0) {
-        console.log(`[GAME_STORAGE] Updating existing version 1 for game ${gameId}`);
-        
-        const { error: updateError } = await supabase
-          .from('game_versions')
-          .update({
-            code: gameContent,
-            instructions: instructions || 'Initial generation'
-          })
-          .eq('game_id', gameId)
-          .eq('version_number', 1);
-          
-        if (updateError) {
-          console.error("[GAME_STORAGE] Error updating version 1:", updateError);
-        }
-      }
+    // Fetch the current version number
+    const { data: versionData, error: versionFetchError } = await supabase
+      .from('games')
+      .select('current_version')
+      .eq('id', gameId)
+      .single();
+    
+    if (versionFetchError) {
+      console.error("Error fetching game version:", versionFetchError);
+      throw new Error(`Database error: ${versionFetchError.message}`);
+    }
+    
+    const versionNumber = versionData?.current_version || 1;
+    
+    // Create a new version record
+    console.log(`Creating version ${versionNumber} for game ${gameId}`);
+    const { error: versionError } = await supabase
+      .from('game_versions')
+      .insert([{
+        game_id: gameId,
+        code: gameContent,
+        version_number: versionNumber,
+        instructions: instructions || (newGame ? 'Initial generation' : 'Updated content')
+      }]);
+    
+    if (versionError) {
+      console.error("Error creating version record:", versionError);
+      throw new Error(`Database error: ${versionError.message}`);
     }
     
     // If we uploaded an image, add it to the game_messages table instead of game_images

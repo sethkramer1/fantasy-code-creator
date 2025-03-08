@@ -1,3 +1,4 @@
+
 import { useEffect, useRef, useState } from "react";
 import { MessageList } from "./game-chat/MessageList";
 import { ChatInput } from "./game-chat/ChatInput";
@@ -16,12 +17,10 @@ export const GameChat = ({
   initialMessage,
   modelType = "smart"
 }: GameChatProps) => {
-  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [previousDisabledState, setPreviousDisabledState] = useState<boolean>(disabled);
   const [generationComplete, setGenerationComplete] = useState<boolean>(false);
   const generationHandledRef = useRef<boolean>(false);
-  const initialMessageCompletedRef = useRef<boolean>(false);
   
   const {
     message,
@@ -47,6 +46,7 @@ export const GameChat = ({
     modelType
   });
 
+  // Scroll to bottom when messages change
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -55,7 +55,9 @@ export const GameChat = ({
     scrollToBottom();
   }, [messages]);
 
+  // Handle generation completion
   useEffect(() => {
+    // Check if disabled state changed from true to false (generation completed)
     if (previousDisabledState === true && disabled === false) {
       console.log("Generation state changed from in-progress to complete");
       if (initialMessageId) {
@@ -64,9 +66,11 @@ export const GameChat = ({
       }
     }
     
+    // Update previous disabled state for next comparison
     setPreviousDisabledState(disabled);
   }, [disabled, initialMessageId, previousDisabledState, setInitialMessageId]);
 
+  // Add confirmation message after generation completes
   useEffect(() => {
     const addConfirmationMessage = async () => {
       if (generationComplete && gameId && !generationHandledRef.current) {
@@ -74,57 +78,40 @@ export const GameChat = ({
         console.log("Adding confirmation message after generation");
         
         try {
-          // Fix line 88 by adding explicit type assertion
-          const { data: updateResult, error: rpcError } = await supabase
-            .rpc('update_initial_generation_message', { game_id_param: gameId }) as {
-              data: boolean | null;
-              error: any;
-            };
-            
-          if (rpcError) {
-            console.error("Error calling update_initial_generation_message:", rpcError);
-          } else {
-            console.log("Initial generation message update result:", updateResult);
-          }
-          
-          // Fix for line 96 with explicit type assertion
-          const { data: existingMessages, error: checkError } = await supabase
+          // Update the initial generation message to show completion
+          const { data: updatedMessage, error: updateError } = await supabase
             .from('game_messages')
-            .select('id, response')
+            .update({ response: "Generation complete" })
             .eq('game_id', gameId)
-            .eq('is_system', true)
-            .eq('message', 'Initial generation complete')
-            .limit(1) as {
-              data: Array<{ id: string; response: string | null }> | null;
-              error: any;
-            };
+            .eq('response', "Initial generation in progress...")
+            .select('*')
+            .single();
             
-          if (checkError) {
-            console.error("Error checking for existing completion message:", checkError);
-          } else if (existingMessages && existingMessages.length > 0) {
-            console.log("Completion message already exists, skipping:", existingMessages[0]);
+          if (updateError) {
+            console.error("Error updating initial generation message:", updateError);
+          } else if (updatedMessage) {
+            // Update the message in the local state
             setMessages(prevMessages => 
               prevMessages.map(msg => 
-                msg.id === existingMessages[0].id ? { ...msg, response: existingMessages[0].response } : msg
+                msg.response === "Initial generation in progress..." ? { ...msg, response: "Generation complete" } : msg
               )
             );
-            initialMessageCompletedRef.current = true;
-            return;
           }
           
-          if (!initialMessageCompletedRef.current) {
-            await addSystemMessage(
-              "Initial generation complete",
-              "✅ Content generated successfully! You can now ask me to modify the content or add new features."
-            );
-            initialMessageCompletedRef.current = true;
-          }
+          // Explicitly create a completion system message
+          await addSystemMessage(
+            "Initial generation complete",
+            "✅ Content generated successfully! You can now ask me to modify the content or add new features."
+          );
           
+          // Reset the flag
           setGenerationComplete(false);
           
+          // Force a message fetch to ensure we have the latest messages
           await fetchMessages();
         } catch (error) {
           console.error("Error adding confirmation message:", error);
+          // Reset the ref so we can try again
           generationHandledRef.current = false;
         }
       }
@@ -132,38 +119,21 @@ export const GameChat = ({
     
     addConfirmationMessage();
     
+    // Reset the handled ref when game ID changes
     return () => {
       if (gameId !== undefined) {
         generationHandledRef.current = false;
-        initialMessageCompletedRef.current = false;
       }
     };
   }, [generationComplete, gameId, addSystemMessage, fetchMessages, setMessages]);
 
-  
+  // Additional check to add a welcome message if none exists and generation is complete
   useEffect(() => {
     const ensureWelcomeMessage = async () => {
+      // Only run this once when loading is complete and messages are loaded
       if (!disabled && !loadingHistory && messages.length === 0 && gameId) {
         console.log("No messages found after load, adding welcome message");
         try {
-          const { data: existingMessages, error: checkError } = await supabase
-            .from('game_messages')
-            .select('id')
-            .eq('game_id', gameId)
-            .eq('is_system', true)
-            .eq('message', 'Welcome')
-            .limit(1) as {
-              data: Array<{ id: string }> | null;
-              error: any;
-            };
-            
-          if (checkError) {
-            console.error("Error checking for existing welcome message:", checkError);
-          } else if (existingMessages && existingMessages.length > 0) {
-            console.log("Welcome message already exists, skipping");
-            return;
-          }
-          
           await addSystemMessage(
             "Welcome",
             "✅ Your content is ready! You can now ask me to modify it or add new features."

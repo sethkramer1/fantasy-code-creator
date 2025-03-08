@@ -457,12 +457,6 @@ export type Database = {
         }
         Returns: boolean
       }
-      update_initial_generation_message: {
-        Args: {
-          game_id_param: string
-        }
-        Returns: boolean
-      }
     }
     Enums: {
       [_ in never]: never

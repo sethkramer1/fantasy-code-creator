@@ -1,130 +1,119 @@
 
-import React, { useEffect, useRef, useState } from 'react';
-import { GamePreview } from './GamePreview';
-import { SidebarChat } from './SidebarChat';
-import { Terminal } from './Terminal';
-import { GameVersion } from '@/types/game';
-import { useChatMessages } from '@/hooks/useChatMessages';
-import { useAuth } from '@/context/AuthContext';
-import { Message } from '@/components/game-chat/types';
+import { useRef, useEffect } from "react";
+import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal";
+import { ViewToggle } from "@/components/game-player/ViewToggle";
+import { VersionSelector } from "@/components/game-player/VersionSelector";
+import { GamePreview } from "@/components/game-player/GamePreview";
+import { GameVersion } from "./hooks/useGameVersions";
 
 interface PlayContentProps {
-  gameId: string;
-  initialCode: string;
-  initialInstructions: string;
-  initialPrompt: string;
-  userId?: string;
-  generationInProgress: boolean;
-  onCodeUpdate: (code: string) => void;
-  currentVersion: GameVersion;
+  showGenerating: boolean;
   gameVersions: GameVersion[];
+  selectedVersion: string;
+  onVersionChange: (versionId: string) => void;
+  onRevertToVersion: (version: GameVersion) => Promise<void>;
   showCode: boolean;
-  modelType?: string;
-  isCreator?: boolean;
+  setShowCode: (show: boolean) => void;
+  terminalOutput: string[];
+  thinkingTime: number;
+  generationInProgress: boolean;
+  isLatestVersion: boolean;
+  currentVersion?: GameVersion;
 }
 
 export function PlayContent({
-  gameId,
-  initialCode,
-  initialInstructions,
-  initialPrompt,
-  userId,
-  generationInProgress,
-  onCodeUpdate,
-  currentVersion,
+  showGenerating,
   gameVersions,
+  selectedVersion,
+  onVersionChange,
+  onRevertToVersion,
   showCode,
-  modelType = 'smart',
-  isCreator = true
+  setShowCode,
+  terminalOutput,
+  thinkingTime,
+  generationInProgress,
+  isLatestVersion,
+  currentVersion
 }: PlayContentProps) {
-  const [code, setCode] = useState(initialCode);
-  const [instructions, setInstructions] = useState(initialInstructions);
-  const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
-  const [showTerminal, setShowTerminal] = useState(false);
-  const [thinkingProgress, setThinkingProgress] = useState(0);
-  const [isTerminalLoading, setIsTerminalLoading] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const { user } = useAuth();
 
+  // Log state changes for debugging
   useEffect(() => {
-    setCode(currentVersion.code);
-    setInstructions(currentVersion.instructions || '');
-  }, [currentVersion]);
+    console.log("PlayContent state:", { 
+      showGenerating, 
+      generationInProgress, 
+      hasCurrentVersion: !!currentVersion,
+      versionId: currentVersion?.id 
+    });
+  }, [showGenerating, generationInProgress, currentVersion]);
 
-  // Handle game updates coming from chat
-  const handleGameUpdate = (newCode: string, newInstructions: string) => {
-    setCode(newCode);
-    setInstructions(newInstructions);
-    onCodeUpdate(newCode);
-  };
+  // Ensure the iframe gets focus when it becomes visible
+  useEffect(() => {
+    if (!showGenerating && currentVersion && iframeRef.current) {
+      console.log("Generation view hidden, focusing iframe");
+      // Use a slightly longer timeout to ensure everything is ready
+      setTimeout(() => {
+        if (iframeRef.current) {
+          iframeRef.current.focus();
+        }
+      }, 250);
+    }
+  }, [showGenerating, currentVersion]);
 
-  // Handle terminal status changes 
-  const handleTerminalStatusChange = (
-    showing: boolean,
-    output: string[],
-    thinking: number,
-    isLoading: boolean
-  ) => {
-    setShowTerminal(showing);
-    setTerminalOutput(output);
-    setThinkingProgress(thinking);
-    setIsTerminalLoading(isLoading);
-  };
-
-  // Handle reverting to a previous version from a message
-  const handleRevertToMessageVersion = async (message: Message) => {
-    // Find the game version that corresponds to this message
-    const versionId = message.version_id;
-    if (!versionId) return;
-
-    // Find the version in our gameVersions array
-    const versionToRevert = gameVersions.find(v => v.id === versionId);
-    if (!versionToRevert) return;
-
-    // Update our state
-    setCode(versionToRevert.code);
-    setInstructions(versionToRevert.instructions || '');
-    onCodeUpdate(versionToRevert.code);
-  };
-
-  // Determine if current user is the owner of the game
-  const isOwner = userId && user?.id === userId;
+  // This effect handles the transition from generation to preview
+  useEffect(() => {
+    if (!showGenerating && !generationInProgress && currentVersion) {
+      console.log("Generation complete, focusing iframe");
+      // Ensure DOM is updated before focusing
+      setTimeout(() => {
+        if (iframeRef.current) {
+          iframeRef.current.focus();
+        }
+      }, 250);
+    }
+  }, [showGenerating, generationInProgress, currentVersion]);
 
   return (
-    <div className="flex h-full">
-      {/* Left panel - chat */}
-      <SidebarChat
-        gameId={gameId}
-        generationInProgress={generationInProgress}
-        onGameUpdate={handleGameUpdate}
-        onTerminalStatusChange={handleTerminalStatusChange}
-        onRevertToMessageVersion={handleRevertToMessageVersion}
-        gameVersions={gameVersions}
-        initialPrompt={initialPrompt}
-        modelType={modelType as any}
-        isCreator={isCreator}
-      />
+    <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
+      <div className="max-w-[1200px] mx-auto w-full flex-1 flex flex-col">
+        <div className="glass-panel bg-white border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
+          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+            <div className="flex items-center gap-4">
+              {!showGenerating && (
+                <ViewToggle showCode={showCode} onToggle={setShowCode} />
+              )}
+            </div>
+            
+            {!showGenerating && gameVersions.length > 0 && (
+              <VersionSelector 
+                gameVersions={gameVersions}
+                selectedVersion={selectedVersion}
+                onVersionChange={onVersionChange}
+                onRevertToVersion={onRevertToVersion}
+                isLatestVersion={isLatestVersion}
+              />
+            )}
+          </div>
 
-      {/* Right panel - code preview and terminal */}
-      <div className="flex-1 flex flex-col h-full">
-        {/* Game preview */}
-        <div className="flex-1 overflow-hidden">
-          <GamePreview
-            currentVersion={currentVersion}
-            showCode={showCode}
-            ref={iframeRef}
-            isOwner={isOwner}
-          />
+          <div className="flex-1 bg-white rounded-lg overflow-hidden">
+            {showGenerating ? (
+              <GenerationTerminal
+                open={true}
+                onOpenChange={() => {}}
+                output={terminalOutput}
+                thinkingTime={thinkingTime}
+                loading={generationInProgress}
+                asModal={false}
+              />
+            ) : (
+              <GamePreview 
+                currentVersion={currentVersion} 
+                showCode={showCode} 
+                ref={iframeRef}
+              />
+            )}
+          </div>
         </div>
-
-        {/* Terminal */}
-        {showTerminal && (
-          <Terminal
-            output={terminalOutput}
-            thinkingProgress={thinkingProgress}
-            isLoading={isTerminalLoading}
-          />
-        )}
       </div>
     </div>
   );

@@ -48,8 +48,7 @@ export const callAnthropicApi = async (
         thinking: {
           type: "enabled",
           budget_tokens: 3500
-        },
-        preventDuplicateVersions: true // New flag to signal we want to avoid duplicate versions
+        }
       }),
     });
 

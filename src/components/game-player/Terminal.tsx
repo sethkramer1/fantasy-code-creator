@@ -3,23 +3,12 @@ import React from 'react';
 
 interface TerminalProps {
   output: string[];
-  thinkingTime?: number;
-  thinkingProgress?: number;  // Add support for both thinkingTime and thinkingProgress
-  generationInProgress?: boolean;
-  isLoading?: boolean;  // Add support for isLoading prop
+  thinkingTime: number;
+  generationInProgress: boolean;
 }
 
-export function Terminal({ 
-  output, 
-  thinkingTime = 0, 
-  thinkingProgress, 
-  generationInProgress = false,
-  isLoading = false
-}: TerminalProps) {
+export function Terminal({ output, thinkingTime, generationInProgress }: TerminalProps) {
   const scrollRef = React.useRef<HTMLDivElement>(null);
-  
-  // Use thinkingProgress if provided, otherwise use thinkingTime
-  const displayTime = thinkingProgress !== undefined ? thinkingProgress : thinkingTime;
 
   React.useEffect(() => {
     if (scrollRef.current) {
@@ -28,8 +17,8 @@ export function Terminal({
   }, [output]);
 
   const formatThinkingTime = () => {
-    const minutes = Math.floor(displayTime / 60);
-    const seconds = displayTime % 60;
+    const minutes = Math.floor(thinkingTime / 60);
+    const seconds = thinkingTime % 60;
     return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
   };
 
@@ -41,7 +30,7 @@ export function Terminal({
           <span>
             Thinking time: {formatThinkingTime()}
           </span>
-          {(generationInProgress || isLoading) && (
+          {generationInProgress && (
             <div className="animate-pulse">
               <span className="text-green-500">_</span>
             </div>

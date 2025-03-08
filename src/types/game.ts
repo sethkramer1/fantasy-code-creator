@@ -1,4 +1,3 @@
-
 export interface Game {
   id: string;
   prompt: string;
@@ -23,14 +22,6 @@ export interface GameData {
   instructions?: string;
   user_id?: string;
   name?: string;
-}
-
-export interface GameVersion {
-  id: string;
-  version_number: number;
-  code: string;
-  instructions: string | null;
-  created_at: string;
 }
 
 export const contentTypes = [
