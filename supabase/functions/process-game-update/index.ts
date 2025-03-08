@@ -339,10 +339,10 @@ Follow these structure requirements precisely and generate clean, semantic, and 
     if (messagesData && messagesData.length > 0) {
       for (const msg of messagesData) {
         // Add user message
-        if (msg.imageUrl && msg.imageUrl.startsWith('data:image/')) {
+        if (msg.image_url && msg.image_url.startsWith('data:image/')) {
           try {
-            const base64Image = extractBase64FromDataUrl(msg.imageUrl);
-            const mediaType = msg.imageUrl.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
+            const base64Image = extractBase64FromDataUrl(msg.image_url);
+            const mediaType = msg.image_url.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
             
             messages.push({
               role: "user",
@@ -395,6 +395,8 @@ Follow these structure requirements precisely and generate clean, semantic, and 
         
         const mediaType = imageUrl.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
         console.log('Detected media type:', mediaType);
+        
+        // We don't need to save the message here as it will be saved later with the response
         
         messages.push({
           role: "user",
@@ -681,7 +683,54 @@ Follow these structure requirements precisely and generate clean, semantic, and 
         }
       } else {
         console.log('Processing non-streaming response');
-        // ... existing code for non-streaming response ...
+        const responseText = await response.text();
+        console.log('Response length:', responseText.length);
+        
+        // Parse the response
+        const responseData = JSON.parse(responseText);
+        
+        // Save the message and response to the database
+        const { data: savedMessage, error: saveError } = await supabase
+          .from('game_messages')
+          .insert({
+            game_id: gameId,
+            message: message,
+            response: responseText,
+            image_url: imageUrl, // Store the image URL with the message
+            is_system: false,
+            model_type: modelType || 'smart'
+          })
+          .select('id')
+          .single();
+        
+        if (saveError) {
+          console.error('Error saving message:', saveError);
+        } else {
+          console.log('Saved message with ID:', savedMessage.id);
+        }
+        
+        // Update the game with the content
+        const { error: updateGameError } = await supabase
+          .from('games')
+          .update({
+            code: responseData.content
+          })
+          .eq('id', gameId);
+        
+        if (updateGameError) {
+          console.error(`Error updating game: ${updateGameError.message}`);
+        } else {
+          console.log(`Updated game ${gameId} with new content`);
+        }
+        
+        // Return the response to the client
+        return new Response(
+          JSON.stringify(responseData),
+          {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
       }
     } catch (error) {
       clearTimeout(timeoutId);

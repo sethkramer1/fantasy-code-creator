@@ -1,4 +1,3 @@
-
 // @ts-ignore
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -34,7 +33,7 @@ serve(async (req) => {
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-    const { prompt, contentType } = await req.json();
+    const { prompt, contentType, note } = await req.json();
 
     if (!prompt || typeof prompt !== "string") {
       return new Response(
@@ -54,7 +53,39 @@ serve(async (req) => {
 Your task is to take the user's basic prompt and make it more detailed, specific, and effective.
 Focus on adding clarity, specific details, and creative elements that will result in better output.
 Do not completely change the user's intent - just enhance and improve their original idea.
+
+IMPORTANT: For web designs and interfaces, always include these specific layout and design requirements:
+
+1. SPACING REQUIREMENTS:
+   - Ensure consistent spacing throughout the interface
+   - Specify appropriate margins and padding for all elements
+   - Include instructions for proper whitespace distribution
+   - Define clear spacing hierarchies between sections
+
+2. NAVBAR SPECIFICATIONS (for desktop designs):
+   - Include detailed navbar layout with proper spacing between elements
+   - Specify logo placement and sizing within the navbar
+   - Define clear navigation item spacing and alignment
+   - Include hover/active states for navigation elements
+
+3. IMAGE SIZING GUIDELINES:
+   - Provide specific aspect ratios for all images
+   - Include instructions for responsive image behavior
+   - Specify image container dimensions and overflow handling
+   - Define image alignment and spacing relative to text/other elements
+
+4. FOOTER LAYOUT (for desktop designs):
+   - Include detailed footer structure with proper alignment
+   - Specify spacing between footer sections and elements
+   - Define footer responsiveness behavior
+   - Include guidelines for footer content organization
+
 Return ONLY the enhanced prompt text with no explanations, introductions, or other text.`;
+
+    // Add any additional notes from the client
+    if (note) {
+      systemPrompt += `\n\nAdditional note: ${note}`;
+    }
 
     // Make the request to Anthropic Claude API
     const response = await fetch("https://api.anthropic.com/v1/messages", {

@@ -201,13 +201,47 @@ serve(async (req) => {
       );
     }
 
-    // Define a default system message if none provided
-    const systemMessage = system || `You are an expert developer specializing in web technologies. 
-You are tasked with creating HTML/CSS/JS code based on the user's request.
-Return only the complete HTML code that's ready to be displayed in a browser.
-Ensure spacing is consistent and proper throughout.
-Include all CSS and JavaScript within the HTML file.
-Do not include any explanations, markdown formatting or code blocks - only return the actual code.
+    // Prepare the system prompt based on the content type
+    let systemPrompt = `You are an expert ${contentType} creator. Your task is to create a beautiful and functional ${contentType} based on the user's prompt.
+
+${contentType === 'webdesign' ? `For web designs, pay special attention to these critical layout and design requirements:
+
+1. SPACING REQUIREMENTS:
+   - Implement consistent spacing throughout the interface with appropriate margins and padding
+   - Use proper whitespace distribution that creates visual hierarchy and improves readability
+   - Maintain consistent spacing between related elements (8px, 16px, 24px, etc.)
+   - Create clear spacing hierarchies between different sections of the page
+
+2. NAVBAR SPECIFICATIONS:
+   - Create a properly spaced navbar with consistent padding between elements
+   - Position the logo appropriately (typically top-left) with correct proportions
+   - Ensure navigation items have equal spacing and proper alignment
+   - Include hover/active states for navigation elements
+   - Maintain proper vertical alignment of all navbar elements
+
+3. IMAGE SIZING GUIDELINES:
+   - Use appropriate aspect ratios for all images (16:9, 4:3, 1:1, etc. as appropriate)
+   - Implement responsive image behavior that maintains proportions
+   - Size images appropriately relative to surrounding content
+   - Maintain consistent image dimensions within similar content types
+   - Properly align images with text and other elements
+
+4. FOOTER LAYOUT:
+   - Create a well-structured footer with proper alignment of all elements
+   - Maintain consistent spacing between footer sections
+   - Implement proper responsive behavior for the footer
+   - Organize footer content logically with clear visual hierarchy
+   - Ensure footer links and elements have appropriate spacing` : ''}
+
+${contentType === 'svg' ? 'Output SVG code that is clean, well-structured, and uses appropriate SVG elements and attributes.' : ''}
+${contentType === 'dataviz' ? 'Create a data visualization that effectively communicates the information, with clear labels, appropriate colors, and intuitive layout.' : ''}
+${contentType === 'diagram' ? 'Create a diagram that clearly illustrates the concept, with appropriate labels, colors, and layout.' : ''}
+${contentType === 'infographic' ? 'Create an infographic that effectively communicates the information, with clear sections, appropriate visuals, and intuitive flow.' : ''}
+${contentType === 'game' ? 'Create a game with clear instructions, engaging mechanics, and appropriate visuals.' : ''}
+
+Your output should be valid HTML, CSS, and JavaScript code that can be rendered directly in a browser.
+The code should be clean, well-commented, and follow best practices.
+Include all necessary code in a single file - do not reference external files or libraries unless explicitly requested.
 Do NOT include token usage information in your response.`;
 
     // Prepare the request body with the correct structure for Claude 3.7 Sonnet
@@ -215,13 +249,13 @@ Do NOT include token usage information in your response.`;
       model: model,
       max_tokens: 30000,
       stream: stream,
-      system: systemMessage,
+      system: systemPrompt,
     };
 
     // Always enable thinking for all requests
     requestBody.thinking = {
       type: "enabled",
-      budget_tokens: 8500
+      budget_tokens: 15000  // Increased budget to encourage more thorough thinking
     };
 
     // Handle the message content differently based on whether there's an image

@@ -1,0 +1,28 @@
+<svg width="400" height="200" viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <filter id="inner-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feOffset dx="2" dy="2" />
+      <feGaussianBlur stdDeviation="2" result="offset-blur" />
+      <feComposite operator="out" in="SourceGraphic" in2="offset-blur" result="inverse" />
+      <feFlood flood-color="black" flood-opacity="0.2" result="color" />
+      <feComposite operator="in" in="color" in2="inverse" result="shadow" />
+      <feComposite operator="over" in="shadow" in2="SourceGraphic" />
+    </filter>
+    <filter id="outer-shadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feOffset dx="-2" dy="-2" />
+      <feGaussianBlur stdDeviation="2" result="blur" />
+      <feFlood flood-color="white" flood-opacity="0.5" />
+      <feComposite operator="in" in2="blur" />
+      <feComposite operator="over" in2="SourceGraphic" />
+    </filter>
+  </defs>
+  
+  <rect width="400" height="200" fill="#e2e8f0" />
+  
+  <!-- Neumorphic Elements -->
+  <rect x="100" y="50" width="200" height="80" rx="10" fill="#e2e8f0" filter="url(#inner-shadow)" />
+  <circle cx="140" cy="90" r="20" fill="#e2e8f0" filter="url(#outer-shadow)" />
+  <rect x="180" y="80" width="80" height="20" rx="10" fill="#e2e8f0" filter="url(#outer-shadow)" />
+  
+  <text x="200" y="180" font-family="Arial" font-size="16" text-anchor="middle" fill="#334155">Neumorphism Design</text>
+</svg>

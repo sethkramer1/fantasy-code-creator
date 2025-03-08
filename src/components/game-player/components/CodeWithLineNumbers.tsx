@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Copy } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -16,11 +16,33 @@ export const CodeWithLineNumbers = ({
   onCodeChange 
 }: CodeWithLineNumbersProps) => {
   const [editableCode, setEditableCode] = useState(code);
+  const codeContainerRef = useRef<HTMLPreElement>(null);
+  const lineNumbersRef = useRef<HTMLDivElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   
   // Update local state when code prop changes
   useEffect(() => {
     setEditableCode(code);
   }, [code]);
+  
+  // Sync scroll between line numbers and code
+  useEffect(() => {
+    const handleCodeScroll = () => {
+      if (lineNumbersRef.current && (codeContainerRef.current || textareaRef.current)) {
+        const scrollContainer = isEditable ? textareaRef.current : codeContainerRef.current;
+        if (scrollContainer) {
+          lineNumbersRef.current.scrollTop = scrollContainer.scrollTop;
+        }
+      }
+    };
+
+    const scrollContainer = isEditable ? textareaRef.current : codeContainerRef.current;
+    scrollContainer?.addEventListener('scroll', handleCodeScroll);
+    
+    return () => {
+      scrollContainer?.removeEventListener('scroll', handleCodeScroll);
+    };
+  }, [isEditable]);
   
   const handleCopyCode = () => {
     navigator.clipboard.writeText(code)
@@ -52,7 +74,11 @@ export const CodeWithLineNumbers = ({
   
   return (
     <div className="relative flex text-xs font-mono h-full">
-      <div className="bg-gray-100 text-gray-500 pr-4 pl-2 text-right select-none border-r border-gray-200">
+      <div 
+        ref={lineNumbersRef}
+        className="bg-gray-100 text-gray-500 pr-4 pl-2 text-right select-none border-r border-gray-200 overflow-hidden"
+        style={{ overflowY: 'hidden' }}
+      >
         {lines.map((_, i) => (
           <div key={i} className="leading-5 py-0.5">
             {i + 1}
@@ -62,6 +88,7 @@ export const CodeWithLineNumbers = ({
       
       {isEditable ? (
         <textarea
+          ref={textareaRef}
           value={editableCode}
           onChange={handleCodeChange}
           className="flex-1 overflow-auto pl-4 pr-4 text-gray-800 bg-white font-mono text-xs leading-5 resize-none border-none focus:outline-none focus:ring-0"
@@ -73,7 +100,10 @@ export const CodeWithLineNumbers = ({
           }}
         />
       ) : (
-        <pre className="flex-1 overflow-auto pl-4 pr-4 text-gray-800 bg-white whitespace-pre-wrap text-left">
+        <pre 
+          ref={codeContainerRef}
+          className="flex-1 overflow-auto pl-4 pr-4 text-gray-800 bg-white whitespace-pre-wrap text-left"
+        >
           <code className={`language-${language} bg-white`}>
             {lines.map((line, i) => (
               <div key={i} className="leading-5 py-0.5">{line}</div>
