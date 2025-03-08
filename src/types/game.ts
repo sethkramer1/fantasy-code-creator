@@ -35,7 +35,7 @@ export const contentTypes = [
     id: 'mobileapp', 
     label: 'Mobile App', 
     example: 'Create mobile application interfaces and interactions',
-    promptPrefix: 'Design a visual mockup of a mobile app interface with the following specifications. Focus on the UI design, screens, and visual elements rather than backend functionality:'
+    promptPrefix: 'Design a visual mockup of a mobile app interface with the following specifications. Focus on the UI design, screens, and visual elements rather than backend functionality. IMPORTANT: Present the design inside an iPhone canvas/frame so users can visualize it in the proper mobile context:'
   },
   { 
     id: 'website', 
