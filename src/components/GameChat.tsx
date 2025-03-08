@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { MessageList } from "./game-chat/MessageList";
 import { ChatInput } from "./game-chat/ChatInput";
@@ -47,7 +46,6 @@ export const GameChat = ({
     modelType
   });
 
-  // Scroll to bottom when messages change
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
@@ -56,9 +54,7 @@ export const GameChat = ({
     scrollToBottom();
   }, [messages]);
 
-  // Handle generation completion
   useEffect(() => {
-    // Check if disabled state changed from true to false (generation completed)
     if (previousDisabledState === true && disabled === false) {
       console.log("Generation state changed from in-progress to complete");
       if (initialMessageId) {
@@ -67,11 +63,9 @@ export const GameChat = ({
       }
     }
     
-    // Update previous disabled state for next comparison
     setPreviousDisabledState(disabled);
   }, [disabled, initialMessageId, previousDisabledState, setInitialMessageId]);
 
-  // Add confirmation message after generation completes
   useEffect(() => {
     const addConfirmationMessage = async () => {
       if (generationComplete && gameId && !generationHandledRef.current) {
@@ -79,7 +73,6 @@ export const GameChat = ({
         console.log("Adding confirmation message after generation");
         
         try {
-          // Correct way to call an RPC function - using explicit type assertion to avoid deep type instantiation
           const { data: updateResult, error: rpcError } = await supabase
             .rpc('update_initial_generation_message', { game_id_param: gameId }) as {
               data: any;
@@ -92,20 +85,21 @@ export const GameChat = ({
             console.log("Initial generation message update result:", updateResult);
           }
           
-          // Check if we've already added a completion message to avoid duplicates
           const { data: existingMessages, error: checkError } = await supabase
             .from('game_messages')
             .select('id, response')
             .eq('game_id', gameId)
             .eq('is_system', true)
             .eq('message', 'Initial generation complete')
-            .limit(1);
+            .limit(1) as {
+              data: Array<{ id: string; response: string | null }> | null;
+              error: any;
+            };
             
           if (checkError) {
             console.error("Error checking for existing completion message:", checkError);
           } else if (existingMessages && existingMessages.length > 0) {
             console.log("Completion message already exists, skipping:", existingMessages[0]);
-            // Update the message in the local state
             setMessages(prevMessages => 
               prevMessages.map(msg => 
                 msg.id === existingMessages[0].id ? { ...msg, response: existingMessages[0].response } : msg
@@ -115,7 +109,6 @@ export const GameChat = ({
             return;
           }
           
-          // Only create the completion message if it doesn't exist yet
           if (!initialMessageCompletedRef.current) {
             await addSystemMessage(
               "Initial generation complete",
@@ -124,14 +117,11 @@ export const GameChat = ({
             initialMessageCompletedRef.current = true;
           }
           
-          // Reset the flag
           setGenerationComplete(false);
           
-          // Force a message fetch to ensure we have the latest messages
           await fetchMessages();
         } catch (error) {
           console.error("Error adding confirmation message:", error);
-          // Reset the ref so we can try again
           generationHandledRef.current = false;
         }
       }
@@ -139,7 +129,6 @@ export const GameChat = ({
     
     addConfirmationMessage();
     
-    // Reset the handled ref when game ID changes
     return () => {
       if (gameId !== undefined) {
         generationHandledRef.current = false;
@@ -148,21 +137,21 @@ export const GameChat = ({
     };
   }, [generationComplete, gameId, addSystemMessage, fetchMessages, setMessages]);
 
-  // Additional check to add a welcome message if none exists and generation is complete
   useEffect(() => {
     const ensureWelcomeMessage = async () => {
-      // Only run this once when loading is complete and messages are loaded
       if (!disabled && !loadingHistory && messages.length === 0 && gameId) {
         console.log("No messages found after load, adding welcome message");
         try {
-          // Check if we've already added a welcome message to avoid duplicates
           const { data: existingMessages, error: checkError } = await supabase
             .from('game_messages')
             .select('id')
             .eq('game_id', gameId)
             .eq('is_system', true)
             .eq('message', 'Welcome')
-            .limit(1);
+            .limit(1) as {
+              data: Array<{ id: string }> | null;
+              error: any;
+            };
             
           if (checkError) {
             console.error("Error checking for existing welcome message:", checkError);
