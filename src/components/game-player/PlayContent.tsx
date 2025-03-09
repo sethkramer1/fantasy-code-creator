@@ -1,4 +1,3 @@
-
 import { useRef, useEffect } from "react";
 import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal";
 import { ViewToggle } from "@/components/game-player/ViewToggle";
@@ -19,6 +18,8 @@ interface PlayContentProps {
   generationInProgress: boolean;
   isLatestVersion: boolean;
   currentVersion?: GameVersion;
+  isOwner?: boolean;
+  onSaveCode?: (code: string, instructions: string) => Promise<void>;
 }
 
 export function PlayContent({
@@ -33,7 +34,9 @@ export function PlayContent({
   thinkingTime,
   generationInProgress,
   isLatestVersion,
-  currentVersion
+  currentVersion,
+  isOwner = false,
+  onSaveCode
 }: PlayContentProps) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -43,9 +46,10 @@ export function PlayContent({
       showGenerating, 
       generationInProgress, 
       hasCurrentVersion: !!currentVersion,
-      versionId: currentVersion?.id 
+      versionId: currentVersion?.id,
+      isOwner
     });
-  }, [showGenerating, generationInProgress, currentVersion]);
+  }, [showGenerating, generationInProgress, currentVersion, isOwner]);
 
   // Ensure the iframe gets focus when it becomes visible
   useEffect(() => {
@@ -110,6 +114,8 @@ export function PlayContent({
                 currentVersion={currentVersion} 
                 showCode={showCode} 
                 ref={iframeRef}
+                isOwner={isOwner}
+                onSaveCode={onSaveCode}
               />
             )}
           </div>

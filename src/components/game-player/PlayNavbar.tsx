@@ -18,6 +18,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { GameVersion } from "./hooks/useGameVersions";
 
 interface PlayNavbarProps {
   gameId: string;
@@ -33,6 +34,7 @@ interface PlayNavbarProps {
   isForkingInProgress?: boolean;
   showCodeEditor: boolean;
   onShowCodeEditorChange: (show: boolean) => void;
+  currentVersion?: GameVersion;
 }
 
 export function PlayNavbar({
@@ -49,6 +51,7 @@ export function PlayNavbar({
   isForkingInProgress = false,
   showCodeEditor,
   onShowCodeEditorChange,
+  currentVersion,
 }: PlayNavbarProps) {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -254,7 +257,7 @@ export function PlayNavbar({
             </Button>
             
             <GameActions
-              currentVersion={undefined}
+              currentVersion={currentVersion}
               showGenerating={false}
               isLatestVersion={true}
               onRevertToVersion={() => Promise.resolve()}

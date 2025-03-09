@@ -745,6 +745,7 @@ const Play = () => {
         isForkingInProgress={isForkingInProgress}
         showCodeEditor={showCode}
         onShowCodeEditorChange={setShowCode}
+        currentVersion={currentVersion}
       />
 
       <div className="flex flex-grow w-full overflow-hidden">

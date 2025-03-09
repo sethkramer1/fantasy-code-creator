@@ -1,4 +1,3 @@
-
 import { Button } from "@/components/ui/button";
 import { Loader2, RotateCcw } from "lucide-react";
 import { MessageItemProps } from "./types";
@@ -12,9 +11,9 @@ export const MessageItem = ({ message, onRevertToVersion, gameVersions = [] }: M
       <div className={`bg-white p-4 rounded-xl shadow-sm border border-gray-100 ${isSystemMessage ? 'border-blue-100 bg-blue-50' : ''}`}>
         <div className="flex justify-between items-start">
           {isSystemMessage ? (
-            <p className="text-gray-600 italic">{message.message}</p>
+            <p className="text-gray-600 italic text-left">{message.message}</p>
           ) : (
-            <p className="text-gray-800">{message.message}</p>
+            <p className="text-gray-800 text-left">{message.message}</p>
           )}
           {message.model_type && !isSystemMessage && (
             <span className="text-xs text-gray-500 ml-2 px-2 py-0.5 rounded-full bg-gray-100">
@@ -53,7 +52,7 @@ export const MessageItem = ({ message, onRevertToVersion, gameVersions = [] }: M
               <p className="text-gray-500">Processing request...</p>
             </div>
           ) : (
-            <p className="text-gray-700">{message.response}</p>
+            <p className="text-gray-700 text-left">{message.response}</p>
           )}
         </div>
       ) : null}
