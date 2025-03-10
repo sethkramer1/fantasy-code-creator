@@ -171,12 +171,12 @@ export function GameActions({
           {isForkingInProgress ? (
             <>
               <span className="animate-spin h-4 w-4 border-2 border-blue-700 border-t-transparent rounded-full mr-1"></span>
-              Forking...
+              Remixing...
             </>
           ) : (
             <>
               <GitFork size={14} />
-              Fork
+              Remix
             </>
           )}
         </Button>

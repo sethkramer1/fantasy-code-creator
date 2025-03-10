@@ -204,47 +204,49 @@ export function GamePromptInput({
         }} />
         </div>
         
+        {/* Show uploaded image preview right below the input */}
+        {imageUrl && <div className="px-3 pb-2">
+          <div className="flex flex-col">
+            <div className="flex items-center gap-2 mb-2">
+              <div className="text-sm text-gray-500">Image attached for inspiration</div>
+              <button onClick={onImageRemoved} className="text-xs text-gray-500 hover:text-gray-700 underline">
+                Remove
+              </button>
+            </div>
+            <div className="border border-gray-200 rounded-md overflow-hidden max-w-xs">
+              <img src={imageUrl} alt="Attached image" className="max-w-full h-auto" />
+            </div>
+          </div>
+        </div>}
+        
         {/* Bottom controls area */}
         <div className="flex items-center justify-between px-3 py-2">
           <div className="flex items-center space-x-2">
             {/* Image upload button */}
-            <label className="flex items-center justify-center w-8 h-8 cursor-pointer hover:bg-gray-50 rounded-md transition-colors" title="Add an image reference">
+            <label className="flex items-center justify-center gap-2 px-3 h-8 cursor-pointer hover:bg-gray-50 rounded-md transition-colors" title="Add an image for inspiration">
               <Image size={20} className="text-gray-500" />
+              <span className="text-gray-500 text-sm">Add Image for Inspiration</span>
               <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading || !!imageUrl} />
             </label>
             
             {/* Enhance prompt button - only shows when there's text */}
-            {value.trim().length > 0 && <button onClick={handleEnhancePrompt} disabled={isEnhancing || !value.trim()} className="flex items-center justify-center w-8 h-8 hover:bg-gray-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Enhance your prompt with AI">
+            {value.trim().length > 0 && <button onClick={handleEnhancePrompt} disabled={isEnhancing || !value.trim()} className="flex items-center justify-center gap-2 px-3 h-8 hover:bg-gray-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Enhance your prompt with AI">
                 <Wand2 size={20} className={`text-gray-500 ${isEnhancing ? "animate-spin" : ""}`} />
+                <span className="text-gray-500 text-sm">Enhance Prompt</span>
               </button>}
           </div>
         </div>
       </div>
-      
-      {/* Design Style Buttons */}
-      <DesignStyleButtons 
-        onStyleSelected={handleExampleSelected} 
-        activeStyleId={activeStyleId}
-      />
       
       {/* Upload status indicator */}
       {isUploading && <div className="mt-2 text-xs text-gray-500 animate-pulse">
           Uploading image...
         </div>}
       
-      {/* Show uploaded image preview */}
-      {imageUrl && <div className="mt-3">
-          <div className="flex flex-col">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="text-sm text-gray-500">Image attached</div>
-              <button onClick={onImageRemoved} className="text-xs text-gray-500 hover:text-gray-700 underline">
-                Remove
-              </button>
-            </div>
-            <div className="max-w-xs border border-gray-200 rounded-md overflow-hidden">
-              <img src={imageUrl} alt="Attached image" className="max-w-full h-auto" />
-            </div>
-          </div>
-        </div>}
+      {/* Design Style Buttons */}
+      <DesignStyleButtons 
+        onStyleSelected={handleExampleSelected} 
+        activeStyleId={activeStyleId}
+      />
     </div>;
 }

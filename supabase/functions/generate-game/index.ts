@@ -419,8 +419,8 @@ Do NOT include token usage information in your response.`;
               {
                 type: "text",
                 text: partialResponse 
-                  ? `${prompt}\n\nUse this as a starting point:\n${partialResponse}`
-                  : prompt
+                  ? `${prompt}\n\nUse this as a starting point:\n${partialResponse}\n\nPlease use the attached image as inspiration for the design, including its visual style, color palette, and layout where appropriate.`
+                  : `${prompt}\n\nPlease use the attached image as inspiration for the design, including its visual style, color palette, and layout where appropriate.`
               },
               {
                 type: "image",

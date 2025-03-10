@@ -71,7 +71,7 @@ export function DesignStyleButtons({ onStyleSelected, activeStyleId }: DesignSty
 
   return (
     <div className="mt-4">
-      <h3 className="text-sm font-medium mb-2">Design Styles for App Generation</h3>
+      <h3 className="text-sm font-medium mb-2 text-left">Design Styles for App Generation</h3>
       <div className="grid grid-cols-1 gap-2">
         {designStyles.map((style) => {
           const isActive = activeStyleId === style.id;

@@ -223,29 +223,6 @@ export function PlayNavbar({
               />
             )}
             
-            {/* Fork button for all logged-in users */}
-            {user && onFork && (
-              <Button 
-                variant="secondary" 
-                size="sm" 
-                className="h-8 gap-1 text-sm bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 hover:border-blue-300" 
-                onClick={onFork}
-                disabled={isForkingInProgress}
-              >
-                {isForkingInProgress ? (
-                  <>
-                    <span className="animate-spin h-4 w-4 border-2 border-blue-700 border-t-transparent rounded-full mr-1"></span>
-                    Forking...
-                  </>
-                ) : (
-                  <>
-                    <GitFork size={14} />
-                    Fork
-                  </>
-                )}
-              </Button>
-            )}
-            
             <Button 
               variant="outline" 
               size="sm" 
