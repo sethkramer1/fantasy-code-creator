@@ -4,6 +4,7 @@ import { CodeEditor } from "./components/CodeEditor";
 import { Button } from "@/components/ui/button";
 import { Edit, Save, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import PexelsImageAttribution from "@/components/common/PexelsImageAttribution";
 
 interface GameVersion {
   id: string;
@@ -26,6 +27,7 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     const [isEditMode, setIsEditMode] = useState<boolean>(false);
     const [editedCode, setEditedCode] = useState<string | null>(null);
     const [refreshCounter, setRefreshCounter] = useState(0);
+    const [hasPexelsImages, setHasPexelsImages] = useState(false);
     const iframeRef = useRef<HTMLIFrameElement>(null);
     
     // Forward the ref
@@ -34,6 +36,10 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     // Process the code when currentVersion changes
     useEffect(() => {
       if (currentVersion?.code) {
+        // Check if the code contains Pexels images
+        setHasPexelsImages(currentVersion.code.includes('pexels.com') || 
+                          currentVersion.code.includes('data-pexels-id'));
+        
         const { html, css, js } = parseCodeSections(currentVersion.code);
         let combinedCode = "";
         
@@ -75,6 +81,31 @@ ${js}
         setProcessedCode(combinedCode);
       }
     }, [currentVersion]);
+    
+    // Listen for processed content events from the Pexels API
+    useEffect(() => {
+      const handleMessage = (event: MessageEvent) => {
+        // Check if the message is from our expected source
+        if (event.data && event.data.type === 'processed_content') {
+          console.log('Received processed content with Pexels images');
+          
+          // Update the processed code with the new content
+          setProcessedCode(event.data.content);
+          setHasPexelsImages(true);
+          
+          // Refresh the iframe to show the new content
+          setRefreshCounter(prev => prev + 1);
+        }
+      };
+      
+      // Add event listener
+      window.addEventListener('message', handleMessage);
+      
+      // Clean up
+      return () => {
+        window.removeEventListener('message', handleMessage);
+      };
+    }, []);
     
     // Toggle edit mode
     const handleEditClick = () => {
@@ -322,64 +353,63 @@ ${js}
             html={parseCodeSections(currentVersion?.code || "").html}
             css={parseCodeSections(currentVersion?.code || "").css}
             js={parseCodeSections(currentVersion?.code || "").js}
-            onSave={handleSaveCode}
             isOwner={isOwner}
+            onSave={handleSaveCode}
           />
         ) : (
-          <div className="h-full relative">
-            <iframe
-              ref={iframeRef}
-              className="w-full h-full border-0"
-              srcDoc={getDisplayContent()}
-              sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
-              title="Preview"
-              key={`${isEditMode ? 'edit' : 'view'}-${refreshCounter}`} // Force iframe recreation
-              onLoad={handleIframeLoad}
-            />
-            
-            {/* Control buttons */}
-            <div className="absolute top-4 right-4 z-20">
-              {/* Edit button shown when not in edit mode */}
-              {isOwner && !isEditMode && (
+          <div className="relative h-full flex flex-col">
+            {/* Edit buttons for owners */}
+            {isOwner && !isEditMode && (
+              <div className="absolute top-2 right-2 z-10 flex gap-2">
                 <Button
                   size="sm"
-                  variant="secondary"
+                  variant="outline"
                   onClick={handleEditClick}
-                  className="h-9 gap-1.5 bg-white shadow-md hover:shadow-lg transition-all duration-200 rounded-full px-4 border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                  className="bg-white/90 hover:bg-white"
                 >
-                  <Edit size={15} className="text-indigo-600" />
-                  <span className="font-medium text-gray-800">Edit Text</span>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Text
                 </Button>
-              )}
-              
-              {/* Save/Cancel buttons shown when in edit mode */}
-              {isEditMode && (
-                <div className="flex gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={handleCancel}
-                    className="h-9 gap-1.5 bg-white shadow-md hover:bg-gray-50 transition-all duration-200 rounded-full px-4 border-gray-200 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                  >
-                    <X size={15} className="text-gray-500" />
-                    <span className="font-medium text-gray-800">Cancel</span>
-                  </Button>
-                  <Button 
-                    variant="default" 
-                    size="sm" 
-                    onClick={handleSave}
-                    className="h-9 gap-1.5 bg-indigo-600 hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all duration-200 rounded-full px-5 border-0"
-                  >
-                    <Save size={15} />
-                    <span className="font-medium">Save</span>
-                  </Button>
-                </div>
-              )}
-            </div>
+              </div>
+            )}
             
-            {/* Edit mode indicator overlay */}
+            {/* Save/Cancel buttons when in edit mode */}
             {isEditMode && (
-              <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-indigo-600/15 to-transparent pointer-events-none"></div>
+              <div className="absolute top-2 right-2 z-10 flex gap-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCancel}
+                  className="bg-white/90 hover:bg-white"
+                >
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+                <Button
+                  size="sm"
+                  variant="default"
+                  onClick={handleSave}
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              </div>
+            )}
+            
+            {/* Game preview iframe */}
+            <iframe
+              key={`iframe-${refreshCounter}`}
+              ref={iframeRef}
+              srcDoc={getDisplayContent()}
+              className="w-full h-full border-0 flex-grow"
+              onLoad={handleIframeLoad}
+              title="Game Preview"
+              sandbox="allow-scripts allow-same-origin"
+            />
+            
+            {/* Pexels attribution if images are used */}
+            {hasPexelsImages && (
+              <PexelsImageAttribution className="py-2" />
             )}
           </div>
         )}

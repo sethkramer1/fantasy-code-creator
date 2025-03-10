@@ -348,7 +348,8 @@ export function useChatMessages({
       
       onGameUpdate(content, "Content updated successfully");
       
-      await updateMessageResponse(insertedMessage.id, "Content updated successfully");
+      // Create a single consolidated status message instead of multiple messages
+      await updateMessageResponse(insertedMessage.id, "✅ Content updated successfully! The changes have been applied.");
       
       await trackTokenUsage(
         user?.id,
@@ -383,11 +384,6 @@ export function useChatMessages({
           onTerminalStatusChange(false, [], 0, false);
         }, 3000);
       }
-      
-      addSystemMessage(
-        "Update complete", 
-        "✅ Content updated successfully! The changes have been applied."
-      );
     } catch (error) {
       console.error("Error in handleSubmit:", error);
       

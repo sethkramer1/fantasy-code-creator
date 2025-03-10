@@ -1,4 +1,3 @@
-
 import { useEffect, useRef, useState } from "react";
 import { MessageList } from "./game-chat/MessageList";
 import { ChatInput } from "./game-chat/ChatInput";
@@ -81,7 +80,7 @@ export const GameChat = ({
           // Update the initial generation message to show completion
           const { data: updatedMessage, error: updateError } = await supabase
             .from('game_messages')
-            .update({ response: "Generation complete" })
+            .update({ response: "✅ Content generated successfully! The game has been updated successfully." })
             .eq('game_id', gameId)
             .eq('response', "Initial generation in progress...")
             .select('*')
@@ -93,16 +92,16 @@ export const GameChat = ({
             // Update the message in the local state
             setMessages(prevMessages => 
               prevMessages.map(msg => 
-                msg.response === "Initial generation in progress..." ? { ...msg, response: "Generation complete" } : msg
+                msg.response === "Initial generation in progress..." ? { ...msg, response: "✅ Content generated successfully! The game has been updated successfully." } : msg
               )
             );
           }
           
-          // Explicitly create a completion system message
-          await addSystemMessage(
-            "Initial generation complete",
-            "✅ Content generated successfully! You can now ask me to modify the content or add new features."
-          );
+          // Don't add an additional system message - this was causing duplicate messages
+          // await addSystemMessage(
+          //   "Initial generation complete",
+          //   "✅ Content generated successfully! You can now ask me to modify the content or add new features."
+          // );
           
           // Reset the flag
           setGenerationComplete(false);

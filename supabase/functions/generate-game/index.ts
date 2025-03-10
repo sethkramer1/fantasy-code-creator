@@ -8,6 +8,7 @@ const corsHeaders = {
 };
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+const PEXELS_API_KEY = Deno.env.get('PEXELS_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') || ''
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
 
@@ -142,6 +143,239 @@ async function updateTokenRecords(
     console.error('[TOKEN TRACKING] Error in updateTokenRecords:', error);
     return false;
   }
+}
+
+// Function to fetch images from Pexels API
+async function fetchPexelsImages(query: string, orientation: string = 'landscape', perPage: number = 10): Promise<any> {
+  if (!PEXELS_API_KEY) {
+    console.error('PEXELS_API_KEY is not set');
+    throw new Error('PEXELS_API_KEY is not set');
+  }
+
+  try {
+    // Construct the URL with query parameters
+    const url = new URL('https://api.pexels.com/v1/search');
+    url.searchParams.append('query', query);
+    url.searchParams.append('per_page', perPage.toString());
+    url.searchParams.append('page', '1');
+    
+    if (orientation) {
+      url.searchParams.append('orientation', orientation);
+    }
+
+    // Make the request to Pexels API
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: {
+        'Authorization': PEXELS_API_KEY,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Pexels API error response:', errorText);
+      throw new Error(`Pexels API error: ${response.status} ${response.statusText} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.error('Error fetching Pexels images:', error);
+    throw error;
+  }
+}
+
+// Function to extract image keywords from a prompt
+function extractImageKeywords(prompt: string): string[] {
+  // Convert to lowercase for easier matching
+  const lowerPrompt = prompt.toLowerCase();
+  
+  // Look for common image-related terms
+  const imageTerms = [
+    'image', 'picture', 'photo', 'photograph', 'background',
+    'banner', 'hero', 'icon', 'logo', 'illustration'
+  ];
+  
+  // Check if any image terms are in the prompt
+  const hasImageTerms = imageTerms.some(term => lowerPrompt.includes(term));
+  
+  if (!hasImageTerms) {
+    // If no specific image terms, return a general query based on the prompt
+    // Extract nouns and adjectives (simplified approach)
+    const words = prompt.split(/\s+/);
+    const keywords = words.filter(word => 
+      word.length > 3 && 
+      !['the', 'and', 'that', 'with', 'for', 'this', 'have'].includes(word.toLowerCase())
+    );
+    
+    // Return up to 3 keywords
+    return keywords.slice(0, 3);
+  }
+  
+  // Extract phrases around image terms
+  const keywords: string[] = [];
+  
+  imageTerms.forEach(term => {
+    const index = lowerPrompt.indexOf(term);
+    if (index !== -1) {
+      // Get words around the term
+      const start = Math.max(0, lowerPrompt.lastIndexOf(' ', index - 2));
+      const end = lowerPrompt.indexOf(' ', index + term.length + 20);
+      const phrase = lowerPrompt.substring(
+        start, 
+        end === -1 ? lowerPrompt.length : end
+      );
+      
+      // Clean up the phrase
+      const cleanPhrase = phrase
+        .replace(/[^\w\s]/g, '')  // Remove punctuation
+        .replace(/\s+/g, ' ')     // Replace multiple spaces with a single space
+        .trim();
+      
+      if (cleanPhrase && !cleanPhrase.includes(term)) {
+        keywords.push(cleanPhrase);
+      }
+    }
+  });
+  
+  return keywords.length > 0 ? keywords : [prompt.split(' ').slice(0, 3).join(' ')];
+}
+
+// Function to replace fake image URLs with real Pexels images
+async function replaceImageUrlsWithPexels(content: string, prompt: string): Promise<string> {
+  try {
+    // Extract keywords from the prompt for image search
+    const keywords = extractImageKeywords(prompt);
+    console.log('Extracted image keywords:', keywords);
+    
+    if (keywords.length === 0) {
+      console.log('No keywords extracted for Pexels search');
+      return content;
+    }
+    
+    // Use the first keyword for the search
+    const searchQuery = keywords[0];
+    console.log('Searching Pexels for:', searchQuery);
+    
+    // Fetch images from Pexels
+    const pexelsData = await fetchPexelsImages(searchQuery);
+    
+    if (!pexelsData || !pexelsData.photos || pexelsData.photos.length === 0) {
+      console.log('No Pexels images found for query:', searchQuery);
+      return content;
+    }
+    
+    console.log(`Found ${pexelsData.photos.length} Pexels images for query:`, searchQuery);
+    
+    // Regular expression to find image URLs in HTML
+    const imgRegex = /<img[^>]+src=["']([^"']+)["'][^>]*>/gi;
+    let match;
+    let modifiedContent = content;
+    let imageIndex = 0;
+    
+    // Replace each image URL with a Pexels image
+    while ((match = imgRegex.exec(content)) !== null) {
+      const originalImgTag = match[0];
+      const originalSrc = match[1];
+      
+      // Skip if it's already a Pexels URL
+      if (originalSrc.includes('pexels.com')) {
+        continue;
+      }
+      
+      // Get a Pexels image (cycle through available images)
+      const pexelsPhoto = pexelsData.photos[imageIndex % pexelsData.photos.length];
+      imageIndex++;
+      
+      if (pexelsPhoto) {
+        // Create a new img tag with the Pexels image
+        const newImgTag = originalImgTag.replace(
+          /src=["'][^"']+["']/i,
+          `src="${pexelsPhoto.src.medium}" data-pexels-id="${pexelsPhoto.id}" data-photographer="${pexelsPhoto.photographer}" data-photographer-url="${pexelsPhoto.photographer_url}"`
+        );
+        
+        // Replace the original img tag with the new one
+        modifiedContent = modifiedContent.replace(originalImgTag, newImgTag);
+      }
+    }
+    
+    // Add attribution for Pexels at the end of the content if images were replaced
+    if (imageIndex > 0) {
+      const attribution = `
+<!-- Images provided by Pexels (https://www.pexels.com) -->
+<div style="font-size: 10px; color: #666; margin-top: 20px; text-align: center;">
+  Images from <a href="https://www.pexels.com" target="_blank" rel="noopener noreferrer">Pexels</a>
+</div>`;
+      
+      // Add the attribution before the closing body tag
+      modifiedContent = modifiedContent.replace('</body>', `${attribution}\n</body>`);
+    }
+    
+    return modifiedContent;
+  } catch (error) {
+    console.error('Error replacing image URLs with Pexels images:', error);
+    return content; // Return original content if there's an error
+  }
+}
+
+// Function to detect token information
+function isTokenInfo(text: string): boolean {
+  if (!text) return false;
+  
+  // Check for various token info patterns
+  return (
+    text.includes("Tokens used:") ||
+    text.includes("Token usage:") ||
+    text.includes("input tokens") ||
+    text.includes("output tokens") ||
+    /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) || // Pattern like "264 input tokens, 1543 output tokens"
+    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) || // Pattern like "input: 264, output: 1543"
+    /\b(input|output)\b.*?\b\d+\b/.test(text) // Pattern with "input" or "output" followed by numbers
+  );
+}
+
+// Function to check if text contains ONLY token information
+function isOnlyTokenInfo(text: string): boolean {
+  if (!text) return false;
+  
+  // Remove all token info patterns
+  const cleaned = removeTokenInfo(text);
+  
+  // If nothing meaningful remains, it was only token info
+  return !cleaned.trim();
+}
+
+// Function to remove token information from content
+function removeTokenInfo(content: string): string {
+  if (!content) return content;
+
+  // Remove full lines containing token information
+  content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
+  content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
+  content = content.replace(/.*?input:?\s*\d+\s*,?\s*output:?\s*\d+.*?\n/g, '');
+  
+  // Remove inline token information (without newlines)
+  content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/Token usage:.*?(input|output).*?(?=\s)/g, '');
+  content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
+  content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
+  content = content.replace(/input:?\s*\d+\s*,?\s*output:?\s*\d+/g, '');
+  
+  // Clean up any remaining token information that might be in different formats
+  content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
+  content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
+  
+  // Additional cleanup to catch any remaining patterns
+  content = content.replace(/\b\d+ tokens\b/g, '');
+  content = content.replace(/\btokens: \d+\b/g, '');
+  content = content.replace(/\b\d+ input\b/g, '');
+  content = content.replace(/\b\d+ output\b/g, '');
+  
+  return content;
 }
 
 serve(async (req) => {
@@ -514,6 +748,8 @@ Do NOT include token usage information in your response.`;
         
         // Variables to track thinking content
         let lastThinkingContent = '';
+        // Variable to collect the complete response
+        let completeResponse = '';
 
         // Process the stream in the background
         EdgeRuntime.waitUntil((async () => {
@@ -525,6 +761,30 @@ Do NOT include token usage information in your response.`;
               const { done, value } = await reader.read();
               
               if (done) {
+                // Process the complete response to replace image URLs with Pexels images
+                if (completeResponse) {
+                  try {
+                    // Only process HTML content
+                    if (contentType === 'website' || contentType === 'html' || completeResponse.includes('<!DOCTYPE html>')) {
+                      console.log('Processing HTML content to replace image URLs with Pexels images');
+                      const processedContent = await replaceImageUrlsWithPexels(completeResponse, prompt);
+                      
+                      // If the content was modified, send a special event with the processed content
+                      if (processedContent !== completeResponse) {
+                        console.log('Successfully replaced image URLs with Pexels images');
+                        const processedEvent = `data: ${JSON.stringify({
+                          type: 'processed_content',
+                          content: processedContent
+                        })}\n\n`;
+                        
+                        await writer.write(new TextEncoder().encode(processedEvent));
+                      }
+                    }
+                  } catch (processingError) {
+                    console.error('Error processing content for Pexels images:', processingError);
+                  }
+                }
+              
                 // Calculate final token counts
                 const finalOutputTokens = Math.max(1, Math.ceil(completeChunk.length / 4));
                 console.log('[TOKEN TRACKING] Final output tokens (estimated):', finalOutputTokens);
@@ -673,7 +933,13 @@ Do NOT include token usage information in your response.`;
       const data = await response.json();
       let content = data.content[0]?.text || '';
       
-      // Remove token information from the content
+      // For non-streaming responses, process the content to replace image URLs with Pexels images
+      if (content && (contentType === 'website' || contentType === 'html' || content.includes('<!DOCTYPE html>'))) {
+        console.log('Processing HTML content to replace image URLs with Pexels images');
+        content = await replaceImageUrlsWithPexels(content, prompt);
+      }
+      
+      // Remove token information from the response
       content = removeTokenInfo(content);
       
       // Extract token usage information
@@ -699,7 +965,6 @@ Do NOT include token usage information in your response.`;
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-
   } catch (error) {
     console.error('Error in generate-game function:', error);
     return new Response(
@@ -708,62 +973,3 @@ Do NOT include token usage information in your response.`;
     );
   }
 });
-
-// Helper function to detect token information
-function isTokenInfo(text: string): boolean {
-  if (!text) return false;
-  
-  // Check for various token info patterns
-  return (
-    text.includes("Tokens used:") ||
-    text.includes("Token usage:") ||
-    text.includes("input tokens") ||
-    text.includes("output tokens") ||
-    /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
-    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) || // Pattern like "264 input tokens, 1543 output tokens"
-    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) || // Pattern like "input: 264, output: 1543"
-    /\b(input|output)\b.*?\b\d+\b/.test(text) // Pattern with "input" or "output" followed by numbers
-  );
-}
-
-// Helper function to check if text contains ONLY token information
-function isOnlyTokenInfo(text: string): boolean {
-  if (!text) return false;
-  
-  // Remove all token info patterns
-  const cleaned = removeTokenInfo(text);
-  
-  // If nothing meaningful remains, it was only token info
-  return !cleaned.trim();
-}
-
-// Helper function to remove token information from content
-function removeTokenInfo(content: string): string {
-  if (!content) return content;
-
-  // Remove full lines containing token information
-  content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
-  content = content.replace(/Token usage:.*?(input|output).*?\n/g, '');
-  content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
-  content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
-  content = content.replace(/.*?input:?\s*\d+\s*,?\s*output:?\s*\d+.*?\n/g, '');
-  
-  // Remove inline token information (without newlines)
-  content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
-  content = content.replace(/Token usage:.*?(input|output).*?(?=\s)/g, '');
-  content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
-  content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
-  content = content.replace(/input:?\s*\d+\s*,?\s*output:?\s*\d+/g, '');
-  
-  // Clean up any remaining token information that might be in different formats
-  content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
-  content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
-  
-  // Additional cleanup to catch any remaining patterns
-  content = content.replace(/\b\d+ tokens\b/g, '');
-  content = content.replace(/\btokens: \d+\b/g, '');
-  content = content.replace(/\b\d+ input\b/g, '');
-  content = content.replace(/\b\d+ output\b/g, '');
-  
-  return content;
-}
