@@ -191,30 +191,32 @@ export function GenerationPanel({
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-6 py-12 md:py-16">
-      <div className="space-y-10">
+    <div className="max-w-5xl mx-auto px-6 py-12 md:py-16">
+      <div className="space-y-8">
         <Header 
           title="What would you like to mock up?"
           description="Describe what you want to create and watch it come to life"
         />
 
-        <GenerationForm
-          gameType={gameType}
-          setGameType={setGameType}
-          prompt={prompt}
-          setPrompt={setPrompt}
-          onGenerate={handleGenerate}
-          loading={loading}
-          showTerminalOutput={() => setShowTerminal(true)}
-          hasTerminalOutput={!showTerminal && terminalOutput.length > 0}
-          imageUrl={imageUrl}
-          onImageUploaded={handleImageUploaded}
-          onImageRemoved={handleImageRemoved}
-          modelType={modelType}
-          showModelPreference={false}
-          visibility={visibility}
-          setVisibility={setVisibility}
-        />
+        <div className="bg-white border border-gray-200 shadow-lg rounded-2xl overflow-hidden">
+          <GenerationForm
+            gameType={gameType}
+            setGameType={setGameType}
+            prompt={prompt}
+            setPrompt={setPrompt}
+            onGenerate={handleGenerate}
+            loading={loading}
+            showTerminalOutput={() => setShowTerminal(true)}
+            hasTerminalOutput={!showTerminal && terminalOutput.length > 0}
+            imageUrl={imageUrl}
+            onImageUploaded={handleImageUploaded}
+            onImageRemoved={handleImageRemoved}
+            modelType={modelType}
+            showModelPreference={false}
+            visibility={visibility}
+            setVisibility={setVisibility}
+          />
+        </div>
       </div>
 
       {/* Login Modal */}

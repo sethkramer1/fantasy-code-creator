@@ -193,24 +193,36 @@ export function GamePromptInput({
     });
   };
 
-  return <div className="relative">
-      <div className="relative flex flex-col rounded-xl bg-white border border-gray-200 focus-within:border-black focus-within:ring-2 focus-within:ring-gray-100 transition-all shadow-sm">
+  return <div className="relative space-y-4">
+      <div className="relative flex flex-col rounded-xl bg-white border border-gray-200 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
         {/* Text input area */}
-        <div className="flex-grow px-3 pt-4 pb-2">
-          <textarea ref={textareaRef} value={value} onChange={e => onChange(e.target.value)} placeholder={getPlaceholder()} className="w-full min-h-[120px] bg-transparent text-gray-800 placeholder:text-gray-400 resize-none focus:ring-0 focus:outline-none border-0 focus:border-0 outline-none" style={{
-          overflow: 'hidden',
-          outline: 'none',
-          boxShadow: 'none'
-        }} />
+        <div className="flex-grow px-4 pt-4 pb-2">
+          <textarea 
+            ref={textareaRef} 
+            value={value} 
+            onChange={e => onChange(e.target.value)} 
+            placeholder={getPlaceholder()} 
+            className="w-full min-h-[140px] bg-transparent text-gray-800 placeholder:text-gray-400 resize-none focus:ring-0 focus:outline-none border-0 focus:border-0 outline-none text-base" 
+            style={{
+              overflow: 'hidden',
+              outline: 'none',
+              boxShadow: 'none'
+            }} 
+          />
         </div>
         
         {/* Show uploaded image preview right below the input */}
-        {imageUrl && <div className="px-3 pb-2">
+        {imageUrl && <div className="px-4 pb-3 border-t border-gray-100 pt-3">
           <div className="flex flex-col">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="text-sm text-gray-500">Image attached for inspiration</div>
-              <button onClick={onImageRemoved} className="text-xs text-gray-500 hover:text-gray-700 underline">
-                Remove
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="text-sm font-medium text-gray-700">Reference Image</div>
+              <button onClick={onImageRemoved} className="text-xs text-red-500 hover:text-red-700 flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M3 6h18"></path>
+                  <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"></path>
+                  <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path>
+                </svg>
+                <span>Remove</span>
               </button>
             </div>
             <div className="border border-gray-200 rounded-md overflow-hidden max-w-xs">
@@ -220,33 +232,42 @@ export function GamePromptInput({
         </div>}
         
         {/* Bottom controls area */}
-        <div className="flex items-center justify-between px-3 py-2">
-          <div className="flex items-center space-x-2">
+        <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100">
+          <div className="flex items-center space-x-3">
             {/* Image upload button */}
-            <label className="flex items-center justify-center gap-2 px-3 h-8 cursor-pointer hover:bg-gray-50 rounded-md transition-colors" title="Add an image for inspiration">
-              <Image size={20} className="text-gray-500" />
-              <span className="text-gray-500 text-sm">Add Image for Inspiration</span>
+            <label className="flex items-center justify-center gap-1.5 px-3 h-8 cursor-pointer hover:bg-gray-50 rounded-full transition-colors border border-gray-200" title="Add an image for inspiration">
+              <Image size={16} className="text-gray-600" />
+              <span className="text-gray-600 text-sm">Add Image</span>
               <input ref={fileInputRef} type="file" className="hidden" accept="image/*" onChange={handleFileChange} disabled={isUploading || !!imageUrl} />
             </label>
             
             {/* Enhance prompt button - only shows when there's text */}
-            {value.trim().length > 0 && <button onClick={handleEnhancePrompt} disabled={isEnhancing || !value.trim()} className="flex items-center justify-center gap-2 px-3 h-8 hover:bg-gray-50 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed" title="Enhance your prompt with AI">
-                <Wand2 size={20} className={`text-gray-500 ${isEnhancing ? "animate-spin" : ""}`} />
-                <span className="text-gray-500 text-sm">Enhance Prompt</span>
-              </button>}
+            {value.trim().length > 0 && (
+              <button 
+                onClick={handleEnhancePrompt} 
+                disabled={isEnhancing || !value.trim()} 
+                className="flex items-center justify-center gap-1.5 px-3 h-8 hover:bg-indigo-50 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed border border-indigo-200 text-indigo-600" 
+                title="Enhance your prompt with AI"
+              >
+                <Wand2 size={16} className={`${isEnhancing ? "animate-spin" : ""}`} />
+                <span className="text-sm">Enhance</span>
+              </button>
+            )}
           </div>
         </div>
       </div>
       
       {/* Upload status indicator */}
-      {isUploading && <div className="mt-2 text-xs text-gray-500 animate-pulse">
+      {isUploading && <div className="text-xs text-gray-500 animate-pulse">
           Uploading image...
         </div>}
       
       {/* Design Style Buttons */}
-      <DesignStyleButtons 
-        onStyleSelected={handleExampleSelected} 
-        activeStyleId={activeStyleId}
-      />
+      <div className="pt-1">
+        <DesignStyleButtons 
+          onStyleSelected={handleExampleSelected} 
+          activeStyleId={activeStyleId}
+        />
+      </div>
     </div>;
 }
