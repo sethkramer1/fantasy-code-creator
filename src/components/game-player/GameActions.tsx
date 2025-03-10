@@ -160,34 +160,15 @@ export function GameActions({
   }
   
   return <div className="flex items-center gap-2">
-      {onFork && user && (
-        <Button 
-          variant="secondary" 
-          size="sm" 
-          className="h-8 gap-1 text-sm bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 hover:text-blue-800 hover:border-blue-300" 
-          onClick={onFork}
-          disabled={isForkingInProgress}
-        >
-          {isForkingInProgress ? (
-            <>
-              <span className="animate-spin h-4 w-4 border-2 border-blue-700 border-t-transparent rounded-full mr-1"></span>
-              Remixing...
-            </>
-          ) : (
-            <>
-              <GitFork size={14} />
-              Remix
-            </>
-          )}
-        </Button>
-      )}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogTrigger asChild>
-          <Button variant="default" size="sm" className="h-8 gap-1 text-sm bg-green-500 hover:bg-green-600">
-            <Upload size={14} />
-            Deploy
-          </Button>
-        </DialogTrigger>
+      {/* Deploy button - only shown to owner */}
+      {isOwner && (
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="default" size="sm" className="h-8 gap-1 text-sm bg-green-500 hover:bg-green-600">
+              <Upload size={14} />
+              Deploy
+            </Button>
+          </DialogTrigger>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Deploy to the web</DialogTitle>
@@ -297,10 +278,12 @@ export function GameActions({
                       <span className="flex-shrink-0 w-5 h-5 rounded-full bg-gray-200 flex items-center justify-center text-xs font-medium">1</span>
                       Download your files
                     </p>
-                    <Button variant="outline" size="sm" className="ml-6 gap-1" onClick={onDownload || handleDownload}>
-                      <Download size={14} />
-                      Download Zip
-                    </Button>
+                    {isOwner && (
+                      <Button variant="outline" size="sm" className="ml-6 gap-1" onClick={onDownload || handleDownload}>
+                        <Download size={14} />
+                        Download Zip
+                      </Button>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <p className="text-sm flex items-center gap-1">
@@ -337,5 +320,6 @@ export function GameActions({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      )}
     </div>;
 }

@@ -80,8 +80,8 @@ export function PlayContent({
   return (
     <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden mt-0">
       <div className="max-w-[1200px] mx-auto w-full flex-1 flex flex-col">
-        <div className="glass-panel bg-white border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
-          <div className="flex items-center justify-between mb-4 flex-shrink-0">
+        <div className="bg-gradient-to-b from-gray-50/80 to-white/95 border border-gray-200 rounded-2xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden shadow-lg backdrop-blur-sm">
+          <div className="flex items-center justify-between mb-4 md:mb-5 flex-shrink-0 px-1">
             <div className="flex items-center gap-4">
               {!showGenerating && (
                 <ViewToggle showCode={showCode} onToggle={setShowCode} />
@@ -99,7 +99,7 @@ export function PlayContent({
             )}
           </div>
 
-          <div className="flex-1 bg-white rounded-lg overflow-hidden">
+          <div className="flex-1 bg-white backdrop-blur-sm rounded-xl overflow-hidden shadow-md border border-gray-100">
             {showGenerating ? (
               <GenerationTerminal
                 open={true}

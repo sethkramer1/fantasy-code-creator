@@ -101,19 +101,21 @@ export function SidebarChat({
   }
 
   return (
-    <div className="w-[380px] flex flex-col bg-white border-r border-gray-100">
+    <div className="w-[380px] flex flex-col bg-white border-r border-gray-100 shadow-sm">
       <div className="flex-1 overflow-hidden">
-        <GameChat 
-          gameId={gameId} 
-          onGameUpdate={onGameUpdate} 
-          onTerminalStatusChange={onTerminalStatusChange}
-          disabled={chatDisabled}
-          disabledMessage={disabledMessage}
-          onRevertToVersion={onRevertToMessageVersion}
-          gameVersions={gameVersions}
-          initialMessage={initialPrompt}
-          modelType={modelType}
-        />
+        <div className="h-full rounded-r-lg overflow-hidden">
+          <GameChat 
+            gameId={gameId} 
+            onGameUpdate={onGameUpdate} 
+            onTerminalStatusChange={onTerminalStatusChange}
+            disabled={chatDisabled}
+            disabledMessage={disabledMessage}
+            onRevertToVersion={onRevertToMessageVersion}
+            gameVersions={gameVersions}
+            initialMessage={initialPrompt}
+            modelType={modelType}
+          />
+        </div>
       </div>
     </div>
   );

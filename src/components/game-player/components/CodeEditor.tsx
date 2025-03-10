@@ -80,32 +80,41 @@ export const CodeEditor = ({ html, css, js, isOwner, onSave }: CodeEditorProps) 
   };
 
   return (
-    <div className="relative h-full w-full overflow-hidden flex flex-col bg-white text-gray-800 border border-gray-200 shadow-sm">
+    <div className="relative h-full w-full overflow-hidden flex flex-col bg-white text-gray-800 border border-gray-200 shadow-md rounded-lg">
       <Tabs defaultValue="html" value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
-        <div className="flex items-center justify-between px-2 bg-gray-50 border-b border-gray-200">
-          <TabsList className="flex gap-1 bg-transparent h-10">
+        <div className="flex items-center justify-between px-3 py-1.5 bg-gradient-to-r from-gray-50 to-gray-100 border-b border-gray-200">
+          <TabsList className="flex gap-1.5 bg-transparent h-10 p-1 rounded-lg border border-gray-200/80 shadow-sm">
             <TabsTrigger 
               value="html" 
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-white data-[state=active]:text-gray-800 data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-gray-200"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all duration-200
+              data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm 
+              data-[state=active]:border data-[state=active]:border-gray-200
+              data-[state=inactive]:hover:bg-white/60"
             >
-              <FileText size={14} />
+              <FileText size={14} className="text-indigo-600" />
               <span>index.html</span>
             </TabsTrigger>
             {css && (
               <TabsTrigger 
                 value="css" 
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-white data-[state=active]:text-gray-800 data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-gray-200"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all duration-200
+                data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm 
+                data-[state=active]:border data-[state=active]:border-gray-200
+                data-[state=inactive]:hover:bg-white/60"
               >
-                <Pencil size={14} />
+                <Pencil size={14} className="text-indigo-600" />
                 <span>styles.css</span>
               </TabsTrigger>
             )}
             {js && (
               <TabsTrigger 
                 value="js" 
-                className="flex items-center gap-1.5 px-3 py-1.5 text-xs data-[state=active]:bg-white data-[state=active]:text-gray-800 data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-gray-200"
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-all duration-200
+                data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm 
+                data-[state=active]:border data-[state=active]:border-gray-200
+                data-[state=inactive]:hover:bg-white/60"
               >
-                <Code size={14} />
+                <Code size={14} className="text-indigo-600" />
                 <span>script.js</span>
               </TabsTrigger>
             )}
@@ -118,7 +127,7 @@ export const CodeEditor = ({ html, css, js, isOwner, onSave }: CodeEditorProps) 
                   variant="outline"
                   size="sm"
                   onClick={handleToggleEdit}
-                  className="h-8 text-xs"
+                  className="h-8 text-xs rounded-full bg-white shadow-sm hover:shadow-md transition-all duration-200"
                 >
                   {isEditing ? "Cancel" : "Edit Code"}
                 </Button>
@@ -129,7 +138,7 @@ export const CodeEditor = ({ html, css, js, isOwner, onSave }: CodeEditorProps) 
                     size="sm"
                     onClick={handleSave}
                     disabled={isSaving}
-                    className="h-8 text-xs"
+                    className="h-8 text-xs rounded-full bg-green-600 hover:bg-green-700 shadow-sm hover:shadow-md transition-all duration-200"
                   >
                     {isSaving ? "Saving..." : "Save Changes"}
                     <Save size={14} className="ml-1" />

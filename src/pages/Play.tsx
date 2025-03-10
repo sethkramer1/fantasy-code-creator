@@ -155,6 +155,9 @@ const Play = () => {
     contentInitializedRef.current = false;
     tokenCheckPerformedRef.current = false;
     setSelectedVersionId(null);
+    
+    // Reset forking state when the gameId changes (we've navigated to a new design)
+    setIsForkingInProgress(false);
   }, [gameId]);
 
   useEffect(() => {
@@ -220,6 +223,16 @@ const Play = () => {
   }, [gameVersions.length]);
 
   const handleDownload = () => {
+    // Check if user is the owner
+    if (!isOwner) {
+      toast({
+        title: "Permission denied",
+        description: "Only the owner can download this design.",
+        variant: "destructive"
+      });
+      return;
+    }
+  
     if (displayedVersion()) {
       const zip = new JSZip();
       try {
@@ -525,7 +538,7 @@ const Play = () => {
     if (!user) {
       toast({
         title: "Login Required",
-        description: "You need to be logged in to fork this design.",
+        description: "You need to be logged in to remix this design.",
         variant: "destructive"
       });
       navigate("/auth");
@@ -547,9 +560,9 @@ const Play = () => {
         throw new Error("No valid code found to fork");
       }
       
-      // Determine if this is a self-fork (user forking their own game)
-      const isSelfFork = user.id === game.user_id;
-      const namePrefix = isSelfFork ? "Copy of " : "Fork of ";
+      // Determine if this is a self-remix (user remixing their own game)
+      const isSelfRemix = user.id === game.user_id;
+      const namePrefix = isSelfRemix ? "Copy of " : "Remix of ";
       
       // Create a new game with the code from the current displayed version
       forkedGame = await saveGeneratedGame({
@@ -601,14 +614,14 @@ const Play = () => {
         }
         
         toast({
-          title: "Design Forked Successfully",
+          title: "Design Remixed Successfully",
           description: "You now have your own copy of this design that you can modify."
         });
         
         // Create a clickable element for manual navigation
         const manualNavigationLink = document.createElement('a');
         manualNavigationLink.href = `/play/${forkedGame.id}`;
-        manualNavigationLink.textContent = 'Click here to view your forked design';
+        manualNavigationLink.textContent = 'Click here to view your remixed design';
         manualNavigationLink.className = 'underline text-blue-600 cursor-pointer fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-white px-4 py-2 rounded-md shadow-md z-50';
         manualNavigationLink.onclick = (e) => {
           e.preventDefault();
@@ -645,6 +658,11 @@ const Play = () => {
           // Navigate to the new game
           navigate(`/play/${forkedGame.id}`);
           console.log(`Navigation to /play/${forkedGame.id} completed`);
+          
+          // Reset the forking state after navigation
+          setTimeout(() => {
+            setIsForkingInProgress(false);
+          }, 500);
         }, 100);
         
         // Add a fallback navigation after a longer delay
@@ -652,8 +670,13 @@ const Play = () => {
           // Check if we're still on the same page
           if (window.location.pathname.includes(`/play/${gameId}`)) {
             console.log("Fallback navigation triggered - still on original page");
+            // Reset forking state since navigation didn't happen as expected
+            setIsForkingInProgress(false);
             // Try direct window location change as a fallback
             window.location.href = `/play/${forkedGame.id}`;
+          } else {
+            // We've navigated away but ensure state is reset
+            setIsForkingInProgress(false);
           }
         }, 1000);
       } else {
@@ -662,7 +685,7 @@ const Play = () => {
     } catch (error) {
       console.error("Error forking game:", error);
       toast({
-        title: "Error Forking Design",
+        title: "Error Remixing Design",
         description: error instanceof Error ? error.message : "An unknown error occurred",
         variant: "destructive"
       });
@@ -732,7 +755,7 @@ const Play = () => {
   }
 
   return (
-    <div className="flex flex-col h-screen w-full bg-white">
+    <div className="flex flex-col h-screen w-full bg-gray-50">
       <PlayNavbar
         gameId={gameId}
         gameName={game?.name || (game as any)?.name || (initialPrompt !== "Loading..." ? initialPrompt : (game?.prompt || "Loading..."))}
@@ -748,7 +771,7 @@ const Play = () => {
         currentVersion={currentVersion}
       />
 
-      <div className="flex flex-grow w-full overflow-hidden pt-0">
+      <div className="flex flex-grow w-full overflow-hidden pt-0 max-h-[calc(100vh-4rem)]">
         <SidebarChat
           gameId={gameId}
           generationInProgress={generationInProgress}
@@ -763,7 +786,7 @@ const Play = () => {
           isCreator={isOwner}
         />
         
-        <div className="flex-1 h-full overflow-hidden bg-gray-50">
+        <div className="flex-1 h-full overflow-hidden bg-white shadow-sm rounded-tl-xl border-t border-l border-gray-100 ml-0 mt-0">
           {generationInProgress ? (
             <GenerationTerminal
               open={showTerminal}
@@ -775,8 +798,10 @@ const Play = () => {
             />
           ) : (
             <div className="h-full flex flex-col">
-              <div className="flex justify-between items-center p-3 bg-white border-b border-gray-200">
-                <ViewToggle showCode={showCode} onToggle={setShowCode} />
+              <div className="flex justify-between items-center p-3 px-4 bg-white border-b border-gray-100">
+                <div className="flex items-center gap-4">
+                  <ViewToggle showCode={showCode} onToggle={setShowCode} />
+                </div>
                 <VersionHistory 
                   gameVersions={gameVersions} 
                   currentVersionId={currentVersion?.id}

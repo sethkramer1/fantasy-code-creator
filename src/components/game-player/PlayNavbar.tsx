@@ -141,21 +141,21 @@ export function PlayNavbar({
   const visibilityBadge = getVisibilityBadge();
 
   return (
-    <nav className="border-b bg-white shadow-sm sticky top-0 z-50 h-16">
+    <nav className="border-b border-gray-100 bg-white shadow-sm sticky top-0 z-50 h-16 backdrop-blur-sm bg-white/95">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full">
         <div className="flex justify-between h-full">
           <div className="flex items-center">
             {/* Logo and back button */}
             <Button
               variant="ghost"
-              className="mr-2"
+              className="mr-2 rounded-full transition-all hover:bg-gray-100"
               onClick={handleBackClick}
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back
+              <ArrowLeft className="h-4 w-4 mr-2 text-gray-700" />
+              <span className="text-gray-700 font-medium">Back</span>
             </Button>
             
-            <div className="flex items-center border-l pl-4 ml-2">
+            <div className="flex items-center border-l border-gray-200 pl-4 ml-3">
               {isEditingName ? (
                 <div className="flex items-center">
                   <Input
@@ -163,39 +163,39 @@ export function PlayNavbar({
                     value={nameValue}
                     onChange={(e) => setNameValue(e.target.value)}
                     onKeyDown={handleKeyDown}
-                    className="h-8 w-[200px] sm:w-[300px] text-lg font-medium"
+                    className="h-9 w-[200px] sm:w-[300px] text-base font-medium border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
                     placeholder="Enter design name"
                   />
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="h-8 w-8 ml-1" 
+                    className="h-8 w-8 ml-1 hover:bg-green-50 rounded-full" 
                     onClick={handleSaveName}
                   >
-                    <Check className="h-4 w-4 text-green-600" />
+                    <Check className="h-5 w-5 text-green-600" />
                   </Button>
                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="h-8 w-8" 
+                    className="h-8 w-8 hover:bg-red-50 rounded-full" 
                     onClick={handleCancelEditing}
                   >
-                    <X className="h-4 w-4 text-red-600" />
+                    <X className="h-5 w-5 text-red-600" />
                   </Button>
                 </div>
               ) : (
-                <div className="flex items-center">
-                  <h1 className="text-lg font-medium text-gray-800 truncate max-w-[200px] sm:max-w-md">
+                <div className="flex items-center group">
+                  <h1 className="text-lg font-semibold text-gray-800 truncate max-w-[200px] sm:max-w-md group-hover:text-blue-600 transition-colors">
                     {gameName || "Untitled Design"}
                   </h1>
                   {isOwner && (
                     <Button 
                       variant="ghost" 
                       size="icon" 
-                      className="h-6 w-6 ml-1" 
+                      className="h-6 w-6 ml-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-50 rounded-full" 
                       onClick={handleStartEditing}
                     >
-                      <Pencil className="h-3 w-3 text-gray-500" />
+                      <Pencil className="h-3.5 w-3.5 text-blue-500" />
                     </Button>
                   )}
                 </div>
@@ -204,7 +204,7 @@ export function PlayNavbar({
               {/* Visibility badge */}
               <Badge 
                 variant={visibilityBadge.variant} 
-                className="ml-2 flex items-center text-xs font-normal"
+                className="ml-3 flex items-center text-xs font-medium px-2 py-0.5 rounded-full"
               >
                 {visibilityBadge.icon}
                 {visibilityBadge.label}
@@ -212,7 +212,7 @@ export function PlayNavbar({
             </div>
           </div>
 
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-3">
             {/* Share button for owners only */}
             {isOwner && onVisibilityChange && (
               <ShareButton 
@@ -223,15 +223,31 @@ export function PlayNavbar({
               />
             )}
             
-            <Button 
-              variant="outline" 
-              size="sm" 
-              className="h-8 gap-1 text-sm border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300" 
-              onClick={onDownload}
-            >
-              <Download size={14} />
-              ZIP
-            </Button>
+            {/* Download button - only shown to owner */}
+            {isOwner && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="h-9 gap-1.5 text-sm border-gray-200 text-gray-700 hover:bg-gray-50 hover:text-gray-900 hover:border-gray-300 font-medium rounded-full px-4" 
+                onClick={onDownload}
+              >
+                <Download size={15} />
+                <span>Download</span>
+              </Button>
+            )}
+            
+            {onFork && (
+              <Button 
+                variant="default" 
+                size="sm"
+                onClick={onFork}
+                disabled={isForkingInProgress}
+                className="h-9 gap-1.5 text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-medium rounded-full px-4"
+              >
+                <GitFork size={15} />
+                <span>{isForkingInProgress ? "Remixing..." : "Remix"}</span>
+              </Button>
+            )}
             
             <GameActions
               currentVersion={currentVersion}
@@ -251,17 +267,17 @@ export function PlayNavbar({
             {user ? (
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="rounded-full h-10 w-10 p-0">
-                    <Avatar className="h-8 w-8">
+                  <Button variant="ghost" className="rounded-full h-10 w-10 p-0 hover:bg-gray-100">
+                    <Avatar className="h-9 w-9 border-2 border-white shadow-sm">
                       <AvatarImage src={user?.user_metadata?.avatar_url} alt={user?.email || "User"} />
-                      <AvatarFallback>
+                      <AvatarFallback className="bg-blue-100 text-blue-800 font-medium">
                         {user?.email?.charAt(0).toUpperCase() || "U"}
                       </AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  <DropdownMenuLabel className="font-normal">
+                <DropdownMenuContent align="end" className="w-56 rounded-xl p-1 shadow-lg border-gray-200">
+                  <DropdownMenuLabel className="font-normal px-3 py-2">
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none">{user?.email}</p>
                       <p className="text-xs leading-none text-muted-foreground">
@@ -269,10 +285,13 @@ export function PlayNavbar({
                       </p>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={handleAccountClick}>
-                    <UserCircle size={16} className="mr-2" />
-                    Account
+                  <DropdownMenuSeparator className="bg-gray-100" />
+                  <DropdownMenuItem 
+                    onClick={handleAccountClick}
+                    className="rounded-lg hover:bg-blue-50 cursor-pointer transition-colors px-3 py-2 mx-1 my-1"
+                  >
+                    <UserCircle size={16} className="mr-2 text-blue-600" />
+                    <span className="text-gray-800">Account</span>
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -281,7 +300,7 @@ export function PlayNavbar({
                 onClick={handleLoginClick}
                 size="sm" 
                 variant="default"
-                className="h-9"
+                className="h-9 rounded-full px-4 bg-blue-600 hover:bg-blue-700"
               >
                 Sign in
               </Button>

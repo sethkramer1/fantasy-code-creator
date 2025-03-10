@@ -121,12 +121,16 @@ ${js}
         indicator.style.position = 'fixed';
         indicator.style.top = '10px';
         indicator.style.left = '10px';
-        indicator.style.backgroundColor = 'rgba(255, 107, 0, 0.8)';
+        indicator.style.backgroundColor = 'rgba(79, 70, 229, 0.9)';
         indicator.style.color = 'white';
-        indicator.style.padding = '8px 12px';
-        indicator.style.borderRadius = '4px';
+        indicator.style.padding = '8px 16px';
+        indicator.style.borderRadius = '25px';
         indicator.style.zIndex = '9999';
         indicator.style.fontSize = '14px';
+        indicator.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
+        indicator.style.fontFamily = 'system-ui, sans-serif';
+        indicator.style.fontWeight = '500';
+        indicator.style.transition = 'all 0.2s ease';
         iframeRef.current.contentDocument.body.appendChild(indicator);
       } catch (error) {
         console.error("Error applying edit mode:", error);
@@ -334,17 +338,17 @@ ${js}
             />
             
             {/* Control buttons */}
-            <div className="absolute top-0 left-0 right-0 p-2 bg-gradient-to-b from-gray-900/50 to-transparent flex justify-end z-10">
+            <div className="absolute top-4 right-4 z-20">
               {/* Edit button shown when not in edit mode */}
               {isOwner && !isEditMode && (
                 <Button
                   size="sm"
                   variant="secondary"
                   onClick={handleEditClick}
-                  className="h-8 gap-1 bg-white/90 hover:bg-white"
+                  className="h-9 gap-1.5 bg-white shadow-md hover:shadow-lg transition-all duration-200 rounded-full px-4 border border-gray-200 hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
                 >
-                  <Edit size={14} />
-                  <span className="hidden sm:inline">Edit Text</span>
+                  <Edit size={15} className="text-indigo-600" />
+                  <span className="font-medium text-gray-800">Edit Text</span>
                 </Button>
               )}
               
@@ -352,26 +356,31 @@ ${js}
               {isEditMode && (
                 <div className="flex gap-2">
                   <Button 
-                    variant="destructive" 
+                    variant="outline" 
                     size="sm" 
                     onClick={handleCancel}
-                    className="h-8 gap-1 bg-white/90 hover:bg-white text-red-600"
+                    className="h-9 gap-1.5 bg-white shadow-md hover:bg-gray-50 transition-all duration-200 rounded-full px-4 border-gray-200 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
                   >
-                    <X size={14} />
-                    <span className="hidden sm:inline">Cancel</span>
+                    <X size={15} className="text-gray-500" />
+                    <span className="font-medium text-gray-800">Cancel</span>
                   </Button>
                   <Button 
                     variant="default" 
                     size="sm" 
                     onClick={handleSave}
-                    className="h-8 gap-1 bg-green-500 hover:bg-green-600 text-white"
+                    className="h-9 gap-1.5 bg-indigo-600 hover:bg-indigo-700 shadow-md hover:shadow-lg transition-all duration-200 rounded-full px-5 border-0"
                   >
-                    <Save size={14} />
-                    <span className="hidden sm:inline">Save</span>
+                    <Save size={15} />
+                    <span className="font-medium">Save</span>
                   </Button>
                 </div>
               )}
             </div>
+            
+            {/* Edit mode indicator overlay */}
+            {isEditMode && (
+              <div className="absolute top-0 left-0 right-0 h-12 bg-gradient-to-b from-indigo-600/15 to-transparent pointer-events-none"></div>
+            )}
           </div>
         )}
       </div>

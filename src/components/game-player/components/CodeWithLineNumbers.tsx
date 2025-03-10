@@ -73,14 +73,14 @@ export const CodeWithLineNumbers = ({
   const lines = (isEditable ? editableCode : code).split('\n');
   
   return (
-    <div className="relative flex text-xs font-mono h-full">
+    <div className="relative flex text-xs font-mono h-full bg-white">
       <div 
         ref={lineNumbersRef}
-        className="bg-gray-100 text-gray-500 pr-4 pl-2 text-right select-none border-r border-gray-200 overflow-hidden"
-        style={{ overflowY: 'hidden' }}
+        className="bg-gray-50 text-gray-400 pr-4 pl-3 text-right select-none border-r border-gray-200 overflow-hidden shadow-sm"
+        style={{ overflowY: 'hidden', minWidth: '3.5rem' }}
       >
         {lines.map((_, i) => (
-          <div key={i} className="leading-5 py-0.5">
+          <div key={i} className="leading-5 py-0.5 text-xs">
             {i + 1}
           </div>
         ))}
@@ -91,18 +91,19 @@ export const CodeWithLineNumbers = ({
           ref={textareaRef}
           value={editableCode}
           onChange={handleCodeChange}
-          className="flex-1 overflow-auto pl-4 pr-4 text-gray-800 bg-white font-mono text-xs leading-5 resize-none border-none focus:outline-none focus:ring-0"
+          className="flex-1 overflow-auto pl-4 pr-8 text-gray-800 bg-white font-mono text-xs leading-5 resize-none border-none focus:outline-none focus:ring-0"
           spellCheck="false"
           style={{ 
             whiteSpace: 'pre',
             overflowWrap: 'normal',
-            overflowX: 'auto'
+            overflowX: 'auto',
+            caretColor: '#4f46e5'
           }}
         />
       ) : (
         <pre 
           ref={codeContainerRef}
-          className="flex-1 overflow-auto pl-4 pr-4 text-gray-800 bg-white whitespace-pre-wrap text-left"
+          className="flex-1 overflow-auto pl-4 pr-8 text-gray-800 bg-white whitespace-pre text-left"
         >
           <code className={`language-${language} bg-white`}>
             {lines.map((line, i) => (
@@ -114,10 +115,10 @@ export const CodeWithLineNumbers = ({
       
       <button
         onClick={handleCopyCode}
-        className="absolute top-2 right-2 p-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 hover:text-gray-900 transition-colors"
+        className="absolute top-3 right-3 p-1.5 bg-white hover:bg-gray-100 text-gray-500 hover:text-indigo-600 transition-all duration-200 rounded-md border border-gray-200 shadow-sm hover:shadow-md"
         title="Copy code"
       >
-        <Copy size={16} />
+        <Copy size={14} />
       </button>
     </div>
   );
