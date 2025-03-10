@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useToast } from "@/components/ui/use-toast";
 import { contentTypes } from "@/types/game";
 import { GenerationOptions, GenerationResult, ModelType } from "@/types/generation";
@@ -7,10 +7,12 @@ import { callGroqApi } from "@/services/generation/groqService";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { trackTokenUsage } from "@/components/game-chat/api-service";
 import { useAuth } from "@/context/AuthContext";
+import { useGeneration } from "@/contexts/GenerationContext";
 
 export const useGameGeneration = () => {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { isGenerating, setIsGenerating } = useGeneration();
   const [loading, setLoading] = useState(false);
   const [showTerminal, setShowTerminal] = useState(false);
   const [terminalOutput, setTerminalOutput] = useState<string[]>([]);
@@ -20,6 +22,11 @@ export const useGameGeneration = () => {
   const timerRef = useRef<NodeJS.Timeout>();
   const maxRetries = 2;
   const currentThinkingRef = useRef<string>('');
+
+  // Debug effect to log when generation state changes
+  useEffect(() => {
+    console.log("Generation state changed:", isGenerating);
+  }, [isGenerating]);
 
   const generateGame = async ({
     prompt,
@@ -49,6 +56,8 @@ export const useGameGeneration = () => {
     const activeModelType: ModelType = requestModelType || modelType;
 
     setLoading(true);
+    console.log("Setting isGenerating to true");
+    setIsGenerating(true); // Set global generation state to true
     setShowTerminal(true);
     setTerminalOutput([`> Starting generation with prompt: "${prompt}"${imageUrl ? ' (with image)' : ''}`]);
     currentThinkingRef.current = '';
@@ -223,8 +232,9 @@ export const useGameGeneration = () => {
         modelType: activeModelType,
         imageUrl,
         existingGameId,
+        gameName,
         visibility,
-        gameName
+        userId: user?.id
       });
       
       // Log the saved game data to verify if the name was saved
@@ -254,8 +264,19 @@ export const useGameGeneration = () => {
       
       setTerminalOutput(prev => [...prev, "> Saved successfully!"]);
       
-      return gameData;
-
+      return gameData ? {
+        id: gameData.id,
+        gameId: gameData.id,
+        gameContent,
+        gameName: gameData.name || gameName,
+        gameType,
+        visibility,
+        modelType: activeModelType,
+        tokenInfo: {
+          inputTokens,
+          outputTokens
+        }
+      } : null;
     } catch (error) {
       console.error('Generation error:', error);
       
@@ -290,6 +311,11 @@ export const useGameGeneration = () => {
       return null;
     } finally {
       setLoading(false);
+      console.log("Setting isGenerating to false");
+      setIsGenerating(false); // Reset global generation state
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+      }
     }
   };
 

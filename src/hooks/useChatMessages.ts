@@ -15,6 +15,7 @@ import {
   processAnthropicStream 
 } from "@/components/game-chat/terminal-utils";
 import { useAuth } from "@/context/AuthContext";
+import { useGeneration } from "@/contexts/GenerationContext";
 
 export interface UseChatMessagesProps {
   gameId: string;
@@ -42,10 +43,17 @@ export function useChatMessages({
   const [initialMessageId, setInitialMessageId] = useState<string | null>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const { user } = useAuth();
+  const { setIsGenerating } = useGeneration();
 
   useEffect(() => {
     setModelType(initialModelType);
   }, [initialModelType]);
+
+  // Sync local loading state with global generation state
+  useEffect(() => {
+    setIsGenerating(loading);
+    console.log("useChatMessages: Updating global isGenerating to", loading);
+  }, [loading, setIsGenerating]);
 
   useEffect(() => {
     if (loading) {

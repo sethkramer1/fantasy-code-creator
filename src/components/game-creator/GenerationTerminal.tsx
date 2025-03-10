@@ -79,13 +79,12 @@ export function GenerationTerminal({
   const terminalContent = (
     <>
       <div className="mb-4 flex-shrink-0">
-        <h2 className="text-green-400 text-xl font-bold">Generation Progress</h2>
-        <div className="text-green-400/70 space-y-2 mt-2">
+        <div className="text-green-400/70 space-y-2">
           <div className="flex items-center gap-2">
             <Timer size={16} />
             <span>Thinking for {thinkingTime} seconds...</span>
           </div>
-          <p>Watching the AI create your content in real-time...</p>
+          <p className="text-left">Watching the AI create your content in real-time...</p>
         </div>
       </div>
       
@@ -147,7 +146,7 @@ export function GenerationTerminal({
   // If asModal is false, render the terminal directly
   if (!asModal) {
     return (
-      <div className="bg-black text-green-400 font-mono p-6 flex flex-col overflow-hidden border border-green-500/20 h-full w-full" 
+      <div className="bg-black text-green-400 font-mono p-6 pt-28 flex flex-col overflow-hidden border border-green-500/20 h-full w-full" 
            style={{ maxHeight: "100vh" }}>
         {terminalContent}
       </div>

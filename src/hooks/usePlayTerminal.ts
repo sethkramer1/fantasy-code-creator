@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ModelType, StreamEvent } from "@/types/generation";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { useAuth } from "@/context/AuthContext";
+import { useGeneration } from "@/contexts/GenerationContext";
 import { updateTerminalOutput, processAnthropicStream } from "@/components/game-chat/terminal-utils";
 import { trackTokenUsage } from "@/components/game-chat/api-service";
 import { saveInitialGenerationTokens, updateTokenCounts, forceTokenTracking } from "@/services/generation/tokenTrackingService";
@@ -25,6 +26,7 @@ export function usePlayTerminal(
   modelType: string = "smart",
   imageUrl: string = ""
 ) {
+  const { setIsGenerating } = useGeneration();
   const [state, setState] = useState<TerminalState>({
     generationInProgress: generating,
     terminalOutput: [],
@@ -255,6 +257,12 @@ export function usePlayTerminal(
       };
     });
   };
+
+  // Sync local generation state with global context
+  useEffect(() => {
+    setIsGenerating(state.generationInProgress);
+    console.log("usePlayTerminal: Updating global isGenerating to", state.generationInProgress);
+  }, [state.generationInProgress, setIsGenerating]);
 
   useEffect(() => {
     if (state.generationInProgress) {

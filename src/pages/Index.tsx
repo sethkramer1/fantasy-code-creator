@@ -5,6 +5,8 @@ import { useGames } from "@/hooks/useGames";
 import { GenerationPanel } from "@/components/game-creator/GenerationPanel";
 import { DesignsGallery } from "@/components/game-creator/DesignsGallery";
 import { MainNavigation } from "@/components/common/MainNavigation";
+import { useGeneration } from "@/contexts/GenerationContext";
+import StreamingWarningBanner from "@/components/common/StreamingWarningBanner";
 
 const Index = () => {
   const { games, gamesLoading, deleteGame } = useGames();
@@ -37,11 +39,20 @@ const Index = () => {
     };
   }, [loading, timerRef, setThinkingTime]);
 
+  const { isGenerating } = useGeneration();
+
   return (
     <div className="min-h-screen bg-white">
       <MainNavigation />
       
-      <div className="pt-8">
+      <div className="pt-8 relative">
+        {/* Only show warning banner during generation */}
+        {(loading || isGenerating) && (
+          <div className="max-w-5xl mx-auto px-6 relative z-10">
+            <StreamingWarningBanner isVisible={true} />
+          </div>
+        )}
+        
         <GenerationPanel
           loading={loading}
           showTerminal={showTerminal}

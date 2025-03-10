@@ -11,6 +11,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { ViewToggle } from "@/components/game-player/ViewToggle";
 import { VersionHistory } from "@/components/game-player/components/VersionHistory";
 import { useAuth } from "@/context/AuthContext";
+import { useGeneration } from "@/contexts/GenerationContext";
 import { forceTokenTracking } from "@/services/generation/tokenTrackingService";
 import { supabase } from "@/integrations/supabase/client";
 import { generateGameName } from "@/services/generation/anthropicService";
@@ -19,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { GameData } from "@/types/game";
 import { GameVersion } from "@/components/game-player/hooks/useGameVersions";
+import StreamingWarningBanner from "@/components/common/StreamingWarningBanner";
 
 const Play = () => {
   const { id: gameId } = useParams();
@@ -32,6 +34,7 @@ const Play = () => {
   const contentInitializedRef = useRef(false);
   const tokenCheckPerformedRef = useRef(false);
   const { user } = useAuth();
+  const { isGenerating, setIsGenerating } = useGeneration();
   
   const generating = searchParams.get("generating") === "true";
   const initialType = searchParams.get("type") || "webdesign";
@@ -159,6 +162,12 @@ const Play = () => {
     // Reset forking state when the gameId changes (we've navigated to a new design)
     setIsForkingInProgress(false);
   }, [gameId]);
+
+  // Synchronize the local and global generation states
+  useEffect(() => {
+    setIsGenerating(generationInProgress);
+    console.log("Updating global generation state:", generationInProgress);
+  }, [generationInProgress, setIsGenerating]);
 
   useEffect(() => {
     if (generating && !generationInProgress && !generationHandledRef.current) {
@@ -788,16 +797,23 @@ const Play = () => {
         
         <div className="flex-1 h-full overflow-hidden bg-white shadow-sm rounded-tl-xl border-t border-l border-gray-100 ml-0 mt-0">
           {generationInProgress ? (
-            <GenerationTerminal
-              open={showTerminal}
-              onOpenChange={setShowTerminal}
-              output={terminalOutput}
-              thinkingTime={thinkingTime}
-              loading={generationInProgress}
-              asModal={false}
-            />
+            <div className="relative h-full">
+              {/* Position the warning banner within the generation terminal area */}
+              <StreamingWarningBanner isVisible={true} />
+              <GenerationTerminal
+                open={showTerminal}
+                onOpenChange={setShowTerminal}
+                output={terminalOutput}
+                thinkingTime={thinkingTime}
+                loading={generationInProgress}
+                asModal={false}
+              />
+            </div>
           ) : (
-            <div className="h-full flex flex-col">
+            <div className="h-full flex flex-col relative">
+              {/* Show warning banner in code view if a chat message is being processed */}
+              {isGenerating && <StreamingWarningBanner isVisible={true} />}
+              
               <div className="flex justify-between items-center p-3 px-4 bg-white border-b border-gray-100">
                 <div className="flex items-center gap-4">
                   <ViewToggle showCode={showCode} onToggle={setShowCode} />
