@@ -80,7 +80,7 @@ export const CodeEditor = ({ html, css, js, isOwner, onSave }: CodeEditorProps) 
   };
 
   return (
-    <div className="absolute inset-0 overflow-hidden flex flex-col bg-white text-gray-800 border border-gray-200 shadow-sm">
+    <div className="relative h-full w-full overflow-hidden flex flex-col bg-white text-gray-800 border border-gray-200 shadow-sm">
       <Tabs defaultValue="html" value={activeTab} onValueChange={setActiveTab} className="flex flex-col h-full">
         <div className="flex items-center justify-between px-2 bg-gray-50 border-b border-gray-200">
           <TabsList className="flex gap-1 bg-transparent h-10">

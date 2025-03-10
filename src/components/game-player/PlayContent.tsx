@@ -78,7 +78,7 @@ export function PlayContent({
   }, [showGenerating, generationInProgress, currentVersion]);
 
   return (
-    <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden">
+    <div className="flex-1 p-4 md:p-6 flex flex-col overflow-hidden mt-0">
       <div className="max-w-[1200px] mx-auto w-full flex-1 flex flex-col">
         <div className="glass-panel bg-white border border-gray-100 rounded-xl p-4 md:p-6 flex-1 flex flex-col overflow-hidden">
           <div className="flex items-center justify-between mb-4 flex-shrink-0">

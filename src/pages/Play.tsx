@@ -748,7 +748,7 @@ const Play = () => {
         currentVersion={currentVersion}
       />
 
-      <div className="flex flex-grow w-full overflow-hidden">
+      <div className="flex flex-grow w-full overflow-hidden pt-0">
         <SidebarChat
           gameId={gameId}
           generationInProgress={generationInProgress}
