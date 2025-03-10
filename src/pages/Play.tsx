@@ -18,6 +18,7 @@ import JSZip from 'jszip';
 import { Button } from "@/components/ui/button";
 import { saveGeneratedGame } from "@/services/generation/gameStorageService";
 import { GameData } from "@/types/game";
+import { GameVersion } from "@/components/game-player/hooks/useGameVersions";
 
 const Play = () => {
   const { id: gameId } = useParams();
@@ -377,7 +378,7 @@ const Play = () => {
     }
   };
 
-  const handleSaveCode = async (newCode: string, newInstructions: string) => {
+  const handleSaveCode = async (updatedVersion: GameVersion) => {
     if (!gameId || !user) {
       toast({
         title: "Authentication required",
@@ -398,20 +399,19 @@ const Play = () => {
       }
       
       // Use the handleGameUpdate function from useGameUpdate hook
-      await handleGameUpdate(newCode, newInstructions || "");
+      await handleGameUpdate(updatedVersion.code, updatedVersion.instructions || "");
       
       toast({
         title: "Changes saved",
-        description: "Your changes have been saved as a new version"
+        description: "Your changes have been saved successfully"
       });
     } catch (error) {
-      console.error("Error saving code changes:", error);
+      console.error("Error saving code:", error);
       toast({
         title: "Error saving changes",
-        description: error instanceof Error ? error.message : "An unexpected error occurred",
+        description: "Please try again later",
         variant: "destructive"
       });
-      throw error;
     }
   };
 

@@ -35,229 +35,255 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
       try {
         console.log("Directly enabling edit mode in iframe");
         
-        // Find all text elements that could be edited
-        const textElements = iframe.contentDocument.querySelectorAll('p, h1, h2, h3, h4, h5, h6, span, div, a, button, li, td, th, label');
-        console.log("Found", textElements.length, "text elements to evaluate for editing");
+        // Check if document is ready
+        if (iframe.contentDocument.readyState !== 'complete') {
+          console.log("Document not ready, trying again in 100ms");
+          setTimeout(enableEditModeDirectly, 100);
+          return;
+        }
         
-        // Make elements editable
-        let editableCount = 0;
-        textElements.forEach((el: HTMLElement) => {
-          // Skip elements with no text or only whitespace
-          if (!el.textContent || el.textContent.trim() === '') return;
-          
-          // Skip elements with significant child elements
-          if (el.querySelector('img, video, iframe, canvas, svg')) return;
-          
-          // Skip elements that contain other text elements (to avoid nested editables)
-          if (el.querySelector('p, h1, h2, h3, h4, h5, h6, span, a, button, li')) return;
-          
-          // Skip elements with very short text (likely icons or symbols)
-          if (el.textContent.trim().length < 2) return;
-          
-          try {
-            // Make element editable
-            el.contentEditable = 'true';
-            el.setAttribute('data-editable', 'true');
-            
-            // Remove any existing click listeners to prevent duplicates
-            const newEl = el.cloneNode(true) as HTMLElement;
-            el.parentNode?.replaceChild(newEl, el);
-            
-            // Add click event listener to the new element
-            newEl.addEventListener('click', (e) => {
-              e.stopPropagation(); // Prevent event bubbling
-              e.preventDefault(); // Prevent default behavior
-              console.log("Element clicked:", newEl.tagName);
-              
-              const target = e.currentTarget as HTMLElement;
-              target.focus();
-              
-              // Create a selection range to position cursor at end of text
-              if (iframe.contentDocument?.createRange && iframe.contentWindow?.getSelection) {
-                const range = iframe.contentDocument.createRange();
-                const selection = iframe.contentWindow.getSelection();
-                range.selectNodeContents(target);
-                range.collapse(false); // false means collapse to end
-                selection?.removeAllRanges();
-                selection?.addRange(range);
-              }
-            });
-            
-            editableCount++;
-          } catch (err) {
-            console.error("Error making element editable:", err);
+        // Store edit mode state in sessionStorage
+        try {
+          if (iframe.contentWindow.sessionStorage) {
+            iframe.contentWindow.sessionStorage.setItem('editMode', 'true');
+            console.log("Stored edit mode state in sessionStorage: true");
           }
-        });
-        console.log("Made", editableCount, "elements editable");
-        
-        // Add edit mode styles
-        let style = iframe.contentDocument.getElementById('edit-mode-styles');
-        if (!style) {
-          style = iframe.contentDocument.createElement('style');
-          style.id = 'edit-mode-styles';
-          style.textContent = `
-            [data-editable="true"] {
-              outline: 2px dashed #4299e1 !important;
-              cursor: text !important;
-              min-height: 1em;
-              min-width: 1em;
-              padding: 2px;
-              transition: outline 0.2s, background-color 0.2s;
-            }
-            [data-editable="true"]:hover {
-              outline: 2px dashed #3182ce !important;
-              background-color: rgba(66, 153, 225, 0.1) !important;
-            }
-            [data-editable="true"]:focus {
-              outline: 3px solid #3182ce !important;
-              background-color: rgba(66, 153, 225, 0.2) !important;
-            }
-          `;
-          iframe.contentDocument.head.appendChild(style);
+        } catch (error) {
+          console.error("Error storing edit mode in sessionStorage:", error);
         }
         
-        // Add input event listener if not already added
-        if (!iframe.contentWindow._editListenerAdded) {
-          // Listen for input events (text changes)
-          iframe.contentDocument.addEventListener('input', function(e) {
-            const target = e.target as HTMLElement;
-            if (target.dataset.editable === 'true') {
-              console.log("Input event fired, posting TEXT_UPDATED");
-              
-              // Send the updated HTML to the parent
-              if (onCodeUpdate) {
-                onCodeUpdate(iframe.contentDocument!.documentElement.outerHTML);
-              }
-              
-              window.parent.postMessage({
-                type: 'TEXT_UPDATED',
-                html: iframe.contentDocument!.documentElement.outerHTML
-              }, '*');
-            }
-          });
-          
-          // Add focus event listener to highlight the current editable element
-          iframe.contentDocument.addEventListener('focus', function(e) {
-            const target = e.target as HTMLElement;
-            if (target.dataset.editable === 'true') {
-              console.log("Focus on editable element:", target.tagName);
-              
-              // Make sure the element is visible
-              target.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
-          }, true);
-          
-          // Add a click handler to the document to ensure clicks work properly
-          iframe.contentDocument.addEventListener('click', function(e) {
-            const target = e.target as HTMLElement;
-            if (target.dataset.editable === 'true') {
-              console.log("Click on editable element:", target.tagName);
-              target.focus();
-              
-              // Create a selection range to position cursor at end of text
-              if (iframe.contentDocument?.createRange && iframe.contentWindow?.getSelection) {
-                const range = iframe.contentDocument.createRange();
-                const selection = iframe.contentWindow.getSelection();
-                range.selectNodeContents(target);
-                range.collapse(false); // false means collapse to end
-                selection?.removeAllRanges();
-                selection?.addRange(range);
-              }
-              
-              e.stopPropagation();
-              e.preventDefault();
-            }
-          }, true);
-          
-          // Add keydown event listener to handle enter key properly
-          iframe.contentDocument.addEventListener('keydown', function(e) {
-            const target = e.target as HTMLElement;
-            if (target.dataset.editable === 'true') {
-              // Handle Enter key to prevent creating new lines in elements that shouldn't have them
-              if (e.key === 'Enter' && !['DIV', 'P', 'TEXTAREA'].includes(target.tagName)) {
-                e.preventDefault();
-                // Blur the element to finish editing
-                target.blur();
-              }
-            }
-          });
-          
-          iframe.contentWindow._editListenerAdded = true;
+        // Create a script element to inject into the iframe
+        const script = iframe.contentDocument.createElement('script');
+        script.id = 'edit-mode-script';
+        
+        // Define the script content as a string with string concatenation instead of template literals
+        script.textContent = 
+          "(function() {" +
+          "  console.log('Edit mode script running');" +
+          "  " +
+          "  // Debug function to show what elements are being processed" +
+          "  function logElementInfo(el, reason) {" +
+          "    const tagName = el.tagName.toLowerCase();" +
+          "    const classes = el.className ? '.' + el.className.replace(/ /g, '.') : '';" +
+          "    const id = el.id ? '#' + el.id : '';" +
+          "    const text = el.textContent ? el.textContent.substring(0, 20).replace(/\\s+/g, ' ').trim() + '...' : '';" +
+          "    console.log(`${reason}: ${tagName}${id}${classes} - '${text}'`);" +
+          "  }" +
+          "  " +
+          "  // Find all text elements" +
+          "  const textElements = document.querySelectorAll('h1, h2, h3, h4, h5, h6, p, span, div, a, button, li, td, th, label, strong, em, b, i');" +
+          "  console.log('Found', textElements.length, 'potential text elements');" +
+          "  " +
+          "  // Make elements with text content editable" +
+          "  let editableCount = 0;" +
+          "  textElements.forEach(el => {" +
+          "    // Skip elements with no text content" +
+          "    if (!el.textContent || el.textContent.trim() === '') {" +
+          "      logElementInfo(el, 'Skipping (no text)');" +
+          "      return;" +
+          "    }" +
+          "    " +
+          "    // Skip elements with images or other complex content" +
+          "    if (el.querySelector('img, video, iframe, canvas, svg')) {" +
+          "      logElementInfo(el, 'Skipping (has complex content)');" +
+          "      return;" +
+          "    }" +
+          "    " +
+          "    // Skip elements that are likely containers with many children" +
+          "    if (el.children.length > 5) {" +
+          "      logElementInfo(el, 'Skipping (too many children)');" +
+          "      return;" +
+          "    }" +
+          "    " +
+          "    // Check if this element has direct text content" +
+          "    let hasDirectText = false;" +
+          "    for (let i = 0; i < el.childNodes.length; i++) {" +
+          "      if (el.childNodes[i].nodeType === 3 && el.childNodes[i].textContent && el.childNodes[i].textContent.trim()) {" +
+          "        hasDirectText = true;" +
+          "        break;" +
+          "      }" +
+          "    }" +
+          "    " +
+          "    // Make editable if it's a heading, has direct text, or is a small element with text" +
+          "    if (el.tagName.match(/^H[1-6]$/) || hasDirectText || (el.textContent.trim().length > 0 && el.children.length < 3)) {" +
+          "      el.contentEditable = 'true';" +
+          "      el.dataset.editable = 'true';" +
+          "      logElementInfo(el, 'Made editable');" +
+          "      " +
+          "      // Prevent default behavior for links and buttons" +
+          "      if (el.tagName === 'A' || el.tagName === 'BUTTON') {" +
+          "        el.addEventListener('click', function(e) {" +
+          "          e.preventDefault();" +
+          "          e.stopPropagation();" +
+          "        });" +
+          "      }" +
+          "      " +
+          "      editableCount++;" +
+          "    }" +
+          "  });" +
+          "  " +
+          "  // Special handling for retro-styled elements" +
+          "  const retroElements = document.querySelectorAll('[class*=\"retro\"], [class*=\"pixel\"], [style*=\"monospace\"], [style*=\"courier\"]');" +
+          "  retroElements.forEach(el => {" +
+          "    if (el.textContent && el.textContent.trim()) {" +
+          "      el.contentEditable = 'true';" +
+          "      el.dataset.editable = 'true';" +
+          "      editableCount++;" +
+          "    }" +
+          "  });" +
+          "  " +
+          "  console.log('Made', editableCount, 'elements editable');" +
+          "  " +
+          "  // Add styles for editable elements" +
+          "  const style = document.createElement('style');" +
+          "  style.id = 'edit-mode-styles';" +
+          "  style.textContent = " +
+          "    '[data-editable=\"true\"] {" +
+          "      outline: 3px solid #ff6b00 !important;" +
+          "      cursor: text !important;" +
+          "      min-height: 1em;" +
+          "      min-width: 1em;" +
+          "      position: relative;" +
+          "    }" +
+          "    [data-editable=\"true\"]:hover {" +
+          "      outline: 3px dashed #ff8c00 !important;" +
+          "      background-color: rgba(255, 107, 0, 0.1) !important;" +
+          "    }" +
+          "    [data-editable=\"true\"]:focus {" +
+          "      outline: 4px solid #ff6b00 !important;" +
+          "      background-color: rgba(255, 107, 0, 0.2) !important;" +
+          "    }';" +
+          "  document.head.appendChild(style);" +
+          "  " +
+          "  // Create a function to send updates to parent" +
+          "  function sendUpdateToParent() {" +
+          "    console.log('Sending update to parent');" +
+          "    try {" +
+          "      window.parent.postMessage({" +
+          "        type: 'TEXT_UPDATED'," +
+          "        html: document.documentElement.outerHTML" +
+          "      }, '*');" +
+          "    } catch (err) {" +
+          "      console.error('Error sending message to parent:', err);" +
+          "    }" +
+          "  }" +
+          "  " +
+          "  // Add multiple event listeners to ensure changes are captured" +
+          "  document.addEventListener('input', function(e) {" +
+          "    if (e.target.dataset && e.target.dataset.editable === 'true') {" +
+          "      console.log('Text changed (input):', e.target.textContent.substring(0, 20));" +
+          "      sendUpdateToParent();" +
+          "    }" +
+          "  });" +
+          "  " +
+          "  document.addEventListener('blur', function(e) {" +
+          "    if (e.target.dataset && e.target.dataset.editable === 'true') {" +
+          "      console.log('Element blurred after edit:', e.target.textContent.substring(0, 20));" +
+          "      sendUpdateToParent();" +
+          "    }" +
+          "  }, true);" +
+          "  " +
+          "  // Add message to indicate edit mode" +
+          "  const messageEl = document.createElement('div');" +
+          "  messageEl.id = 'edit-mode-message';" +
+          "  messageEl.style.position = 'fixed';" +
+          "  messageEl.style.bottom = '10px';" +
+          "  messageEl.style.left = '10px';" +
+          "  messageEl.style.backgroundColor = '#ff6b00';" +
+          "  messageEl.style.color = 'white';" +
+          "  messageEl.style.padding = '8px 12px';" +
+          "  messageEl.style.borderRadius = '4px';" +
+          "  messageEl.style.fontSize = '14px';" +
+          "  messageEl.style.zIndex = '9999';" +
+          "  messageEl.style.boxShadow = '0 2px 4px rgba(0,0,0,0.2)';" +
+          "  messageEl.textContent = 'Click on any text to edit';" +
+          "  document.body.appendChild(messageEl);" +
+          "  " +
+          "  // Create a debug button to manually trigger an update" +
+          "  const debugButton = document.createElement('button');" +
+          "  debugButton.id = 'debug-update-button';" +
+          "  debugButton.style.position = 'fixed';" +
+          "  debugButton.style.bottom = '10px';" +
+          "  debugButton.style.right = '10px';" +
+          "  debugButton.style.backgroundColor = '#0066ff';" +
+          "  debugButton.style.color = 'white';" +
+          "  debugButton.style.padding = '8px 12px';" +
+          "  debugButton.style.borderRadius = '4px';" +
+          "  debugButton.style.fontSize = '14px';" +
+          "  debugButton.style.zIndex = '9999';" +
+          "  debugButton.style.border = 'none';" +
+          "  debugButton.style.cursor = 'pointer';" +
+          "  debugButton.textContent = 'Apply Changes';" +
+          "  debugButton.addEventListener('click', function() {" +
+          "    console.log('Manual update triggered');" +
+          "    sendUpdateToParent();" +
+          "  });" +
+          "  document.body.appendChild(debugButton);" +
+          "  " +
+          "  console.log('Edit mode enabled');" +
+          "})();";
+        
+        // Remove any existing script
+        const existingScript = iframe.contentDocument.getElementById('edit-mode-script');
+        if (existingScript) {
+          existingScript.remove();
         }
         
-        // Set a flag to indicate edit mode is enabled
+        // Add the script to the iframe
+        iframe.contentDocument.head.appendChild(script);
+        
+        // Set flag to indicate edit mode is enabled
         setEditModeEnabled(true);
         
-        // Add a message to let users know they can edit
-        const messageEl = iframe.contentDocument.createElement('div');
-        messageEl.id = 'edit-mode-message';
-        messageEl.style.cssText = `
-          position: fixed;
-          bottom: 10px;
-          right: 10px;
-          background-color: rgba(0, 0, 0, 0.7);
-          color: white;
-          padding: 8px 12px;
-          border-radius: 4px;
-          font-size: 12px;
-          z-index: 9999;
-          pointer-events: none;
-          animation: fadeOut 3s forwards 2s;
-        `;
-        messageEl.textContent = 'Click on any text to edit';
-        
-        // Add animation for the message
-        const styleAnimation = iframe.contentDocument.createElement('style');
-        styleAnimation.textContent = `
-          @keyframes fadeOut {
-            from { opacity: 1; }
-            to { opacity: 0; visibility: hidden; }
-          }
-        `;
-        iframe.contentDocument.head.appendChild(styleAnimation);
-        
-        // Remove existing message if present
-        const existingMessage = iframe.contentDocument.getElementById('edit-mode-message');
-        if (existingMessage) existingMessage.remove();
-        
-        iframe.contentDocument.body.appendChild(messageEl);
       } catch (error) {
-        console.error("Error directly enabling edit mode:", error);
+        console.error("Error enabling edit mode:", error);
       }
     };
     
     // This function directly disables edit mode in the iframe
     const disableEditModeDirectly = () => {
       const iframe = localIframeRef.current;
-      if (!iframe || !iframe.contentDocument) {
-        console.error("Cannot disable edit mode: iframe or contentDocument is null");
-        return;
-      }
+      if (!iframe || !iframe.contentWindow || !iframe.contentDocument) return;
       
       try {
-        console.log("Directly disabling edit mode in iframe");
+        console.log("Disabling edit mode in iframe");
         
-        // Remove edit mode from all elements
-        iframe.contentDocument.querySelectorAll('[data-editable="true"]').forEach((el: HTMLElement) => {
-          try {
-            el.contentEditable = 'false';
-            el.removeAttribute('data-editable');
-            
-            // Remove event listeners (not strictly necessary but good practice)
-            el.replaceWith(el.cloneNode(true));
-          } catch (err) {
-            console.error("Error disabling edit mode for element:", err);
-          }
-        });
+        // Create a script to disable edit mode
+        const script = iframe.contentDocument.createElement('script');
+        script.textContent = 
+          "(function() {" +
+          "  // Find all editable elements" +
+          "  const editableElements = document.querySelectorAll('[data-editable=\"true\"]');" +
+          "  " +
+          "  // Make elements non-editable" +
+          "  editableElements.forEach(el => {" +
+          "    el.contentEditable = 'false';" +
+          "    delete el.dataset.editable;" +
+          "  });" +
+          "  " +
+          "  // Remove edit mode styles" +
+          "  const style = document.getElementById('edit-mode-styles');" +
+          "  if (style) {" +
+          "    style.remove();" +
+          "  }" +
+          "  " +
+          "  // Remove edit mode message" +
+          "  const messageEl = document.getElementById('edit-mode-message');" +
+          "  if (messageEl) {" +
+          "    messageEl.remove();" +
+          "  }" +
+          "  " +
+          "  console.log('Edit mode disabled');" +
+          "})();";
         
-        // Remove edit mode styles
-        const style = iframe.contentDocument.getElementById('edit-mode-styles');
-        if (style) style.remove();
+        // Add the script to the iframe
+        iframe.contentDocument.head.appendChild(script);
         
-        // Reset the edit mode flag
+        // Set flag to indicate edit mode is disabled
         setEditModeEnabled(false);
+        
       } catch (error) {
-        console.error("Error directly disabling edit mode:", error);
+        console.error("Error disabling edit mode:", error);
       }
     };
 
@@ -267,34 +293,38 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
       if (!iframe) return;
       
       const handleLoad = () => {
+        console.log("Iframe loaded");
+        setIframeLoaded(true);
+        
+        // Reset the script injected flag when the iframe is reloaded
+        scriptInjectedRef.current = false;
+        
+        // Check if there's an edit mode state in sessionStorage
         try {
-          console.log("Iframe loaded");
-          setIframeLoaded(true);
-          scriptInjectedRef.current = true;
-          
-          if (!iframe.contentDocument) {
-            console.error("No contentDocument available");
-            return;
-          }
-          
-          // Add input event listener for text updates
-          iframe.contentDocument.addEventListener('input', function(e) {
-            const target = e.target as HTMLElement;
-            if (target.dataset?.editable === 'true') {
-              console.log("Text updated in iframe");
-              if (onCodeUpdate) {
-                onCodeUpdate(iframe.contentDocument!.documentElement.outerHTML);
-              }
+          if (iframe && iframe.contentWindow && iframe.contentWindow.sessionStorage) {
+            const storedEditMode = iframe.contentWindow.sessionStorage.getItem('editMode');
+            console.log("Found stored edit mode:", storedEditMode);
+            
+            if (storedEditMode === 'true') {
+              console.log("Applying edit mode from sessionStorage");
+              // Use a timeout to ensure the iframe content is fully loaded
+              setTimeout(() => {
+                enableEditModeDirectly();
+              }, 500);
+              return; // Skip the normal isEditable check
             }
-          });
-          
-          // If isEditable is true when iframe loads, enable edit mode
-          if (isEditable) {
-            console.log("Iframe loaded with isEditable=true, enabling edit mode");
-            setTimeout(enableEditModeDirectly, 100);
           }
         } catch (error) {
-          console.error("Error setting up iframe:", error);
+          console.error("Error checking sessionStorage for edit mode:", error);
+        }
+        
+        // Check if edit mode should be enabled
+        if (isEditable) {
+          console.log("Edit mode should be enabled on load");
+          // Use a timeout to ensure the iframe content is fully loaded
+          setTimeout(() => {
+            enableEditModeDirectly();
+          }, 500);
         }
       };
       
@@ -303,71 +333,91 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
       return () => {
         iframe.removeEventListener('load', handleLoad);
       };
-    }, [isEditable, onCodeUpdate]);
+    }, [isEditable]);
     
-    // Toggle edit mode when isEditable prop changes
+    // Listen for messages from the iframe when text is edited
     useEffect(() => {
-      console.log("isEditable changed to", isEditable);
-      
-      if (!iframeLoaded || !scriptInjectedRef.current) {
-        console.log("Iframe not fully loaded yet, will handle edit mode after load");
+      // Skip if onCodeUpdate callback is not provided
+      if (!onCodeUpdate) {
+        console.log("No onCodeUpdate callback provided");
         return;
       }
       
-      if (isEditable && !editModeEnabled) {
-        console.log("Enabling edit mode directly");
-        enableEditModeDirectly();
+      const handleMessage = (event: MessageEvent) => {
+        console.log("Received message from iframe:", event.data?.type);
         
-        // Try again after a short delay to ensure it works
-        setTimeout(enableEditModeDirectly, 500);
-      } else if (!isEditable && editModeEnabled) {
-        console.log("Disabling edit mode directly");
-        disableEditModeDirectly();
-      }
-    }, [isEditable, iframeLoaded, editModeEnabled]);
+        // Check if the message is from our iframe
+        if (event.data && event.data.type === 'TEXT_UPDATED') {
+          console.log('Received TEXT_UPDATED message from iframe in IframePreview');
+          
+          // Call the onCodeUpdate callback with the updated HTML
+          if (event.data.html) {
+            console.log("Calling onCodeUpdate with HTML");
+            onCodeUpdate(event.data.html);
+          }
+        }
+      };
+      
+      console.log("Adding message event listener for iframe updates");
+      
+      // Add event listener for messages from the iframe
+      window.addEventListener('message', handleMessage);
+      
+      // Clean up event listener when component unmounts
+      return () => {
+        window.removeEventListener('message', handleMessage);
+      };
+    }, [onCodeUpdate]);
     
-    // This function ensures the iframe content is properly prepared and sanitized
-    const getSafeIframeContent = () => {
-      if (!code || code.length < 10) {
-        return '<html><body><div style="display:flex;justify-content:center;align-items:center;height:100%;color:#888;">Preview not available</div></body></html>';
+    // Toggle edit mode when isEditable prop changes
+    useEffect(() => {
+      console.log("isEditable prop changed to:", isEditable);
+      
+      if (!iframeLoaded) {
+        console.log("Iframe not loaded yet, skipping edit mode toggle");
+        return;
       }
       
+      // Force a refresh of the iframe when entering edit mode
+      if (isEditable) {
+        console.log("Enabling edit mode directly");
+        
+        // Use setTimeout to ensure DOM is fully loaded
+        setTimeout(() => {
+          enableEditModeDirectly();
+          console.log("Edit mode enabled function called");
+        }, 100);
+      } else if (!isEditable && editModeEnabled) {
+        console.log("Disabling edit mode");
+        disableEditModeDirectly();
+      }
+    }, [isEditable, iframeLoaded]);
+    
+    // Function to get safe iframe content
+    const getSafeIframeContent = () => {
+      if (!code) return '';
+      
       try {
-        // Basic validation to ensure we have HTML content
-        if (!code.includes('<html') && !code.includes('<!DOCTYPE') && !code.includes('<body')) {
-          // Wrap code in basic HTML structure if it doesn't include proper HTML tags
-          return `<!DOCTYPE html>
-            <html>
-            <head>
-              <meta charset="UTF-8">
-              <meta name="viewport" content="width=device-width, initial-scale=1.0">
-              <base target="_self">
-              <style>
-                html, body { height: 100%; margin: 0; overflow: auto; scroll-behavior: smooth; }
-              </style>
-            </head>
-            <body>${code}</body>
-            </html>`;
+        // If code is a complete HTML document, use it as is
+        if (code.includes('<!DOCTYPE') || code.includes('<html')) {
+          return code;
         }
         
-        // If code already has HTML structure, enhance it with base target
-        const enhancedCode = code.replace('<head>', 
-          `<head>
-            <base target="_self">
-            <meta charset="UTF-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1.0">
-            <style>
-              html, body {
-                height: 100%;
-                overflow: auto;
-                scroll-behavior: smooth;
-              }
-            </style>`);
-        
-        return enhancedCode;
+        // Otherwise, wrap it in a basic HTML structure
+        return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Preview</title>
+</head>
+<body>
+  ${code}
+</body>
+</html>`;
       } catch (error) {
         console.error("Error preparing iframe content:", error);
-        return `<html><body><div style="color:red;padding:20px;">Error loading preview</div></body></html>`;
+        return `<!DOCTYPE html><html><body>Error preparing content</body></html>`;
       }
     };
     
@@ -375,27 +425,18 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
     if (!code) {
       return (
         <div className="h-full flex items-center justify-center bg-gray-50">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+          <div className="text-gray-500">Loading preview...</div>
         </div>
       );
     }
     
-    // Render the iframe with the code
     return (
       <iframe
         ref={localIframeRef}
+        className="w-full h-full border-0"
         srcDoc={getSafeIframeContent()}
-        className="absolute inset-0 w-full h-full"
-        sandbox="allow-scripts allow-forms allow-popups allow-same-origin allow-pointer-lock"
-        title="Generated Content"
-        tabIndex={0}
-        style={{ 
-          width: '100%', 
-          height: '100%', 
-          position: 'absolute', 
-          overflow: 'auto', 
-          pointerEvents: 'auto'
-        }}
+        sandbox="allow-scripts allow-same-origin allow-forms"
+        title="Preview"
       />
     );
   }
@@ -403,7 +444,7 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
 
 IframePreview.displayName = "IframePreview";
 
-// Add TypeScript interface for Window to include custom property
+// Extend Window interface to include our custom properties
 declare global {
   interface Window {
     _editListenerAdded?: boolean;

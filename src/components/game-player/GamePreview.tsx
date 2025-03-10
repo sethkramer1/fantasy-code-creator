@@ -1,7 +1,6 @@
-import { useEffect, forwardRef, useState, useCallback, useRef, memo } from "react";
+import { useEffect, forwardRef, useState, useImperativeHandle, useRef } from "react";
 import { parseCodeSections } from "./utils/CodeParser";
 import { CodeEditor } from "./components/CodeEditor";
-import { IframePreview } from "./components/IframePreview";
 import { Button } from "@/components/ui/button";
 import { Edit, Save, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
@@ -18,188 +17,28 @@ interface GamePreviewProps {
   currentVersion: GameVersion | undefined;
   showCode: boolean;
   isOwner: boolean;
-  onSaveCode?: (code: string, instructions: string) => Promise<void>;
+  onSaveCode?: (updatedVersion: GameVersion) => void;
 }
-
-// Create a memoized version to prevent unnecessary rerenders
-const MemoizedIframePreview = memo(IframePreview);
 
 export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
   ({ currentVersion, showCode, isOwner, onSaveCode }, ref) => {
-    const [processedCode, setProcessedCode] = useState<string | null>(null);
-    const currentVersionIdRef = useRef<string | null>(null);
-    const [parsedHtml, setParsedHtml] = useState<string>("");
-    const [parsedCss, setParsedCss] = useState<string>("");
-    const [parsedJs, setParsedJs] = useState<string>("");
-    const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+    const [processedCode, setProcessedCode] = useState<string>("");
     const [isEditMode, setIsEditMode] = useState<boolean>(false);
-    const [isSaving, setIsSaving] = useState<boolean>(false);
-    const iframeRef = useRef<HTMLIFrameElement | null>(null);
+    const [editedCode, setEditedCode] = useState<string | null>(null);
+    const [refreshCounter, setRefreshCounter] = useState(0);
+    const iframeRef = useRef<HTMLIFrameElement>(null);
     
-    // Force re-render when isOwner changes
+    // Forward the ref
+    useImperativeHandle(ref, () => iframeRef.current as HTMLIFrameElement);
+    
+    // Process the code when currentVersion changes
     useEffect(() => {
-      console.log("GamePreview: isOwner changed to", isOwner);
-    }, [isOwner]);
-    
-    // Log state changes for debugging
-    useEffect(() => {
-      console.log("GamePreview state:", { 
-        hasCurrentVersion: !!currentVersion,
-        versionId: currentVersion?.id,
-        isOwner,
-        isEditMode,
-        onSaveCode: !!onSaveCode,
-        showCode
-      });
-    }, [currentVersion, isOwner, isEditMode, onSaveCode, showCode]);
-    
-    // Validate code function
-    const isValidCode = useCallback((code: string | undefined): boolean => {
-      if (!code) return false;
-      if (code === "Generating...") return false;
-      if (code.length < 100) return false;
-      
-      const hasHtmlStructure = 
-        code.includes("<html") || 
-        code.includes("<!DOCTYPE") || 
-        code.includes("<svg");
-        
-      return hasHtmlStructure;
-    }, []);
-    
-    // Process the code only when version changes
-    useEffect(() => {
-      // Skip if no version is available
-      if (!currentVersion?.code || !currentVersion?.id) {
-        return;
-      }
-      
-      // Skip if this version has already been processed
-      if (currentVersionIdRef.current === currentVersion.id && processedCode) {
-        return;
-      }
-      
-      currentVersionIdRef.current = currentVersion.id;
-      
-      try {
-        // Check if the code is valid
-        if (!isValidCode(currentVersion.code)) {
-          console.warn("Invalid code format detected");
-          setProcessedCode(null);
-          return;
-        }
-        
-        // Set the processed code
-        setProcessedCode(currentVersion.code);
-        
-        // Parse code sections
+      if (currentVersion?.code) {
         const { html, css, js } = parseCodeSections(currentVersion.code);
-        setParsedHtml(html);
-        setParsedCss(css);
-        setParsedJs(js);
-        
-        // Reset unsaved changes flag and edit mode when loading a new version
-        setHasUnsavedChanges(false);
-        setIsEditMode(false);
-      } catch (error) {
-        console.error("Error processing code:", error);
-        setProcessedCode(null);
-      }
-    }, [currentVersion, isValidCode]);
-    
-    // Handle code updates from the iframe preview
-    const handleIframeCodeUpdate = useCallback((updatedCode: string) => {
-      console.log("Received code update from iframe");
-      setProcessedCode(updatedCode);
-      setHasUnsavedChanges(true);
-    }, []);
-    
-    // Listen for TEXT_UPDATED messages from the iframe
-    useEffect(() => {
-      const handleMessage = (event: MessageEvent) => {
-        if (event.data.type === 'TEXT_UPDATED') {
-          console.log("Received TEXT_UPDATED message in GamePreview");
-          handleIframeCodeUpdate(event.data.html);
-        }
-      };
-      
-      window.addEventListener('message', handleMessage);
-      return () => {
-        window.removeEventListener('message', handleMessage);
-      };
-    }, [handleIframeCodeUpdate]);
-    
-    // Toggle edit mode
-    const toggleEditMode = useCallback(() => {
-      console.log("Toggle edit mode called, current state:", isEditMode, "isOwner:", isOwner);
-      if (isEditMode) {
-        // Turning off edit mode
-        if (hasUnsavedChanges) {
-          const confirmed = window.confirm("You have unsaved changes. Are you sure you want to exit edit mode?");
-          if (!confirmed) {
-            return; // Keep edit mode on if user cancels
-          }
-        }
-        console.log("Setting edit mode to FALSE");
-        setIsEditMode(false);
-      } else {
-        // Turning on edit mode
-        console.log("Setting edit mode to TRUE");
-        setIsEditMode(true);
-      }
-    }, [isEditMode, hasUnsavedChanges, isOwner]);
-    
-    // Handle saving code changes
-    const handleSaveChanges = useCallback(async () => {
-      if (!onSaveCode || !processedCode) {
-        console.error("Cannot save: onSaveCode or processedCode is missing");
-        return;
-      }
-      
-      try {
-        setIsSaving(true);
-        console.log("Saving changes...");
-        
-        // Extract instructions from the current version or use empty string
-        const instructions = currentVersion?.instructions || "";
-        
-        // Call the onSaveCode prop with the updated code
-        await onSaveCode(processedCode, instructions);
-        
-        // Reset state after successful save
-        setHasUnsavedChanges(false);
-        setIsEditMode(false);
-        
-        toast({
-          title: "Changes saved",
-          description: "Your changes have been saved successfully.",
-          variant: "default",
-        });
-      } catch (error) {
-        console.error("Error saving changes:", error);
-        toast({
-          title: "Error saving changes",
-          description: "There was an error saving your changes. Please try again.",
-          variant: "destructive",
-        });
-      } finally {
-        setIsSaving(false);
-      }
-    }, [onSaveCode, processedCode, currentVersion]);
-    
-    const handleSaveCode = async (html: string, css: string, js: string) => {
-      if (!onSaveCode) return;
-      
-      try {
-        setIsSaving(true);
-        
-        // Combine the code sections
         let combinedCode = "";
         
-        if (html.includes("<!DOCTYPE") || html.includes("<html")) {
-          // If HTML includes doctype or html tag, it's a complete HTML document
-          // We need to inject CSS and JS into it
-          
+        // If HTML includes doctype or html tag, it's a complete HTML document
+        if (html.includes("<!DOCTYPE html>") || html.includes("<html")) {
           // Replace closing head tag with CSS
           if (css) {
             const styleTag = `<style>\n${css}\n</style>\n</head>`;
@@ -233,155 +72,306 @@ ${js}
 </html>`;
         }
         
-        // Save the combined code
-        await onSaveCode(combinedCode, currentVersion?.instructions || "");
+        setProcessedCode(combinedCode);
+      }
+    }, [currentVersion]);
+    
+    // Toggle edit mode
+    const handleEditClick = () => {
+      console.log("Edit mode activated");
+      setIsEditMode(true);
+    };
+    
+    // Handle iframe load, enable edit mode if needed
+    const handleIframeLoad = () => {
+      if (!iframeRef.current || !iframeRef.current.contentDocument) return;
+      
+      // Make sure any previous edit indicators are removed
+      try {
+        const oldIndicator = iframeRef.current.contentDocument.getElementById('edit-mode-indicator');
+        if (oldIndicator) oldIndicator.remove();
+      } catch (e) {
+        console.error("Error removing old indicator:", e);
+      }
+      
+      // Only proceed with edit mode if we're in edit mode
+      if (!isEditMode) return;
+      
+      console.log("Iframe loaded, applying edit mode");
+      
+      try {
+        // Try using document.designMode
+        iframeRef.current.contentDocument.designMode = 'on';
+        console.log("Enabled designMode on iframe document");
         
-        // Reset unsaved changes flag
-        setHasUnsavedChanges(false);
+        // Add edit mode styles
+        const style = document.createElement('style');
+        style.id = 'edit-mode-styles';
+        iframeRef.current.contentDocument.head.appendChild(style);
+        style.textContent = `
+          body {
+            cursor: text;
+          }
+        `;
         
-        // Show success message
-        toast({
-          title: "Changes saved",
-          description: "Your code changes have been saved successfully",
-        });
+        // Add edit mode indicator
+        const indicator = document.createElement('div');
+        indicator.id = 'edit-mode-indicator';
+        indicator.textContent = 'Edit Mode: Click to edit text';
+        indicator.style.position = 'fixed';
+        indicator.style.top = '10px';
+        indicator.style.left = '10px';
+        indicator.style.backgroundColor = 'rgba(255, 107, 0, 0.8)';
+        indicator.style.color = 'white';
+        indicator.style.padding = '8px 12px';
+        indicator.style.borderRadius = '4px';
+        indicator.style.zIndex = '9999';
+        indicator.style.fontSize = '14px';
+        iframeRef.current.contentDocument.body.appendChild(indicator);
       } catch (error) {
-        console.error("Error saving code:", error);
-        
-        // Show error message
-        toast({
-          title: "Error saving changes",
-          description: error instanceof Error ? error.message : "An unexpected error occurred",
-          variant: "destructive"
-        });
-        
-        throw error;
-      } finally {
-        setIsSaving(false);
+        console.error("Error applying edit mode:", error);
       }
     };
     
-    // Forward the ref
-    useEffect(() => {
-      if (ref && typeof ref === 'object') {
-        ref.current = iframeRef.current;
+    // Handle save
+    const handleSave = () => {
+      if (!currentVersion || !onSaveCode || !iframeRef.current || !iframeRef.current.contentDocument) return;
+      
+      try {
+        // Try to remove all edit mode artifacts
+        try {
+          // Remove edit mode indicator
+          const indicator = iframeRef.current.contentDocument.getElementById('edit-mode-indicator');
+          if (indicator) {
+            indicator.remove();
+          }
+          
+          // Remove edit mode styles
+          const styles = iframeRef.current.contentDocument.getElementById('edit-mode-styles');
+          if (styles) {
+            styles.remove();
+          }
+          
+          // Turn off design mode
+          if (iframeRef.current.contentDocument.designMode === 'on') {
+            iframeRef.current.contentDocument.designMode = 'off';
+          }
+        } catch (cleanupError) {
+          console.error("Error cleaning up edit mode:", cleanupError);
+        }
+        
+        // Get the updated HTML - do this AFTER removing edit mode UI elements
+        const updatedHtml = iframeRef.current.contentDocument.documentElement.outerHTML;
+        
+        // Clean any edit-related attributes from the HTML
+        const cleanHtml = updatedHtml
+          .replace(/contenteditable="true"/g, '')
+          .replace(/contenteditable=""/g, '')
+          .replace(/data-editable="true"/g, '');
+        
+        // Save the edited code for when we exit edit mode
+        setEditedCode(cleanHtml);
+        
+        // Create a new version with the updated HTML
+        const newVersion = {
+          ...currentVersion,
+          code: cleanHtml
+        };
+        
+        // Call the onSaveCode callback
+        onSaveCode(newVersion);
+        
+        // Exit edit mode
+        setIsEditMode(false);
+        
+        // Increment refresh counter to force iframe re-render
+        setRefreshCounter(prev => prev + 1);
+        
+        // Show success toast
+        toast({
+          title: "Changes saved",
+          description: "Your text changes have been saved successfully."
+        });
+      } catch (error) {
+        console.error("Error saving changes:", error);
+        toast({
+          title: "Error saving changes",
+          description: "There was a problem saving your changes.",
+          variant: "destructive"
+        });
       }
-    }, [ref]);
+    };
+    
+    // Handle cancel
+    const handleCancel = () => {
+      // Try to remove all edit mode artifacts
+      try {
+        if (iframeRef.current && iframeRef.current.contentDocument) {
+          // Remove edit mode indicator
+          const indicator = iframeRef.current.contentDocument.getElementById('edit-mode-indicator');
+          if (indicator) {
+            indicator.remove();
+          }
+          
+          // Remove edit mode styles
+          const styles = iframeRef.current.contentDocument.getElementById('edit-mode-styles');
+          if (styles) {
+            styles.remove();
+          }
+          
+          // Turn off design mode
+          if (iframeRef.current.contentDocument.designMode === 'on') {
+            iframeRef.current.contentDocument.designMode = 'off';
+          }
+        }
+      } catch (cleanupError) {
+        console.error("Error cleaning up edit mode:", cleanupError);
+      }
+      
+      // Exit edit mode without saving
+      setIsEditMode(false);
+      
+      // Increment refresh counter to force iframe re-render
+      setRefreshCounter(prev => prev + 1);
+      
+      toast({
+        title: "Edit cancelled",
+        description: "Your changes have been discarded."
+      });
+    };
+    
+    const handleSaveCode = async (html: string, css: string, js: string) => {
+      if (!onSaveCode || !currentVersion) return;
+      
+      try {
+        // Combine the code sections
+        let combinedCode = "";
+        
+        if (html.includes("<!DOCTYPE html>") || html.includes("<html")) {
+          // It's a complete HTML document, inject CSS and JS
+          if (css) {
+            const styleTag = `<style>\n${css}\n</style>\n</head>`;
+            combinedCode = html.replace("</head>", styleTag);
+          } else {
+            combinedCode = html;
+          }
+          
+          if (js) {
+            const scriptTag = `<script>\n${js}\n</script>\n</body>`;
+            combinedCode = combinedCode.replace("</body>", scriptTag);
+          }
+        } else {
+          // Create a new HTML document
+          combinedCode = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+${css}
+  </style>
+</head>
+<body>
+${html}
+<script>
+${js}
+</script>
+</body>
+</html>`;
+        }
+        
+        // Save the combined code
+        await onSaveCode({
+          ...currentVersion,
+          code: combinedCode,
+        });
+        
+        toast({
+          title: "Code saved",
+          description: "Your code changes have been saved successfully."
+        });
+      } catch (error) {
+        console.error("Error saving code:", error);
+        toast({
+          title: "Error saving code",
+          description: "There was an error saving your code changes.",
+          variant: "destructive"
+        });
+      }
+    };
+    
+    // Determine what HTML content to display
+    const getDisplayContent = () => {
+      if (isEditMode) {
+        return processedCode;
+      } else if (editedCode && refreshCounter > 0) {
+        return editedCode;
+      } else {
+        return processedCode;
+      }
+    };
     
     return (
-      <div className="h-full relative">
+      <div className="h-full flex flex-col">
         {showCode ? (
-          <CodeEditor 
-            html={parsedHtml} 
-            css={parsedCss} 
-            js={parsedJs}
-            isOwner={isOwner}
+          <CodeEditor
+            html={parseCodeSections(currentVersion?.code || "").html}
+            css={parseCodeSections(currentVersion?.code || "").css}
+            js={parseCodeSections(currentVersion?.code || "").js}
             onSave={handleSaveCode}
+            isOwner={isOwner}
           />
         ) : (
           <div className="h-full relative">
-            <MemoizedIframePreview 
-              code={processedCode} 
+            <iframe
               ref={iframeRef}
-              isEditable={isEditMode}
-              onCodeUpdate={handleIframeCodeUpdate}
+              className="w-full h-full border-0"
+              srcDoc={getDisplayContent()}
+              sandbox="allow-scripts allow-same-origin allow-forms allow-modals"
+              title="Preview"
+              key={`${isEditMode ? 'edit' : 'view'}-${refreshCounter}`} // Force iframe recreation
+              onLoad={handleIframeLoad}
             />
             
-            {isOwner && (
-              <div className="absolute top-0 left-0 right-0 p-2 bg-gradient-to-b from-gray-900/50 to-transparent flex justify-end z-10">
-                <div className="flex items-center gap-2">
-                  {hasUnsavedChanges && (
-                    <div className="text-xs text-white bg-amber-500 px-2 py-1 rounded-sm animate-pulse">
-                      Unsaved changes
-                    </div>
-                  )}
-                  
-                  {isEditMode ? (
-                    <>
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={toggleEditMode}
-                        className="h-8 gap-1"
-                        disabled={isSaving}
-                      >
-                        <X size={14} />
-                        <span className="hidden sm:inline">Cancel</span>
-                      </Button>
-                      
-                      <Button
-                        size="sm"
-                        variant="default"
-                        onClick={handleSaveChanges}
-                        className="h-8 gap-1 bg-green-600 hover:bg-green-700"
-                        disabled={!hasUnsavedChanges || isSaving}
-                      >
-                        {isSaving ? (
-                          <>
-                            <span className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full mr-1" />
-                            <span>Saving...</span>
-                          </>
-                        ) : (
-                          <>
-                            <Save size={14} />
-                            <span className="hidden sm:inline">Save Changes</span>
-                          </>
-                        )}
-                      </Button>
-                    </>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      onClick={() => {
-                        console.log("Edit Text button clicked, isOwner:", isOwner);
-                        // Force a re-render by setting state directly
-                        setIsEditMode(true);
-                        
-                        // Try to directly access the iframe and make elements editable after a short delay
-                        setTimeout(() => {
-                          try {
-                            const iframe = iframeRef.current;
-                            if (iframe && iframe.contentDocument) {
-                              console.log("Attempting to directly make elements editable");
-                              const textElements = iframe.contentDocument.querySelectorAll('p, h1, h2, h3, h4, h5, h6, span, div, a, button, li, td, th, label');
-                              console.log("Found", textElements.length, "text elements to make editable");
-                              
-                              let editableCount = 0;
-                              textElements.forEach(el => {
-                                if (!el.textContent || el.textContent.trim() === '') return;
-                                if (el.querySelector('img, video, iframe, canvas, svg')) return;
-                                
-                                try {
-                                  (el as HTMLElement).contentEditable = 'true';
-                                  el.setAttribute('data-editable', 'true');
-                                  editableCount++;
-                                } catch (err) {
-                                  console.error("Error making element editable:", err);
-                                }
-                              });
-                              
-                              console.log("Made", editableCount, "elements editable directly from GamePreview");
-                            }
-                          } catch (error) {
-                            console.error("Error directly enabling edit mode from GamePreview:", error);
-                          }
-                        }, 300);
-                      }}
-                      className="h-8 gap-1 bg-white/90 hover:bg-white"
-                    >
-                      <Edit size={14} />
-                      <span className="hidden sm:inline">Edit Text</span>
-                    </Button>
-                  )}
+            {/* Control buttons */}
+            <div className="absolute top-0 left-0 right-0 p-2 bg-gradient-to-b from-gray-900/50 to-transparent flex justify-end z-10">
+              {/* Edit button shown when not in edit mode */}
+              {isOwner && !isEditMode && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={handleEditClick}
+                  className="h-8 gap-1 bg-white/90 hover:bg-white"
+                >
+                  <Edit size={14} />
+                  <span className="hidden sm:inline">Edit Text</span>
+                </Button>
+              )}
+              
+              {/* Save/Cancel buttons shown when in edit mode */}
+              {isEditMode && (
+                <div className="flex gap-2">
+                  <Button 
+                    variant="destructive" 
+                    size="sm" 
+                    onClick={handleCancel}
+                    className="h-8 gap-1 bg-white/90 hover:bg-white text-red-600"
+                  >
+                    <X size={14} />
+                    <span className="hidden sm:inline">Cancel</span>
+                  </Button>
+                  <Button 
+                    variant="default" 
+                    size="sm" 
+                    onClick={handleSave}
+                    className="h-8 gap-1 bg-green-500 hover:bg-green-600 text-white"
+                  >
+                    <Save size={14} />
+                    <span className="hidden sm:inline">Save</span>
+                  </Button>
                 </div>
-              </div>
-            )}
-            
-            {isOwner && isEditMode && (
-              <div className="absolute bottom-4 left-4 bg-blue-600 text-white text-xs px-3 py-1.5 rounded-full shadow-lg z-10 pointer-events-none">
-                Click on any text to edit
-              </div>
-            )}
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -19,7 +19,7 @@ interface PlayContentProps {
   isLatestVersion: boolean;
   currentVersion?: GameVersion;
   isOwner?: boolean;
-  onSaveCode?: (code: string, instructions: string) => Promise<void>;
+  onSaveCode?: (updatedVersion: GameVersion) => void;
 }
 
 export function PlayContent({
