@@ -1,7 +1,11 @@
+
 import { StreamCallbacks } from "@/types/generation";
 import { getSystemPrompt } from "./promptService";
 import { buildPrompt } from "./promptBuilder";
 import { supabase } from "@/integrations/supabase/client";
+
+// IMPORTANT: Consistent thinking budget across the application
+const THINKING_BUDGET_TOKENS = 10000;
 
 export const callAnthropicApi = async (
   prompt: string,
@@ -32,6 +36,7 @@ export const callAnthropicApi = async (
     console.log('Sending request to generate-game endpoint with prompt length:', prompt.length);
     console.log('Request includes image:', !!imageUrl);
     console.log('Request is for modification:', !!existingCode);
+    console.log('Thinking budget tokens:', THINKING_BUDGET_TOKENS);
 
     const response = await fetch('/api/generate-game', {
       method: 'POST',
@@ -47,7 +52,7 @@ export const callAnthropicApi = async (
         stream: true,
         thinking: {
           type: "enabled",
-          budget_tokens: 3500
+          budget_tokens: THINKING_BUDGET_TOKENS
         }
       }),
     });
@@ -109,17 +114,18 @@ export const callAnthropicApi = async (
             
             const data = JSON.parse(eventData);
             
+            // IMPORTANT: Always display thinking updates without filtering
             if (data.thinking && onThinking) {
-              if (data.thinking !== currentThinking) {
-                currentThinking = data.thinking;
-                onThinking(data.thinking);
-              }
+              // Always forward thinking events
+              currentThinking = data.thinking;
+              onThinking(data.thinking);
               continue;
             }
             
             if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
               const thinking = data.delta.thinking || '';
-              if (thinking && thinking !== currentThinking && onThinking) {
+              if (thinking && onThinking) {
+                // Always forward thinking events without comparing to previous
                 currentThinking = thinking;
                 onThinking(thinking);
               }

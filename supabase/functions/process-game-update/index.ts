@@ -24,55 +24,48 @@ function extractBase64FromDataUrl(dataUrl: string): string {
 function isTokenInfo(text) {
   if (!text) return false;
   
-  // Check for various token info patterns
   return (
     text.includes("Tokens used:") ||
     text.includes("Token usage:") ||
     text.includes("input tokens") ||
     text.includes("output tokens") ||
-    /\d+\s*input\s*,\s*\d+\s*output/.test(text) || // Pattern like "264 input, 1543 output"
-    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) || // Pattern like "264 input tokens, 1543 output tokens"
-    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) || // Pattern like "input: 264, output: 1543"
-    /\b(input|output)\b.*?\b\d+\b/.test(text) // Pattern with "input" or "output" followed by numbers
+    /\d+\s*input\s*,\s*\d+\s*output/.test(text) || 
+    /\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/.test(text) ||
+    /input:?\s*\d+\s*,?\s*output:?\s*\d+/.test(text) ||
+    /\b(input|output)\b.*?\b\d+\b/.test(text)
   );
 }
 
 function removeTokenInfo(content) {
   if (!content) return content;
   
-  // Remove full lines containing token information
   content = content.replace(/Tokens used:.*?(input|output).*?\n/g, '');
   content = content.replace(/Token usage:.*?(input|output).*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens.*?\n/g, '');
   content = content.replace(/.*?\d+\s*input\s*,\s*\d+\s*output.*?\n/g, '');
   content = content.replace(/.*?input:?\s*\d+\s*,?\s*output:?\s*\d+.*?\n/g, '');
   
-  // Remove inline token information (without newlines)
   content = content.replace(/Tokens used:.*?(input|output).*?(?=\s)/g, '');
   content = content.replace(/Token usage:.*?(input|output).*?(?=\s)/g, '');
   content = content.replace(/\d+\s*input\s*tokens\s*,\s*\d+\s*output\s*tokens/g, '');
   content = content.replace(/\d+\s*input\s*,\s*\d+\s*output/g, '');
   content = content.replace(/input:?\s*\d+\s*,?\s*output:?\s*\d+/g, '');
   
-  // Clean up any remaining token information that might be in different formats
   content = content.replace(/input tokens:.*?output tokens:.*?(?=\s)/g, '');
   content = content.replace(/input:.*?output:.*?(?=\s)/g, '');
   content = content.replace(/\b\d+ tokens\b/g, '');
   content = content.replace(/\btokens: \d+\b/g, '');
   
-  // Remove any residual patterns with just numbers that might be token counts
   content = content.replace(/\b\d+ input\b/g, '');
   content = content.replace(/\b\d+ output\b/g, '');
   
   return content.trim();
 }
 
-// Function to generate a unique message ID for token tracking
 function generateTokenTrackingMessageId(gameId: string): string {
   return `token-tracking-${gameId}-${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
 }
 
-// Function to create initial token tracking records
 async function createInitialTokenRecords(
   supabase: any, 
   gameId: string, 
@@ -87,21 +80,19 @@ async function createInitialTokenRecords(
       return null;
     }
     
-    // Create a message ID for tracking
     const messageId = generateTokenTrackingMessageId(gameId);
     console.log(`[TOKEN TRACKING] Creating initial token records for game ${gameId}, model ${modelType}`);
     console.log(`[TOKEN TRACKING] Estimated input tokens: ${estimatedInputTokens}`);
     
-    // Create a token usage record with estimated values
     const { data: tokenData, error: tokenError } = await supabase
       .from('token_usage')
       .insert({
         user_id: userId,
         game_id: gameId,
         message_id: messageId,
-        prompt: prompt.substring(0, 5000), // Limit prompt size
+        prompt: prompt.substring(0, 5000),
         input_tokens: estimatedInputTokens,
-        output_tokens: 1, // Placeholder until we get actual output
+        output_tokens: 1,
         model_type: modelType
       })
       .select('id')
@@ -120,7 +111,6 @@ async function createInitialTokenRecords(
   }
 }
 
-// Function to update token tracking records with actual values
 async function updateTokenRecords(
   supabase: any,
   messageId: string,
@@ -156,6 +146,123 @@ async function updateTokenRecords(
   } catch (error) {
     console.error('[TOKEN TRACKING] Error in updateTokenRecords:', error);
     return false;
+  }
+}
+
+async function processAnthropicStream(reader, writer, supabase, gameId, estimatedInputTokens, tokenTrackingInfo) {
+  let fullContent = '';
+  let completeChunk = '';
+  
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      
+      if (done) {
+        const finalOutputTokens = Math.max(1, Math.ceil(completeChunk.length / 4));
+        console.log('[TOKEN TRACKING] Final output tokens (estimated):', finalOutputTokens);
+        
+        if (tokenTrackingInfo && tokenTrackingInfo.messageId) {
+          await updateTokenRecords(
+            supabase,
+            tokenTrackingInfo.messageId,
+            estimatedInputTokens,
+            finalOutputTokens
+          );
+          
+          const tokenInfoEvent = `data: ${JSON.stringify({
+            type: 'token_usage',
+            usage: {
+              input_tokens: estimatedInputTokens,
+              output_tokens: finalOutputTokens
+            }
+          })}\n\n`;
+          
+          await writer.write(new TextEncoder().encode(tokenInfoEvent));
+        }
+        
+        await writer.write(new TextEncoder().encode('data: [DONE]\n\n'));
+        await writer.close();
+        
+        fullContent = removeTokenInfo(fullContent);
+        
+        const { error: updateGameError } = await supabase
+          .from('games')
+          .update({
+            code: fullContent
+          })
+          .eq('id', gameId);
+        
+        if (updateGameError) {
+          console.error(`Error updating game: ${updateGameError.message}`);
+        } else {
+          console.log(`Updated game ${gameId} with new content from stream (version creation handled by client)`);
+        }
+        
+        break;
+      }
+      
+      const chunk = new TextDecoder().decode(value);
+      
+      await processChunkLines(chunk, writer, completeChunk, fullContent);
+    }
+  } catch (streamError) {
+    console.error('[STREAM ERROR]', streamError);
+    writer.abort(streamError);
+  }
+}
+
+async function processChunkLines(chunk, writer, completeChunk, fullContent) {
+  const lines = chunk.split('\n');
+  
+  for (const line of lines) {
+    if (line.startsWith('data: ')) {
+      try {
+        const eventData = line.slice(5).trim();
+        
+        if (eventData === '[DONE]') {
+          await writer.write(new TextEncoder().encode(line + '\n'));
+          continue;
+        }
+        
+        if (eventData.startsWith('{')) {
+          const data = JSON.parse(eventData);
+          
+          if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
+            await writer.write(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+            continue;
+          }
+          
+          if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta' && data.delta.text) {
+            let contentText = data.delta.text;
+            
+            if (isTokenInfo(contentText)) {
+              if (contentText.trim().length === 0) {
+                continue;
+              }
+              
+              contentText = removeTokenInfo(contentText);
+              if (!contentText.trim()) {
+                continue;
+              }
+              
+              data.delta.text = contentText;
+            }
+            
+            completeChunk += contentText;
+            fullContent += contentText;
+          }
+          
+          await writer.write(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+        } else {
+          await writer.write(new TextEncoder().encode(line + '\n'));
+        }
+      } catch (parseError) {
+        console.error('Error parsing stream event:', parseError);
+        await writer.write(new TextEncoder().encode(line + '\n'));
+      }
+    } else if (line.trim()) {
+      await writer.write(new TextEncoder().encode(line + '\n'));
+    }
   }
 }
 
@@ -247,7 +354,6 @@ serve(async (req) => {
       }
     }
 
-    // Fetch the game data
     const { data: gameData, error: gameError } = await supabase
       .from('games')
       .select('*')
@@ -270,7 +376,6 @@ serve(async (req) => {
       );
     }
 
-    // Fetch the latest game version to get the most current code
     const { data: latestVersion, error: versionError } = await supabase
       .from('game_versions')
       .select('*')
@@ -283,7 +388,6 @@ serve(async (req) => {
       console.error('Error fetching latest game version:', versionError);
     }
 
-    // Log version information for debugging
     if (latestVersion) {
       console.log('Found latest version:', {
         version_number: latestVersion.version_number,
@@ -305,11 +409,8 @@ serve(async (req) => {
       console.error('Error fetching messages:', messagesError);
     }
 
-    // Build the system message with the current code
-    // Use the latest version's code if available, otherwise fall back to gameData.code
     const currentCode = (latestVersion && latestVersion.code) ? latestVersion.code : (gameData.code || '');
 
-    // Log code information for debugging
     console.log('Current code available:', !!currentCode);
     console.log('Current code length:', currentCode.length || 0);
     
@@ -332,13 +433,10 @@ DO NOT include any token information in your response. Do not add comments about
 
 Follow these structure requirements precisely and generate clean, semantic, and accessible code.`;
 
-    // Build the messages array with proper conversation history
     let messages: any[] = [];
     
-    // Add conversation history as separate messages
     if (messagesData && messagesData.length > 0) {
       for (const msg of messagesData) {
-        // Add user message
         if (msg.image_url && msg.image_url.startsWith('data:image/')) {
           try {
             const base64Image = extractBase64FromDataUrl(msg.image_url);
@@ -363,7 +461,6 @@ Follow these structure requirements precisely and generate clean, semantic, and 
             });
           } catch (imageError) {
             console.error('Error processing historical image:', imageError);
-            // Fall back to text-only message
             messages.push({
               role: "user",
               content: msg.message
@@ -376,7 +473,6 @@ Follow these structure requirements precisely and generate clean, semantic, and 
           });
         }
         
-        // Add assistant response if it exists
         if (msg.response) {
           messages.push({
             role: "assistant",
@@ -386,7 +482,6 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       }
     }
     
-    // Add the current message
     if (imageUrl && imageUrl.startsWith('data:image/')) {
       console.log('Processing data URL image...');
       try {
@@ -395,8 +490,6 @@ Follow these structure requirements precisely and generate clean, semantic, and 
         
         const mediaType = imageUrl.match(/^data:(image\/\w+);base64,/)?.[1] || 'image/jpeg';
         console.log('Detected media type:', mediaType);
-        
-        // We don't need to save the message here as it will be saved later with the response
         
         messages.push({
           role: "user",
@@ -440,14 +533,13 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       messages: messages,
       thinking: {
         type: "enabled",
-        budget_tokens: 4000
+        budget_tokens: 10000
       }
     };
 
     console.log('Streaming mode:', stream ? 'Enabled' : 'Disabled');
     console.log('Thinking mode:', requestBody.thinking ? `Enabled (budget: ${requestBody.thinking.budget_tokens})` : 'Disabled');
 
-    // Enhanced debug logging
     console.log('=== DEBUG: COMPLETE REQUEST BODY ===');
     console.log('System message length:', systemMessage.length);
     if (systemMessage.length > 1000) {
@@ -463,11 +555,9 @@ Follow these structure requirements precisely and generate clean, semantic, and 
     }
     console.log('=== END DEBUG ===');
 
-    // Estimate input tokens (rough approximation)
     const estimatedInputTokens = Math.ceil((systemMessage.length + JSON.stringify(messages).length) / 4);
     let tokenTrackingInfo = null;
     
-    // Create initial token tracking records if gameId is provided
     if (gameId) {
       tokenTrackingInfo = await createInitialTokenRecords(
         supabase, 
@@ -485,27 +575,13 @@ Follow these structure requirements precisely and generate clean, semantic, and 
       }
     }
 
-    // Log the exact request body being sent to Anthropic
-    console.log('=== ANTHROPIC API REQUEST BODY ===');
-    const requestBodyString = JSON.stringify(requestBody);
-    console.log('Request body length:', requestBodyString.length);
-    // Log the request body in chunks to avoid truncation
-    const chunkSize = 5000;
-    for (let i = 0; i < requestBodyString.length; i += chunkSize) {
-      console.log(`Request body chunk ${Math.floor(i/chunkSize) + 1}:`, 
-        requestBodyString.substring(i, i + chunkSize));
-    }
-    console.log('=== END ANTHROPIC API REQUEST BODY ===');
-
-    // Make the request to Anthropic
     console.log('Sending request to Anthropic API with message structure:', 
       imageUrl ? 'Image + Text' : 'Text only');
     console.log('Using model:', requestBody.model);
     console.log('System message is properly set with length:', systemMessage.length);
 
-    // Add a timeout to the fetch request
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 120000);
     
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -529,146 +605,23 @@ Follow these structure requirements precisely and generate clean, semantic, and 
 
       console.log('Successfully got response from Anthropic API');
       
-      // For streaming responses, ensure we set the correct headers
       if (requestBody.stream) {
         console.log('Returning streaming response to client');
         
         if (response.body) {
-          // Use the TransformStream API to modify the stream
           const { readable, writable } = new TransformStream();
           
-          // Clone the original stream for reading
           const reader = response.body.getReader();
           const writer = writable.getWriter();
           
-          // Process the stream in the background
-          // @ts-ignore - EdgeRuntime is available in Deno Deploy
-          EdgeRuntime.waitUntil((async () => {
-            try {
-              let fullContent = '';
-              let completeChunk = '';
-              
-              while (true) {
-                const { done, value } = await reader.read();
-                
-                if (done) {
-                  // Calculate final token counts
-                  const finalOutputTokens = Math.max(1, Math.ceil(completeChunk.length / 4));
-                  console.log('[TOKEN TRACKING] Final output tokens (estimated):', finalOutputTokens);
-                  
-                  // Add a final event with token information
-                  if (tokenTrackingInfo && tokenTrackingInfo.messageId) {
-                    // Update token tracking with final values
-                    await updateTokenRecords(
-                      supabase,
-                      tokenTrackingInfo.messageId,
-                      estimatedInputTokens,
-                      finalOutputTokens
-                    );
-                    
-                    // Add the token info to the stream for internal tracking only, not display
-                    const tokenInfoEvent = `data: ${JSON.stringify({
-                      type: 'token_usage',
-                      usage: {
-                        input_tokens: estimatedInputTokens,
-                        output_tokens: finalOutputTokens
-                      }
-                    })}\n\n`;
-                    
-                    await writer.write(new TextEncoder().encode(tokenInfoEvent));
-                  }
-                  
-                  // Send the [DONE] event
-                  await writer.write(new TextEncoder().encode('data: [DONE]\n\n'));
-                  await writer.close();
-                  
-                  // Clean the content
-                  fullContent = removeTokenInfo(fullContent);
-                  
-                  // Update the game with the content directly without creating a new version
-                  // This allows the client-side code to handle version creation
-                  const { error: updateGameError } = await supabase
-                    .from('games')
-                    .update({
-                      code: fullContent
-                    })
-                    .eq('id', gameId);
-                  
-                  if (updateGameError) {
-                    console.error(`Error updating game: ${updateGameError.message}`);
-                  } else {
-                    console.log(`Updated game ${gameId} with new content from stream (version creation handled by client)`);
-                  }
-                  
-                  break;
-                }
-                
-                // Decode the chunk
-                const chunk = new TextDecoder().decode(value);
-                const lines = chunk.split('\n');
-                
-                for (const line of lines) {
-                  if (line.startsWith('data: ')) {
-                    try {
-                      const eventData = line.slice(5).trim();
-                      
-                      if (eventData === '[DONE]') {
-                        await writer.write(new TextEncoder().encode(line + '\n'));
-                        continue;
-                      }
-                      
-                      // For JSON data, we need to parse it
-                      if (eventData.startsWith('{')) {
-                        const data = JSON.parse(eventData);
-                        
-                        // For content, filter out token information
-                        if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta' && data.delta.text) {
-                          let contentText = data.delta.text;
-                          
-                          // Detect and remove token information
-                          if (isTokenInfo(contentText)) {
-                            // Skip this event entirely if it's only token information
-                            if (contentText.trim().length === 0) {
-                              continue;
-                            }
-                            
-                            // Otherwise, clean the content
-                            contentText = removeTokenInfo(contentText);
-                            if (!contentText.trim()) {
-                              continue;
-                            }
-                            
-                            // Update the object before sending
-                            data.delta.text = contentText;
-                          }
-                          
-                          // Add to complete content for token counting
-                          completeChunk += contentText;
-                          fullContent += contentText;
-                        }
-                        
-                        // Forward the event
-                        await writer.write(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
-                      } else {
-                        // For non-JSON data, just forward it
-                        await writer.write(new TextEncoder().encode(line + '\n'));
-                      }
-                    } catch (parseError) {
-                      console.error('Error parsing stream event:', parseError);
-                      // Forward the original line if we fail to parse it
-                      await writer.write(new TextEncoder().encode(line + '\n'));
-                    }
-                  } else if (line.trim()) {
-                    // Forward non-data lines
-                    await writer.write(new TextEncoder().encode(line + '\n'));
-                  }
-                }
-              }
-            } catch (streamError) {
-              console.error('[STREAM ERROR]', streamError);
-              writer.abort(streamError);
-            }
-          })());
+          EdgeRuntime.waitUntil(processAnthropicStream(
+            reader, 
+            writer,
+            supabase,
+            gameId,
+            estimatedInputTokens,
+            tokenTrackingInfo
+          ));
           
           return new Response(readable, {
             headers: {
@@ -686,17 +639,13 @@ Follow these structure requirements precisely and generate clean, semantic, and 
         const responseText = await response.text();
         console.log('Response length:', responseText.length);
         
-        // Parse the response
-        const responseData = JSON.parse(responseText);
-        
-        // Save the message and response to the database
         const { data: savedMessage, error: saveError } = await supabase
           .from('game_messages')
           .insert({
             game_id: gameId,
             message: message,
             response: responseText,
-            image_url: imageUrl, // Store the image URL with the message
+            image_url: imageUrl,
             is_system: false,
             model_type: modelType || 'smart'
           })
@@ -709,11 +658,10 @@ Follow these structure requirements precisely and generate clean, semantic, and 
           console.log('Saved message with ID:', savedMessage.id);
         }
         
-        // Update the game with the content
         const { error: updateGameError } = await supabase
           .from('games')
           .update({
-            code: responseData.content
+            code: JSON.parse(responseText).content
           })
           .eq('id', gameId);
         
@@ -723,9 +671,8 @@ Follow these structure requirements precisely and generate clean, semantic, and 
           console.log(`Updated game ${gameId} with new content`);
         }
         
-        // Return the response to the client
         return new Response(
-          JSON.stringify(responseData),
+          JSON.stringify(JSON.parse(responseText)),
           {
             status: 200,
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },

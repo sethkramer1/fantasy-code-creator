@@ -160,8 +160,6 @@ export const processAnthropicStream = async (
 ) => {
   let content = '';
   let buffer = '';
-  let currentThinkingPhase = '';
-  let isInitialGeneration = true; // Flag to detect first message
   let receivedAnyData = false;
   
   console.log("Starting Anthropic stream processing");
@@ -215,7 +213,6 @@ export const processAnthropicStream = async (
           switch (data.type) {
             case 'message_start':
               updateTerminalOutputFn("> Starting response generation...", true);
-              isInitialGeneration = false; // First message received
               break;
               
             case 'content_block_start':
@@ -226,10 +223,11 @@ export const processAnthropicStream = async (
               
             case 'content_block_delta':
               if (data.delta?.type === 'thinking_delta') {
+                // IMPORTANT: Always display thinking updates, even if they're similar to previous ones
                 const thinking = data.delta.thinking?.trim() || '';
-                if (thinking && thinking !== currentThinkingPhase) {
-                  currentThinkingPhase = thinking;
-                  console.log("Thinking update:", thinking); // Debug log
+                if (thinking) {
+                  console.log("Thinking update:", thinking);
+                  // Always show all thinking updates regardless of content
                   updateTerminalOutputFn(`> Thinking: ${thinking}`, true);
                 }
               } else if (data.delta?.type === 'text_delta') {
@@ -265,9 +263,8 @@ export const processAnthropicStream = async (
               throw new Error(errorMessage);
               
             default:
-              // Catch standalone thinking updates without a specific type
-              if (data.thinking && data.thinking !== currentThinkingPhase) {
-                currentThinkingPhase = data.thinking;
+              // Always display thinking updates without filtering
+              if (data.thinking) {
                 console.log("Standalone thinking update:", data.thinking);
                 updateTerminalOutputFn(`> Thinking: ${data.thinking}`, true);
               }
@@ -304,7 +301,7 @@ export const processAnthropicStream = async (
   return content;
 };
 
-// Helper function to detect token information
+// Helper functions for token detection and removal
 function isTokenInfo(text: string): boolean {
   if (!text) return false;
   
@@ -321,7 +318,6 @@ function isTokenInfo(text: string): boolean {
   );
 }
 
-// Helper function to remove token information from content
 function removeTokenInfo(content: string): string {
   if (!content) return content;
 
