@@ -71,7 +71,7 @@ export const GameChat = ({
 
   // Add confirmation message after generation completes
   useEffect(() => {
-    const addConfirmationMessage = async () => {
+    const handleGenerationComplete = async () => {
       if (generationComplete && gameId && !generationHandledRef.current) {
         generationHandledRef.current = true;
         console.log("Adding confirmation message after generation");
@@ -95,28 +95,48 @@ export const GameChat = ({
                 msg.response === "Initial generation in progress..." ? { ...msg, response: "✅ Content generated successfully! The game has been updated successfully." } : msg
               )
             );
+            
+            // Clean up any duplicate or interim status messages
+            const { data: existingMessages } = await supabase
+              .from('game_messages')
+              .select('*')
+              .eq('game_id', gameId)
+              .order('created_at', { ascending: true });
+              
+            if (existingMessages) {
+              const statusMessages = existingMessages.filter(
+                msg => (msg.is_system && 
+                      (msg.message === "Initial generation complete" || 
+                       msg.message === "Welcome" || 
+                       msg.message === "Generation Complete" ||
+                       msg.message === "Content generated"))
+              );
+              
+              // If we have multiple status messages, keep only the initial message we just updated
+              if (statusMessages.length > 0) {
+                console.log(`Found ${statusMessages.length} status messages, cleaning up duplicates`);
+                for (const msg of statusMessages) {
+                  await supabase
+                    .from('game_messages')
+                    .delete()
+                    .eq('id', msg.id);
+                }
+              }
+            }
           }
           
-          // Don't add an additional system message - this was causing duplicate messages
-          // await addSystemMessage(
-          //   "Initial generation complete",
-          //   "✅ Content generated successfully! You can now ask me to modify the content or add new features."
-          // );
-          
-          // Reset the flag
+          // Reset the flag and fetch latest messages
           setGenerationComplete(false);
-          
-          // Force a message fetch to ensure we have the latest messages
           await fetchMessages();
         } catch (error) {
-          console.error("Error adding confirmation message:", error);
+          console.error("Error handling generation completion:", error);
           // Reset the ref so we can try again
           generationHandledRef.current = false;
         }
       }
     };
     
-    addConfirmationMessage();
+    handleGenerationComplete();
     
     // Reset the handled ref when game ID changes
     return () => {
@@ -125,27 +145,6 @@ export const GameChat = ({
       }
     };
   }, [generationComplete, gameId, addSystemMessage, fetchMessages, setMessages]);
-
-  // Additional check to add a welcome message if none exists and generation is complete
-  useEffect(() => {
-    const ensureWelcomeMessage = async () => {
-      // Only run this once when loading is complete and messages are loaded
-      if (!disabled && !loadingHistory && messages.length === 0 && gameId) {
-        console.log("No messages found after load, adding welcome message");
-        try {
-          await addSystemMessage(
-            "Welcome",
-            "✅ Your content is ready! You can now ask me to modify it or add new features."
-          );
-          await fetchMessages();
-        } catch (error) {
-          console.error("Error adding welcome message:", error);
-        }
-      }
-    };
-    
-    ensureWelcomeMessage();
-  }, [disabled, loadingHistory, messages.length, gameId, addSystemMessage, fetchMessages]);
 
   return (
     <div className="flex flex-col h-full">
