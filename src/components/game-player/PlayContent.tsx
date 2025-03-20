@@ -1,3 +1,4 @@
+
 import { useRef, useEffect } from "react";
 import { GenerationTerminal } from "@/components/game-creator/GenerationTerminal";
 import { ViewToggle } from "@/components/game-player/ViewToggle";

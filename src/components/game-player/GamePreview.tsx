@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Edit, Save, X } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import PexelsImageAttribution from "@/components/common/PexelsImageAttribution";
+import { IframePreview } from "./components/IframePreview";
 
 interface GameVersion {
   id: string;
@@ -113,104 +114,22 @@ ${js}
       setIsEditMode(true);
     };
     
-    // Handle iframe load, enable edit mode if needed
-    const handleIframeLoad = () => {
-      if (!iframeRef.current || !iframeRef.current.contentDocument) return;
-      
-      // Make sure any previous edit indicators are removed
-      try {
-        const oldIndicator = iframeRef.current.contentDocument.getElementById('edit-mode-indicator');
-        if (oldIndicator) oldIndicator.remove();
-      } catch (e) {
-        console.error("Error removing old indicator:", e);
-      }
-      
-      // Only proceed with edit mode if we're in edit mode
-      if (!isEditMode) return;
-      
-      console.log("Iframe loaded, applying edit mode");
-      
-      try {
-        // Try using document.designMode
-        iframeRef.current.contentDocument.designMode = 'on';
-        console.log("Enabled designMode on iframe document");
-        
-        // Add edit mode styles
-        const style = document.createElement('style');
-        style.id = 'edit-mode-styles';
-        iframeRef.current.contentDocument.head.appendChild(style);
-        style.textContent = `
-          body {
-            cursor: text;
-          }
-        `;
-        
-        // Add edit mode indicator
-        const indicator = document.createElement('div');
-        indicator.id = 'edit-mode-indicator';
-        indicator.textContent = 'Edit Mode: Click to edit text';
-        indicator.style.position = 'fixed';
-        indicator.style.top = '10px';
-        indicator.style.left = '10px';
-        indicator.style.backgroundColor = 'rgba(79, 70, 229, 0.9)';
-        indicator.style.color = 'white';
-        indicator.style.padding = '8px 16px';
-        indicator.style.borderRadius = '25px';
-        indicator.style.zIndex = '9999';
-        indicator.style.fontSize = '14px';
-        indicator.style.boxShadow = '0 2px 10px rgba(0, 0, 0, 0.1)';
-        indicator.style.fontFamily = 'system-ui, sans-serif';
-        indicator.style.fontWeight = '500';
-        indicator.style.transition = 'all 0.2s ease';
-        iframeRef.current.contentDocument.body.appendChild(indicator);
-      } catch (error) {
-        console.error("Error applying edit mode:", error);
-      }
+    // Handle code update from IframePreview
+    const handleCodeUpdate = (updatedHtml: string) => {
+      console.log("Code updated from IframePreview");
+      // Save the edited code
+      setEditedCode(updatedHtml);
     };
     
     // Handle save
     const handleSave = () => {
-      if (!currentVersion || !onSaveCode || !iframeRef.current || !iframeRef.current.contentDocument) return;
+      if (!currentVersion || !onSaveCode) return;
       
       try {
-        // Try to remove all edit mode artifacts
-        try {
-          // Remove edit mode indicator
-          const indicator = iframeRef.current.contentDocument.getElementById('edit-mode-indicator');
-          if (indicator) {
-            indicator.remove();
-          }
-          
-          // Remove edit mode styles
-          const styles = iframeRef.current.contentDocument.getElementById('edit-mode-styles');
-          if (styles) {
-            styles.remove();
-          }
-          
-          // Turn off design mode
-          if (iframeRef.current.contentDocument.designMode === 'on') {
-            iframeRef.current.contentDocument.designMode = 'off';
-          }
-        } catch (cleanupError) {
-          console.error("Error cleaning up edit mode:", cleanupError);
-        }
-        
-        // Get the updated HTML - do this AFTER removing edit mode UI elements
-        const updatedHtml = iframeRef.current.contentDocument.documentElement.outerHTML;
-        
-        // Clean any edit-related attributes from the HTML
-        const cleanHtml = updatedHtml
-          .replace(/contenteditable="true"/g, '')
-          .replace(/contenteditable=""/g, '')
-          .replace(/data-editable="true"/g, '');
-        
-        // Save the edited code for when we exit edit mode
-        setEditedCode(cleanHtml);
-        
         // Create a new version with the updated HTML
         const newVersion = {
           ...currentVersion,
-          code: cleanHtml
+          code: editedCode || processedCode
         };
         
         // Call the onSaveCode callback
@@ -239,32 +158,11 @@ ${js}
     
     // Handle cancel
     const handleCancel = () => {
-      // Try to remove all edit mode artifacts
-      try {
-        if (iframeRef.current && iframeRef.current.contentDocument) {
-          // Remove edit mode indicator
-          const indicator = iframeRef.current.contentDocument.getElementById('edit-mode-indicator');
-          if (indicator) {
-            indicator.remove();
-          }
-          
-          // Remove edit mode styles
-          const styles = iframeRef.current.contentDocument.getElementById('edit-mode-styles');
-          if (styles) {
-            styles.remove();
-          }
-          
-          // Turn off design mode
-          if (iframeRef.current.contentDocument.designMode === 'on') {
-            iframeRef.current.contentDocument.designMode = 'off';
-          }
-        }
-      } catch (cleanupError) {
-        console.error("Error cleaning up edit mode:", cleanupError);
-      }
-      
       // Exit edit mode without saving
       setIsEditMode(false);
+      
+      // Clear edited code
+      setEditedCode(null);
       
       // Increment refresh counter to force iframe re-render
       setRefreshCounter(prev => prev + 1);
@@ -335,17 +233,6 @@ ${js}
       }
     };
     
-    // Determine what HTML content to display
-    const getDisplayContent = () => {
-      if (isEditMode) {
-        return processedCode;
-      } else if (editedCode && refreshCounter > 0) {
-        return editedCode;
-      } else {
-        return processedCode;
-      }
-    };
-    
     return (
       <div className="h-full flex flex-col">
         {showCode ? (
@@ -396,16 +283,15 @@ ${js}
               </div>
             )}
             
-            {/* Game preview iframe */}
-            <iframe
-              key={`iframe-${refreshCounter}`}
-              ref={iframeRef}
-              srcDoc={getDisplayContent()}
-              className="w-full h-full border-0 flex-grow"
-              onLoad={handleIframeLoad}
-              title="Game Preview"
-              sandbox="allow-scripts allow-same-origin"
-            />
+            {/* Use IframePreview for better edit text support */}
+            <div className="w-full h-full flex-grow">
+              <IframePreview
+                ref={iframeRef}
+                code={processedCode}
+                isEditable={isEditMode}
+                onCodeUpdate={handleCodeUpdate}
+              />
+            </div>
             
             {/* Pexels attribution if images are used */}
             {hasPexelsImages && (
