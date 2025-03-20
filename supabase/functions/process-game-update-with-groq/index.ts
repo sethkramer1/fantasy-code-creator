@@ -1,3 +1,4 @@
+
 // This Edge Function integrates with Groq's API to generate web content based on a game update request
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.7.1';
@@ -212,4 +213,61 @@ Return only the full new HTML code with all needed CSS and JavaScript embedded. 
         if (htmlMatch && htmlMatch[1]) {
           content = htmlMatch[1].trim();
         }
-      } else if (content.includes("```
+      } else if (content.includes("```")) {
+        // Handle generic code blocks
+        const codeMatch = content.match(/```(?:html|javascript|js|css)?\s*([\s\S]*?)```/);
+        if (codeMatch && codeMatch[1]) {
+          content = codeMatch[1].trim();
+        }
+      }
+    } else {
+      throw new Error("Unexpected response format from Groq API");
+    }
+
+    // Store the new user message and AI response in game_messages
+    const { error: insertError } = await supabaseAdmin
+      .from('game_messages')
+      .insert({
+        game_id: gameId,
+        message: message,
+        response: content,
+        imageUrl: imageUrl || null
+      });
+
+    if (insertError) {
+      console.error('Error inserting message:', insertError);
+    }
+
+    // Create a new game version
+    const { error: versionInsertError } = await supabaseAdmin.rpc('increment_game_version', {
+      p_game_id: gameId,
+      p_code: content,
+      p_message: message
+    });
+
+    if (versionInsertError) {
+      console.error('Error creating game version:', versionInsertError);
+    }
+
+    // Return the generated content
+    return new Response(
+      JSON.stringify({ 
+        content,
+        message: "Game updated successfully" 
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error) {
+    console.error("Error in process-game-update-with-groq function:", error);
+    return new Response(
+      JSON.stringify({ 
+        error: error instanceof Error ? error.message : "An unknown error occurred"
+      }),
+      { 
+        status: 500, 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      }
+    );
+  }
+});
