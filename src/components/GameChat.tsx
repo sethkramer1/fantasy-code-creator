@@ -77,52 +77,71 @@ export const GameChat = ({
         console.log("Adding confirmation message after generation");
         
         try {
+          // First, clean up any existing status messages to prevent duplicates
+          const { data: allMessages } = await supabase
+            .from('game_messages')
+            .select('*')
+            .eq('game_id', gameId)
+            .order('created_at', { ascending: true });
+            
+          if (allMessages) {
+            // Find all status-related messages
+            const statusMessages = allMessages.filter(msg => 
+              (msg.is_system && 
+               (msg.message === "Initial generation complete" || 
+                msg.message === "Welcome" || 
+                msg.message === "Generation Complete" ||
+                msg.message === "Initial Generation" ||
+                msg.message === "Content generated")) ||
+              (msg.message && msg.message.includes("Generating initial")) ||
+              (msg.response && msg.response.includes("Content generated")) ||
+              (msg.response && msg.response.includes("Initial generation in progress"))
+            );
+            
+            console.log(`Found ${statusMessages.length} status messages to clean up`);
+            
+            // Keep only the initial generation message to update, remove all others
+            for (const msg of statusMessages) {
+              // Don't delete the very first message that's being processed as initial generation
+              if (msg.response === "Initial generation in progress..." || 
+                  msg.response === "Generating initial content...") {
+                console.log(`Keeping and updating initial message: ${msg.id}`);
+                continue;
+              }
+              
+              console.log(`Deleting status message: ${msg.id}, content: ${msg.message}`);
+              await supabase
+                .from('game_messages')
+                .delete()
+                .eq('id', msg.id);
+            }
+          }
+
           // Update the initial generation message to show completion
           const { data: updatedMessage, error: updateError } = await supabase
             .from('game_messages')
-            .update({ response: "✅ Content generated successfully! The game has been updated successfully." })
+            .update({ 
+              response: "✅ Content has been generated successfully. You can now ask me to modify it!" 
+            })
             .eq('game_id', gameId)
-            .eq('response', "Initial generation in progress...")
+            .or(`response.eq.Initial generation in progress...,response.eq.Generating initial content...`)
             .select('*')
-            .single();
+            .maybeSingle();
             
           if (updateError) {
             console.error("Error updating initial generation message:", updateError);
           } else if (updatedMessage) {
+            console.log("Successfully updated initial message:", updatedMessage.id);
+            
             // Update the message in the local state
             setMessages(prevMessages => 
               prevMessages.map(msg => 
-                msg.response === "Initial generation in progress..." ? { ...msg, response: "✅ Content generated successfully! The game has been updated successfully." } : msg
+                (msg.response === "Initial generation in progress..." || 
+                 msg.response === "Generating initial content...") 
+                 ? { ...msg, response: "✅ Content has been generated successfully. You can now ask me to modify it!" } 
+                 : msg
               )
             );
-            
-            // Clean up any duplicate or interim status messages
-            const { data: existingMessages } = await supabase
-              .from('game_messages')
-              .select('*')
-              .eq('game_id', gameId)
-              .order('created_at', { ascending: true });
-              
-            if (existingMessages) {
-              const statusMessages = existingMessages.filter(
-                msg => (msg.is_system && 
-                      (msg.message === "Initial generation complete" || 
-                       msg.message === "Welcome" || 
-                       msg.message === "Generation Complete" ||
-                       msg.message === "Content generated"))
-              );
-              
-              // If we have multiple status messages, keep only the initial message we just updated
-              if (statusMessages.length > 0) {
-                console.log(`Found ${statusMessages.length} status messages, cleaning up duplicates`);
-                for (const msg of statusMessages) {
-                  await supabase
-                    .from('game_messages')
-                    .delete()
-                    .eq('id', msg.id);
-                }
-              }
-            }
           }
           
           // Reset the flag and fetch latest messages

@@ -49,7 +49,6 @@ export function useChatMessages({
     setModelType(initialModelType);
   }, [initialModelType]);
 
-  // Sync local loading state with global generation state
   useEffect(() => {
     setIsGenerating(loading);
     console.log("useChatMessages: Updating global isGenerating to", loading);
@@ -108,13 +107,35 @@ export function useChatMessages({
       }
       
       console.log(`Loaded ${typedData.length} messages for game ${gameId}`);
-      setMessages(typedData);
+      
+      let uniqueMessages = typedData;
+      
+      const statusMessages = typedData.filter(msg => 
+        (msg.is_system && 
+         (msg.message === "Initial generation complete" || 
+          msg.message === "Welcome" || 
+          msg.message === "Generation Complete" ||
+          msg.message === "Initial Generation" ||
+          msg.message === "Content generated")) ||
+        (msg.message && msg.message.includes("Generating initial"))
+      );
+      
+      if (statusMessages.length > 1) {
+        console.log(`Found ${statusMessages.length} status messages in local state, cleaning up...`);
+        const statusMessageIds = statusMessages.map(msg => msg.id);
+        uniqueMessages = typedData.filter(msg => 
+          !statusMessageIds.includes(msg.id) || msg.id === statusMessageIds[0]
+        );
+        console.log(`Reduced message count from ${typedData.length} to ${uniqueMessages.length}`);
+      }
+      
+      setMessages(uniqueMessages);
     } catch (error) {
       console.error("Error loading chat history:", error);
     } finally {
       setLoadingHistory(false);
     }
-  }, [gameId, initialMessage]);
+  }, [gameId, initialMessage, setInitialMessageId]);
 
   useEffect(() => {
     fetchMessages();
@@ -129,6 +150,18 @@ export function useChatMessages({
     
     try {
       console.log(`Adding system message: ${message}`);
+      
+      const { data: existingMessages } = await supabase
+        .from('game_messages')
+        .select('*')
+        .eq('game_id', gameId)
+        .eq('message', message)
+        .eq('is_system', true);
+        
+      if (existingMessages && existingMessages.length > 0) {
+        console.log(`System message "${message}" already exists, not adding duplicate`);
+        return existingMessages[0];
+      }
       
       const { data: messageData, error } = await supabase
         .from('game_messages')
@@ -163,7 +196,7 @@ export function useChatMessages({
       console.error("Error in addSystemMessage:", error);
       throw error;
     }
-  }, [gameId]);
+  }, [gameId, setMessages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -251,7 +284,6 @@ export function useChatMessages({
           outputTokens = Math.ceil(content.length / 4);
         }
       } else {
-        // Check if we have a proper streaming response for Anthropic
         const contentType = apiResponse.headers.get('content-type');
         console.log("Anthropic response content type:", contentType);
         
@@ -269,11 +301,9 @@ export function useChatMessages({
             console.log("Successfully obtained stream reader");
             updateTerminalOutputWrapper("> Stream connected, waiting for content...", true);
             
-            // Process the Anthropic stream
             content = await processAnthropicStream(reader, updateTerminalOutputWrapper);
             console.log("Stream processing complete, content length:", content.length);
             
-            // For streaming responses, we estimate token usage based on content length
             inputTokens = Math.ceil(currentMessage.length / 4);
             outputTokens = Math.ceil(content.length / 4);
             console.log(`Estimated tokens from stream: input=${inputTokens}, output=${outputTokens}`);
@@ -283,7 +313,6 @@ export function useChatMessages({
             throw streamError;
           }
         } else {
-          // Handle non-streaming response from Anthropic (fallback)
           updateTerminalOutputWrapper("> Using non-streaming mode for Anthropic API (fallback)...", true);
           console.log("Received non-streaming response from Anthropic");
           
@@ -291,7 +320,6 @@ export function useChatMessages({
             const responseData = await apiResponse.json();
             console.log("Complete Anthropic response received:", responseData);
             
-            // Extract content from the response
             if (responseData.content && Array.isArray(responseData.content)) {
               for (const item of responseData.content) {
                 if (item.type === 'text') {
@@ -303,12 +331,10 @@ export function useChatMessages({
               content = responseData.content;
               updateTerminalOutputWrapper(`> ${content}`, true);
             } else if (responseData.completion) {
-              // Handle older API format
               content = responseData.completion;
               updateTerminalOutputWrapper(`> ${content}`, true);
             }
             
-            // Extract token usage if available
             if (responseData.usage) {
               inputTokens = responseData.usage.input_tokens || inputTokens;
               outputTokens = responseData.usage.output_tokens || Math.ceil(content.length / 4);
@@ -323,7 +349,6 @@ export function useChatMessages({
           }
         }
         
-        // Check for token usage information in the content
         try {
           const usageMatch = content.match(/Tokens used: (\d+) input, (\d+) output/);
           if (usageMatch) {
@@ -331,7 +356,6 @@ export function useChatMessages({
             outputTokens = parseInt(usageMatch[2], 10);
             console.log(`Token usage extracted from content: input=${inputTokens}, output=${outputTokens}`);
             
-            // Remove token information from the content
             content = content.replace(/Tokens used: \d+ input, \d+ output/g, '').trim();
           }
         } catch (e) {
@@ -348,7 +372,6 @@ export function useChatMessages({
       
       onGameUpdate(content, "Content updated successfully");
       
-      // Create a single consolidated status message instead of multiple messages
       await updateMessageResponse(insertedMessage.id, "✅ Content updated successfully! The changes have been applied.");
       
       await trackTokenUsage(
@@ -392,11 +415,9 @@ export function useChatMessages({
         true
       );
       
-      // Determine if this is an Anthropic API specific error
       let errorMessage = error instanceof Error ? error.message : "Please try again";
       let systemMessage = `❌ Error processing message: ${errorMessage}`;
       
-      // Check for Anthropic-specific error patterns
       if (currentModelType === "smart" && errorMessage) {
         if (errorMessage.includes("Anthropic API") || 
             errorMessage.includes("anthropic") || 

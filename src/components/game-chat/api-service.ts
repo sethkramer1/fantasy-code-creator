@@ -1,4 +1,3 @@
-
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "./types";
 
@@ -18,6 +17,33 @@ export const fetchChatHistory = async (gameId: string, initialMessage?: string) 
     }
     
     console.log(`Fetched ${data?.length || 0} messages`);
+    
+    // Clean up: Check for duplicate status messages
+    if (data && data.length > 0) {
+      const statusMessages = data.filter(msg => 
+        (msg.is_system && 
+         (msg.message === "Initial generation complete" || 
+          msg.message === "Welcome" || 
+          msg.message === "Generation Complete" ||
+          msg.message === "Initial Generation" ||
+          msg.message === "Content generated"))
+      );
+      
+      // If we find multiple status messages, delete the extras directly from the database
+      if (statusMessages.length > 1) {
+        console.log(`Found ${statusMessages.length} duplicate status messages, cleaning up...`);
+        
+        // Keep only the first one
+        for (let i = 1; i < statusMessages.length; i++) {
+          await supabase
+            .from('game_messages')
+            .delete()
+            .eq('id', statusMessages[i].id);
+            
+          console.log(`Deleted duplicate status message: ${statusMessages[i].id}`);
+        }
+      }
+    }
     
     if (data?.length === 0 && initialMessage) {
       console.log("No messages found, creating initial message");
@@ -364,7 +390,6 @@ export const processGameUpdate = async (
   }
 };
 
-// Add a new function to explicitly track initial game generation tokens
 export const trackInitialGameTokens = async (
   userId: string | undefined,
   gameId: string,
