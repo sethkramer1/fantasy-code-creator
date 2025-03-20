@@ -162,14 +162,20 @@ export async function processAnthropicStream(
 ): Promise<string> {
   let content = '';
   let buffer = '';
-  let currentThinkingPhase = '';
   
   try {
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.error('[STREAM] Processing timeout reached, aborting...');
+      abortController.abort();
+    }, 600000); // 10 minutes (600,000 ms)
+    
     while (true) {
       try {
         const { done, value } = await reader.read();
         
         if (done) {
+          clearTimeout(timeoutId);
           if (onComplete) onComplete(content);
           return content;
         }

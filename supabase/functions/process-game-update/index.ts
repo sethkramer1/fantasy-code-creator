@@ -210,7 +210,66 @@ async function processAnthropicStream(reader, writer, supabase, gameId, estimate
         }
         
         const chunk = new TextDecoder().decode(value);
-        await processChunkLines(chunk, writer, completeChunk, fullContent);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const eventData = line.slice(5).trim();
+              
+              if (eventData === '[DONE]') {
+                await writer.write(new TextEncoder().encode(line + '\n'));
+                continue;
+              }
+              
+              if (eventData.startsWith('{')) {
+                const data = JSON.parse(eventData);
+                
+                if (data.type === 'content_block_delta' && data.delta?.type === 'thinking_delta') {
+                  await writer.write(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+                  continue;
+                }
+                
+                if (data.delta?.thinking || data.thinking) {
+                  await writer.write(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+                  continue;
+                }
+                
+                if (data.type === 'content_block_delta' && data.delta?.type === 'text_delta' && data.delta.text) {
+                  let contentText = data.delta.text;
+                  
+                  if (isTokenInfo(contentText)) {
+                    if (contentText.trim().length === 0) {
+                      continue;
+                    }
+                    
+                    contentText = removeTokenInfo(contentText);
+                    if (!contentText.trim()) {
+                      continue;
+                    }
+                    
+                    data.delta.text = contentText;
+                  }
+                  
+                  completeChunk += contentText;
+                  fullContent += contentText;
+                  
+                  await writer.write(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+                  continue;
+                }
+                
+                await writer.write(new TextEncoder().encode(`data: ${JSON.stringify(data)}\n\n`));
+              } else {
+                await writer.write(new TextEncoder().encode(line + '\n'));
+              }
+            } catch (parseError) {
+              console.error('Error parsing stream event:', parseError);
+              await writer.write(new TextEncoder().encode(line + '\n'));
+            }
+          } else if (line.trim()) {
+            await writer.write(new TextEncoder().encode(line + '\n'));
+          }
+        }
       } catch (readError) {
         console.error('[STREAM] Error reading from stream:', readError);
         if (readError.name === 'AbortError') {
