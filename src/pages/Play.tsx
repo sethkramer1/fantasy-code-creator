@@ -423,6 +423,9 @@ const Play = () => {
       // Use the handleGameUpdate function from useGameUpdate hook
       await handleGameUpdate(updatedVersion.code, updatedVersion.instructions || "");
       
+      // Reset selectedVersionId to null to display the latest version
+      setSelectedVersionId(null);
+      
       toast({
         title: "Changes saved",
         description: "Your changes have been saved successfully"
