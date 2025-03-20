@@ -9,15 +9,103 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      deployments: {
+        Row: {
+          created_at: string | null
+          game_id: string | null
+          id: string
+          provider: string
+          site_id: string
+          site_name: string
+          site_url: string
+          version_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          game_id?: string | null
+          id?: string
+          provider: string
+          site_id: string
+          site_name: string
+          site_url: string
+          version_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          game_id?: string | null
+          id?: string
+          provider?: string
+          site_id?: string
+          site_name?: string
+          site_url?: string
+          version_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deployments_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deployments_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "game_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_submissions: {
+        Row: {
+          created_at: string | null
+          email: string
+          game_id: string
+          id: string
+          metadata: Json | null
+          name: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          game_id: string
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          game_id?: string
+          id?: string
+          metadata?: Json | null
+          name?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_submissions_game_id_fkey"
+            columns: ["game_id"]
+            isOneToOne: false
+            referencedRelation: "games"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       game_messages: {
         Row: {
           created_at: string
           game_id: string
           id: string
           image_url: string | null
+          is_system: boolean | null
           message: string
           model_type: string | null
           response: string | null
+          suggestions: Json | null
           version_id: string | null
         }
         Insert: {
@@ -25,9 +113,11 @@ export type Database = {
           game_id: string
           id?: string
           image_url?: string | null
+          is_system?: boolean | null
           message: string
           model_type?: string | null
           response?: string | null
+          suggestions?: Json | null
           version_id?: string | null
         }
         Update: {
@@ -35,9 +125,11 @@ export type Database = {
           game_id?: string
           id?: string
           image_url?: string | null
+          is_system?: boolean | null
           message?: string
           model_type?: string | null
           response?: string | null
+          suggestions?: Json | null
           version_id?: string | null
         }
         Relationships: [
@@ -100,6 +192,7 @@ export type Database = {
           deleted: boolean
           id: string
           instructions: string | null
+          metadata: Json | null
           model_type: string | null
           name: string | null
           prompt: string
@@ -114,6 +207,7 @@ export type Database = {
           deleted?: boolean
           id?: string
           instructions?: string | null
+          metadata?: Json | null
           model_type?: string | null
           name?: string | null
           prompt: string
@@ -128,6 +222,7 @@ export type Database = {
           deleted?: boolean
           id?: string
           instructions?: string | null
+          metadata?: Json | null
           model_type?: string | null
           name?: string | null
           prompt?: string
@@ -456,6 +551,19 @@ export type Database = {
           user_id?: string
         }
         Returns: boolean
+      }
+      update_initial_generation_message: {
+        Args: {
+          game_id_param: string
+        }
+        Returns: boolean
+      }
+      update_message_suggestions: {
+        Args: {
+          p_message_id: string
+          p_suggestions: Json
+        }
+        Returns: undefined
       }
     }
     Enums: {
