@@ -3,3 +3,16 @@ project_id = "nvutcgbgthjeetclfibd"
 
 [functions.enhance-prompt]
 verify_jwt = false
+
+[functions.process-game-update]
+invoke_timeout_seconds = 400
+
+[functions.generate-game]
+invoke_timeout_seconds = 400
+
+[functions.process-game-update-with-groq]
+invoke_timeout_seconds = 400
+
+[functions.generate-with-groq]
+invoke_timeout_seconds = 400
+

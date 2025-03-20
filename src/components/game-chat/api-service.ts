@@ -1,3 +1,4 @@
+
 import { supabase } from "@/integrations/supabase/client";
 import { Message } from "./types";
 
@@ -263,15 +264,15 @@ export const processGameUpdate = async (
       hasImage: !!imageUrl
     });
     
-    // Add a timeout to the fetch request
+    // Add a timeout to the fetch request - increased from 60 to 400 seconds
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-      console.error("API request timed out after 60 seconds");
+      console.error("API request timed out after 400 seconds");
       if (updateTerminalOutput) {
-        updateTerminalOutput("> Error: API request timed out after 60 seconds", true);
+        updateTerminalOutput("> Error: API request timed out after 400 seconds", true);
       }
-    }, 60000); // 60 second timeout
+    }, 400000); // 400 second timeout
     
     try {
       const apiResponse = await fetch(apiUrl, {

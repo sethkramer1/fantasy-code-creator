@@ -1,4 +1,3 @@
-
 import { StreamCallbacks } from "@/types/generation";
 import { getSystemPrompt } from "./promptService";
 import { buildPrompt } from "./promptBuilder";
@@ -55,6 +54,7 @@ export const callAnthropicApi = async (
           budget_tokens: THINKING_BUDGET_TOKENS
         }
       }),
+      signal: AbortSignal.timeout(400000),
     });
 
     if (!response.ok) {
