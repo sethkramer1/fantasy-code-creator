@@ -154,36 +154,80 @@ async function processAnthropicStream(reader, writer, supabase, gameId, estimate
   let completeChunk = '';
   
   try {
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => {
+      console.error('[STREAM] Processing timeout reached, aborting...');
+      abortController.abort();
+    }, 600000); // 10 minutes (600,000 ms)
+    
     while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) {
-        const finalOutputTokens = Math.max(1, Math.ceil(completeChunk.length / 4));
-        console.log('[TOKEN TRACKING] Final output tokens (estimated):', finalOutputTokens);
+      try {
+        const { done, value } = await reader.read();
         
-        if (tokenTrackingInfo && tokenTrackingInfo.messageId) {
-          await updateTokenRecords(
-            supabase,
-            tokenTrackingInfo.messageId,
-            estimatedInputTokens,
-            finalOutputTokens
-          );
+        if (done) {
+          clearTimeout(timeoutId);
+          const finalOutputTokens = Math.max(1, Math.ceil(completeChunk.length / 4));
+          console.log('[TOKEN TRACKING] Final output tokens (estimated):', finalOutputTokens);
           
-          const tokenInfoEvent = `data: ${JSON.stringify({
-            type: 'token_usage',
-            usage: {
-              input_tokens: estimatedInputTokens,
-              output_tokens: finalOutputTokens
-            }
-          })}\n\n`;
+          if (tokenTrackingInfo && tokenTrackingInfo.messageId) {
+            await updateTokenRecords(
+              supabase,
+              tokenTrackingInfo.messageId,
+              estimatedInputTokens,
+              finalOutputTokens
+            );
+            
+            const tokenInfoEvent = `data: ${JSON.stringify({
+              type: 'token_usage',
+              usage: {
+                input_tokens: estimatedInputTokens,
+                output_tokens: finalOutputTokens
+              }
+            })}\n\n`;
+            
+            await writer.write(new TextEncoder().encode(tokenInfoEvent));
+          }
           
-          await writer.write(new TextEncoder().encode(tokenInfoEvent));
+          await writer.write(new TextEncoder().encode('data: [DONE]\n\n'));
+          await writer.close();
+          
+          fullContent = removeTokenInfo(fullContent);
+          
+          const { error: updateGameError } = await supabase
+            .from('games')
+            .update({
+              code: fullContent
+            })
+            .eq('id', gameId);
+          
+          if (updateGameError) {
+            console.error(`Error updating game: ${updateGameError.message}`);
+          } else {
+            console.log(`Updated game ${gameId} with new content from stream (version creation handled by client)`);
+          }
+          
+          break;
         }
         
-        await writer.write(new TextEncoder().encode('data: [DONE]\n\n'));
-        await writer.close();
-        
+        const chunk = new TextDecoder().decode(value);
+        await processChunkLines(chunk, writer, completeChunk, fullContent);
+      } catch (readError) {
+        console.error('[STREAM] Error reading from stream:', readError);
+        if (readError.name === 'AbortError') {
+          await writer.write(new TextEncoder().encode(`data: ${JSON.stringify({
+            type: 'error',
+            error: { message: 'Stream processing timed out. The content generated so far will be saved.' }
+          })}\n\n`));
+        }
+        throw readError;
+      }
+    }
+  } catch (streamError) {
+    console.error('[STREAM ERROR]', streamError);
+    try {
+      if (fullContent.length > 0) {
         fullContent = removeTokenInfo(fullContent);
+        console.log(`Attempting to save partial content (${fullContent.length} chars) due to stream error`);
         
         const { error: updateGameError } = await supabase
           .from('games')
@@ -193,21 +237,25 @@ async function processAnthropicStream(reader, writer, supabase, gameId, estimate
           .eq('id', gameId);
         
         if (updateGameError) {
-          console.error(`Error updating game: ${updateGameError.message}`);
+          console.error(`Error updating game with partial content: ${updateGameError.message}`);
         } else {
-          console.log(`Updated game ${gameId} with new content from stream (version creation handled by client)`);
+          console.log(`Updated game ${gameId} with partial content after stream error`);
         }
-        
-        break;
       }
       
-      const chunk = new TextDecoder().decode(value);
-      
-      await processChunkLines(chunk, writer, completeChunk, fullContent);
+      await writer.write(new TextEncoder().encode(`data: ${JSON.stringify({
+        type: 'error',
+        error: { message: 'Stream was interrupted. Partial content has been saved.' }
+      })}\n\n`));
+    } catch (finalError) {
+      console.error('[FINAL ERROR] Failed to handle stream error gracefully:', finalError);
+    } finally {
+      try {
+        await writer.close();
+      } catch (closeError) {
+        console.error('[CLOSE ERROR] Failed to close writer:', closeError);
+      }
     }
-  } catch (streamError) {
-    console.error('[STREAM ERROR]', streamError);
-    writer.abort(streamError);
   }
 }
 
@@ -581,7 +629,7 @@ Follow these structure requirements precisely and generate clean, semantic, and 
     console.log('System message is properly set with length:', systemMessage.length);
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 120000);
+    const timeoutId = setTimeout(() => controller.abort(), 600000);
     
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {

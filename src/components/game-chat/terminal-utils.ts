@@ -154,152 +154,110 @@ export const processGroqResponse = async (
   return content;
 };
 
-export const processAnthropicStream = async (
+export async function processAnthropicStream(
   reader: ReadableStreamDefaultReader<Uint8Array>,
-  updateTerminalOutputFn: (text: string, isNewLine?: boolean) => void
-) => {
+  updateTerminalOutputFn: (message: string, isThinking?: boolean) => void,
+  onData?: (data: any) => void,
+  onComplete?: (content: string) => void
+): Promise<string> {
   let content = '';
   let buffer = '';
-  let receivedAnyData = false;
-  
-  console.log("Starting Anthropic stream processing");
-  updateTerminalOutputFn("> Anthropic stream connected, receiving content...", true);
+  let currentThinkingPhase = '';
   
   try {
     while (true) {
-      const { done, value } = await reader.read();
-      
-      if (done) {
-        console.log("Stream complete, received data:", receivedAnyData);
-        updateTerminalOutputFn("> Stream complete", true);
-        break;
-      }
-      
-      if (value && value.length > 0) {
-        receivedAnyData = true;
-      } else {
-        console.log("Received empty chunk");
-        continue;
-      }
-      
-      const chunk = new TextDecoder().decode(value);
-      console.log("Received chunk length:", chunk.length);
-      buffer += chunk;
-      
-      let lineEnd;
-      let processedLines = 0;
-      while ((lineEnd = buffer.indexOf('\n')) >= 0) {
-        const line = buffer.slice(0, lineEnd);
-        buffer = buffer.slice(lineEnd + 1);
-        processedLines++;
+      try {
+        const { done, value } = await reader.read();
         
-        if (!line.startsWith('data: ')) {
-          console.log("Skipping non-data line:", line.substring(0, 30));
-          continue;
+        if (done) {
+          if (onComplete) onComplete(content);
+          return content;
         }
         
-        try {
-          const eventData = line.slice(5).trim();
+        const chunk = new TextDecoder().decode(value);
+        buffer += chunk;
+        
+        let lineEnd;
+        while ((lineEnd = buffer.indexOf('\n')) >= 0) {
+          const line = buffer.slice(0, lineEnd);
+          buffer = buffer.slice(lineEnd + 1);
           
-          if (eventData === '[DONE]') {
-            console.log("Received [DONE] event");
-            updateTerminalOutputFn("> Stream complete", true);
-            break;
+          if (!line || !line.startsWith('data: ')) continue;
+          
+          const rawData = line.slice(5).trim();
+          
+          if (rawData === '[DONE]') {
+            if (onComplete) onComplete(content);
+            return content;
           }
           
-          const data = JSON.parse(eventData);
-          console.log("Received event type:", data.type);
-          
-          switch (data.type) {
-            case 'message_start':
-              updateTerminalOutputFn("> Starting response generation...", true);
-              break;
-              
-            case 'content_block_start':
-              if (data.content_block?.type === 'text') {
-                updateTerminalOutputFn("> Generating content...", true);
-              }
-              break;
-              
-            case 'content_block_delta':
-              if (data.delta?.type === 'thinking_delta') {
-                // IMPORTANT: Always display thinking updates, even if they're similar to previous ones
-                const thinking = data.delta.thinking?.trim() || '';
-                if (thinking) {
-                  console.log("Thinking update:", thinking);
-                  // Always show all thinking updates regardless of content
-                  updateTerminalOutputFn(`> Thinking: ${thinking}`, true);
+          try {
+            const data = JSON.parse(rawData);
+            
+            if (onData) onData(data);
+            
+            switch (data.type) {
+              case 'content_block_delta':
+                if (data.delta?.type === 'thinking_delta') {
+                  const thinking = data.delta.thinking?.trim() || '';
+                  if (thinking) {
+                    // Always display thinking updates, even if they're similar to previous ones
+                    updateTerminalOutputFn(`> Thinking: ${thinking}`, true);
+                  }
+                } else if (data.delta?.type === 'text_delta') {
+                  const contentChunk = data.delta.text || '';
+                  if (contentChunk && !isTokenInfo(contentChunk)) {
+                    // Only add non-token content
+                    content += contentChunk;
+                    updateTerminalOutputFn(`> ${contentChunk}`, false);
+                  }
                 }
-              } else if (data.delta?.type === 'text_delta') {
-                const contentChunk = data.delta.text || '';
-                if (contentChunk && !isTokenInfo(contentChunk)) {
-                  // Only add non-token content
-                  content += contentChunk;
-                  console.log("Content chunk:", contentChunk.substring(0, 30) + (contentChunk.length > 30 ? "..." : ""));
-                  updateTerminalOutputFn(`> ${contentChunk}`, false);
+                break;
+                
+              case 'content_block_start':
+                if (data.content_block?.type === 'thinking') {
+                  const thinking = data.content_block.thinking?.trim() || '';
+                  if (thinking) {
+                    updateTerminalOutputFn(`> Thinking: ${thinking}`, true);
+                  }
+                } else if (data.content_block?.text) {
+                  const contentText = data.content_block.text;
+                  if (contentText && !isTokenInfo(contentText)) {
+                    content += contentText;
+                    updateTerminalOutputFn(`> ${contentText}`, false);
+                  }
                 }
-              }
-              break;
-              
-            case 'message_delta':
-              if (data.delta?.stop_reason) {
-                updateTerminalOutputFn(`> Generation ${data.delta.stop_reason}`, true);
-              }
-              // We intentionally don't display token info in terminal, just log it
-              if (data.usage) {
-                console.log("[TOKEN TRACKING] Token usage from message_delta:", data.usage);
-              }
-              break;
-              
-            case 'message_stop':
-              updateTerminalOutputFn("> Content generation completed!", true);
-              break;
-              
-            case 'error':
-              const errorMessage = data.error?.message || 'Unknown error';
-              const errorType = data.error?.type || 'generic_error';
-              updateTerminalOutputFn(`> Error: ${errorMessage} (${errorType})`, true);
-              console.error("Stream error:", data.error);
-              throw new Error(errorMessage);
-              
-            default:
-              // Always display thinking updates without filtering
-              if (data.thinking) {
-                console.log("Standalone thinking update:", data.thinking);
-                updateTerminalOutputFn(`> Thinking: ${data.thinking}`, true);
-              }
-          }
-        } catch (parseError) {
-          if (!line.includes('[DONE]')) {
-            console.error('Error parsing stream data:', parseError, 'Line:', line.substring(0, 100));
+                break;
+                
+              case 'error':
+                const errorMsg = data.error?.message || 'Unknown error in stream';
+                updateTerminalOutputFn(`> Error: ${errorMsg}`, false);
+                throw new Error(errorMsg);
+            }
+          } catch (parseError) {
+            console.error('Error parsing JSON:', parseError, 'Line:', line);
+            // Don't throw here, just log and continue
           }
         }
+      } catch (readError) {
+        console.error('Error reading from stream:', readError);
+        updateTerminalOutputFn(`> Error reading from stream: ${readError instanceof Error ? readError.message : String(readError)}`, false);
+        throw readError;
       }
-      
-      console.log(`Processed ${processedLines} lines, remaining buffer length: ${buffer.length}`);
     }
-  } catch (error) {
-    console.error("Error processing stream:", error);
-    updateTerminalOutputFn(`> Error processing stream: ${error.message}`, true);
-    throw error;
-  }
-  
-  // Final cleanup of any token information that might have been included
-  content = removeTokenInfo(content);
-  
-  if (!content || content.trim().length === 0) {
-    console.error("No content received from AI");
-    if (receivedAnyData) {
-      updateTerminalOutputFn("> Error: Received data but couldn't extract content", true);
-    } else {
-      updateTerminalOutputFn("> Error: No data received from AI", true);
+  } catch (streamError) {
+    console.error('Stream processing error:', streamError);
+    updateTerminalOutputFn(`> Stream error: ${streamError instanceof Error ? streamError.message : String(streamError)}`, false);
+    
+    // If we have partial content, let's return it instead of throwing
+    if (content.length > 0) {
+      console.log(`Returning partial content (${content.length} chars) after stream error`);
+      return content;
     }
-    throw new Error("No content received from AI. Please try again.");
+    
+    throw streamError;
   }
-  
-  console.log("Final content length:", content.length);
-  return content;
-};
+}
 
 // Helper functions for token detection and removal
 function isTokenInfo(text: string): boolean {
