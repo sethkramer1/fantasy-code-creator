@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect, forwardRef, memo, useState } from "react";
 
 interface IframePreviewProps {
@@ -23,6 +24,16 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
         ref.current = localIframeRef.current;
       }
     }, [ref]);
+
+    // Debug iframe state
+    useEffect(() => {
+      console.log("IframePreview state:", {
+        isEditable,
+        iframeLoaded,
+        editModeEnabled,
+        hasCodeUpdateCallback: !!onCodeUpdate
+      });
+    }, [isEditable, iframeLoaded, editModeEnabled, onCodeUpdate]);
 
     // This function directly enables edit mode in the iframe
     const enableEditModeDirectly = () => {
@@ -273,6 +284,12 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
           "    messageEl.remove();" +
           "  }" +
           "  " +
+          "  // Remove debug button" +
+          "  const debugButton = document.getElementById('debug-update-button');" +
+          "  if (debugButton) {" +
+          "    debugButton.remove();" +
+          "  }" +
+          "  " +
           "  console.log('Edit mode disabled');" +
           "})();";
         
@@ -281,6 +298,16 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
         
         // Set flag to indicate edit mode is disabled
         setEditModeEnabled(false);
+        
+        // Clear session storage
+        try {
+          if (iframe.contentWindow.sessionStorage) {
+            iframe.contentWindow.sessionStorage.removeItem('editMode');
+            console.log("Removed edit mode state from sessionStorage");
+          }
+        } catch (error) {
+          console.error("Error removing edit mode from sessionStorage:", error);
+        }
         
       } catch (error) {
         console.error("Error disabling edit mode:", error);
@@ -344,7 +371,7 @@ export const IframePreview = memo(forwardRef<HTMLIFrameElement, IframePreviewPro
       }
       
       const handleMessage = (event: MessageEvent) => {
-        console.log("Received message from iframe:", event.data?.type);
+        console.log("Received message type:", event.data?.type);
         
         // Check if the message is from our iframe
         if (event.data && event.data.type === 'TEXT_UPDATED') {

@@ -1,3 +1,4 @@
+
 import { useEffect, forwardRef, useState, useImperativeHandle, useRef } from "react";
 import { parseCodeSections } from "./utils/CodeParser";
 import { CodeEditor } from "./components/CodeEditor";
@@ -33,6 +34,16 @@ export const GamePreview = forwardRef<HTMLIFrameElement, GamePreviewProps>(
     
     // Forward the ref
     useImperativeHandle(ref, () => iframeRef.current as HTMLIFrameElement);
+    
+    // Debug edit mode state
+    useEffect(() => {
+      console.log("GamePreview edit mode state:", { 
+        isEditMode, 
+        isOwner, 
+        hasCurrentVersion: !!currentVersion,
+        hasOnSaveCode: !!onSaveCode
+      });
+    }, [isEditMode, isOwner, currentVersion, onSaveCode]);
     
     // Process the code when currentVersion changes
     useEffect(() => {
@@ -80,6 +91,14 @@ ${js}
         }
         
         setProcessedCode(combinedCode);
+        
+        // Reset editedCode when version changes
+        setEditedCode(null);
+        
+        // Exit edit mode when version changes
+        if (isEditMode) {
+          setIsEditMode(false);
+        }
       }
     }, [currentVersion]);
     
@@ -290,6 +309,7 @@ ${js}
                 code={processedCode}
                 isEditable={isEditMode}
                 onCodeUpdate={handleCodeUpdate}
+                key={`iframe-preview-${refreshCounter}-${isEditMode ? 'edit' : 'view'}`}
               />
             </div>
             
