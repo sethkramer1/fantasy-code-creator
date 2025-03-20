@@ -69,7 +69,7 @@ export const GameChat = ({
     setPreviousDisabledState(disabled);
   }, [disabled, initialMessageId, previousDisabledState, setInitialMessageId]);
 
-  // Add confirmation message after generation completes
+  // Add confirmation message after generation completes and clean up status messages
   useEffect(() => {
     const handleGenerationComplete = async () => {
       if (generationComplete && gameId && !generationHandledRef.current) {
@@ -94,18 +94,21 @@ export const GameChat = ({
                 msg.message === "Initial Generation" ||
                 msg.message === "Content generated")) ||
               (msg.message && msg.message.includes("Generating initial")) ||
-              (msg.response && msg.response.includes("Content generated")) ||
-              (msg.response && msg.response.includes("Initial generation in progress"))
+              (msg.response === "Generating initial content...") ||
+              (msg.response === "Initial generation in progress...")
             );
             
             console.log(`Found ${statusMessages.length} status messages to clean up`);
             
-            // Keep only the initial generation message to update, remove all others
+            // Delete all status messages except one that we will update
+            let initialMessageToUpdate = null;
             for (const msg of statusMessages) {
-              // Don't delete the very first message that's being processed as initial generation
-              if (msg.response === "Initial generation in progress..." || 
-                  msg.response === "Generating initial content...") {
+              // Keep only one message to update if it's an initial generation message
+              if ((msg.response === "Initial generation in progress..." || 
+                   msg.response === "Generating initial content...") && 
+                   !initialMessageToUpdate) {
                 console.log(`Keeping and updating initial message: ${msg.id}`);
+                initialMessageToUpdate = msg;
                 continue;
               }
               
@@ -115,33 +118,51 @@ export const GameChat = ({
                 .delete()
                 .eq('id', msg.id);
             }
-          }
 
-          // Update the initial generation message to show completion
-          const { data: updatedMessage, error: updateError } = await supabase
-            .from('game_messages')
-            .update({ 
-              response: "✅ Content has been generated successfully. You can now ask me to modify it!" 
-            })
-            .eq('game_id', gameId)
-            .or(`response.eq.Initial generation in progress...,response.eq.Generating initial content...`)
-            .select('*')
-            .maybeSingle();
-            
-          if (updateError) {
-            console.error("Error updating initial generation message:", updateError);
-          } else if (updatedMessage) {
-            console.log("Successfully updated initial message:", updatedMessage.id);
-            
-            // Update the message in the local state
-            setMessages(prevMessages => 
-              prevMessages.map(msg => 
-                (msg.response === "Initial generation in progress..." || 
-                 msg.response === "Generating initial content...") 
-                 ? { ...msg, response: "✅ Content has been generated successfully. You can now ask me to modify it!" } 
-                 : msg
-              )
-            );
+            // If we found an initial message to update, update it
+            if (initialMessageToUpdate) {
+              const { data: updatedMessage, error: updateError } = await supabase
+                .from('game_messages')
+                .update({ 
+                  response: "✅ Content has been generated successfully. You can now ask me to modify it!" 
+                })
+                .eq('id', initialMessageToUpdate.id)
+                .select('*')
+                .maybeSingle();
+                
+              if (updateError) {
+                console.error("Error updating initial generation message:", updateError);
+              } else if (updatedMessage) {
+                console.log("Successfully updated initial message:", updatedMessage.id);
+                
+                // Update the message in the local state
+                setMessages(prevMessages => 
+                  prevMessages.map(msg => 
+                    msg.id === initialMessageToUpdate.id
+                      ? { ...msg, response: "✅ Content has been generated successfully. You can now ask me to modify it!" } 
+                      : msg
+                  )
+                );
+              }
+            } else {
+              // If no initial message found, add a new completion message
+              const { data: newMessage, error: insertError } = await supabase
+                .from('game_messages')
+                .insert({
+                  game_id: gameId,
+                  message: "Generation Complete",
+                  response: "✅ Content has been generated successfully. You can now ask me to modify it!",
+                  is_system: true
+                })
+                .select('*')
+                .single();
+                
+              if (insertError) {
+                console.error("Error adding completion message:", insertError);
+              } else if (newMessage) {
+                console.log("Added new completion message:", newMessage.id);
+              }
+            }
           }
           
           // Reset the flag and fetch latest messages
